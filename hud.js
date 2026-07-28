@@ -326,6 +326,78 @@
     return quipBag.pop();
   }
 
+  /* Personal roasts: when the live board is available at death time, the quip
+     targets someone real instead of the generic bag. */
+  var LAST_TOP_KEY = 'stack-last-top';
+  var ROAST_RIVAL = [
+    'Even {n} got further. {n} got {s}.',
+    'Somewhere, {n} ({s}) is not impressed.',
+    'That puts you below {n}. Sit with that.',
+    '{n} needed {s} to beat you. {n} had it.'
+  ];
+  var ROAST_TIE = [
+    'You and {n}: equally mortal at {s}.',
+    'A perfect tie with {n}. Neither of you is fine.'
+  ];
+  var ROAST_KING = [
+    'New throne occupant: {me}. Everyone else may now cope.',
+    'The board bows to {me}. For now.'
+  ];
+  var ROAST_NEWS = [
+    'Meanwhile, {n} took the crown at {s}.',
+    'Breaking: {n} now rules the tower at {s}.'
+  ];
+
+  /* Trailing LRM keeps RTL names (Hebrew) from reordering the sentence. */
+  function lrm(name) { return String(name) + '‎'; }
+
+  function pickFrom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+  function fillRoast(tpl, name, score) {
+    return tpl.replace(/\{n\}/g, lrm(name)).replace(/\{s\}/g, String(score));
+  }
+
+  function readLastTop() {
+    try {
+      var v = JSON.parse(window.localStorage.getItem(LAST_TOP_KEY) || 'null');
+      return v && typeof v.name === 'string' ? v : null;
+    } catch (err) { return null; }
+  }
+
+  function rememberTop(rows) {
+    if (!rows || !rows.length || !rows[0]) { return; }
+    try {
+      window.localStorage.setItem(LAST_TOP_KEY, JSON.stringify({ name: rows[0].name, score: rows[0].score }));
+    } catch (err) { /* ignore */ }
+  }
+
+  function computeRoast(rows, myScore, myName) {
+    if (!rows || !rows.length) { return null; }
+    var top = rows[0] || {};
+    if (typeof top.score === 'number' && myScore > top.score) {
+      return pickFrom(ROAST_KING).replace('{me}', myName ? lrm(myName) : 'you');
+    }
+    var last = readLastTop();
+    if (last && top.name != null && (top.name !== last.name || top.score !== last.score) && top.name !== myName) {
+      return fillRoast(pickFrom(ROAST_NEWS), top.name, top.score);
+    }
+    var rivals = [];
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      if (r && r.name != null && r.name !== myName && typeof r.score === 'number' && r.score >= myScore) {
+        rivals.push(r);
+      }
+    }
+    if (!rivals.length) { return null; }
+    var rv = rivals[Math.floor(Math.random() * rivals.length)];
+    return fillRoast(pickFrom(rv.score === myScore ? ROAST_TIE : ROAST_RIVAL), rv.name, rv.score);
+  }
+
+  function applyRoast(rows) {
+    var line = computeRoast(rows, state.score, readName());
+    if (line) { els.quip.textContent = line; }
+  }
+
   function readName() {
     try { return String(window.localStorage.getItem(NAME_KEY) || ''); } catch (err) { return ''; }
   }
@@ -404,10 +476,14 @@
     renderRows(els.lbList, els.lbStatus, rows, mine, label);
   }
 
-  function refreshBoard(mine) {
+  function refreshBoard(mine, wantRoast) {
     els.lbStatus.textContent = 'LOADING';
     fetchTop(function (rows) {
-      if (rows) { renderBoard(rows, mine, ''); }
+      if (rows) {
+        renderBoard(rows, mine, '');
+        if (wantRoast && state.mode === 'over') { applyRoast(rows); }
+        rememberTop(rows);
+      }
       else { renderBoard(readLocalBoard(), mine, 'THIS DEVICE ONLY'); }
     });
   }
@@ -517,7 +593,7 @@
     els.saveBtn.textContent = 'SAVE';
     els.entry.classList.remove('is-done');
     els.entry.hidden = !(finalScore > 0);
-    refreshBoard(null);
+    refreshBoard(null, true);
 
     state.overAt = Date.now();
     setMode('over');
