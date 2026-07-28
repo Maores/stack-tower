@@ -1,0 +1,5 @@
+# Run evidence and reference material stay local (reference stills are
+# App Store marketing images and must not be redistributed).
+reference/
+reference-vetting/
+review/
