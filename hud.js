@@ -199,9 +199,37 @@
     over.appendChild(backdrop);
     over.appendChild(panel);
 
+    /* Standalone board view + its corner toggle (title/over states only) */
+    var boardBtn = el('button', 'hud-board-btn');
+    boardBtn.type = 'button';
+    boardBtn.setAttribute('aria-label', 'Show leaderboard');
+    boardBtn.innerHTML =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" ' +
+      'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      '<path d="M8 21h8M12 17v4M7 4h10v4a5 5 0 0 1-10 0V4z"/>' +
+      '<path d="M7 6H4a2 2 0 0 0 2 4h1M17 6h3a2 2 0 0 1-2 4h-1"/></svg>';
+    var board = el('div', 'hud-board');
+    var boardPanel = el('div', 'hud-board-panel');
+    var boardClose = el('button', 'hud-board-close');
+    boardClose.type = 'button';
+    boardClose.setAttribute('aria-label', 'Close leaderboard');
+    boardClose.innerHTML =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" ' +
+      'stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+    var boardTitle = el('div', 'hud-lb-title', 'TOP 10');
+    var boardStatus = el('div', 'hud-lb-status', '');
+    var boardList = el('ol', 'hud-lb-list hud-board-list');
+    boardPanel.appendChild(boardClose);
+    boardPanel.appendChild(boardTitle);
+    boardPanel.appendChild(boardStatus);
+    boardPanel.appendChild(boardList);
+    board.appendChild(boardPanel);
+
     root.appendChild(scoreWrap);
     root.appendChild(title);
     root.appendChild(over);
+    root.appendChild(boardBtn);
+    root.appendChild(board);
 
     return {
       root: root,
@@ -218,7 +246,12 @@
       lbList: lbList,
       entry: entry,
       nameInput: nameInput,
-      saveBtn: saveBtn
+      saveBtn: saveBtn,
+      boardBtn: boardBtn,
+      board: board,
+      boardStatus: boardStatus,
+      boardList: boardList,
+      boardClose: boardClose
     };
   }
 
@@ -346,11 +379,11 @@
     } catch (err) { clearTimeout(timer); finish(false); }
   }
 
-  function renderBoard(rows, mine, label) {
-    els.lbStatus.textContent = label || '';
-    while (els.lbList.firstChild) { els.lbList.removeChild(els.lbList.firstChild); }
+  function renderRows(listEl, statusEl, rows, mine, label) {
+    statusEl.textContent = label || '';
+    while (listEl.firstChild) { listEl.removeChild(listEl.firstChild); }
     if (!rows || !rows.length) {
-      els.lbList.appendChild(el('li', 'hud-lb-empty', 'NO SCORES YET'));
+      listEl.appendChild(el('li', 'hud-lb-empty', 'NO SCORES YET'));
       return;
     }
     var mineMarked = false;
@@ -363,8 +396,12 @@
         li.className = 'hud-lb-mine';
         mineMarked = true;
       }
-      els.lbList.appendChild(li);
+      listEl.appendChild(li);
     }
+  }
+
+  function renderBoard(rows, mine, label) {
+    renderRows(els.lbList, els.lbStatus, rows, mine, label);
   }
 
   function refreshBoard(mine) {
@@ -373,6 +410,36 @@
       if (rows) { renderBoard(rows, mine, ''); }
       else { renderBoard(readLocalBoard(), mine, 'THIS DEVICE ONLY'); }
     });
+  }
+
+  /* Standalone board view: opens from the corner trophy, refreshes itself
+     every 15s while open so nobody has to reload anything. */
+  var boardOpen = false;
+  var boardTimer = null;
+  var BOARD_REFRESH_MS = 15000;
+
+  function refreshOverlayBoard(showLoading) {
+    if (showLoading) { els.boardStatus.textContent = 'LOADING'; }
+    fetchTop(function (rows) {
+      if (!boardOpen) { return; }
+      if (rows) { renderRows(els.boardList, els.boardStatus, rows, null, ''); }
+      else { renderRows(els.boardList, els.boardStatus, readLocalBoard(), null, 'THIS DEVICE ONLY'); }
+    });
+  }
+
+  function openBoard() {
+    if (boardOpen) { return; }
+    boardOpen = true;
+    els.root.setAttribute('data-board', 'open');
+    refreshOverlayBoard(true);
+    boardTimer = setInterval(function () { refreshOverlayBoard(false); }, BOARD_REFRESH_MS);
+  }
+
+  function closeBoard() {
+    if (!boardOpen) { return; }
+    boardOpen = false;
+    els.root.removeAttribute('data-board');
+    if (boardTimer) { clearInterval(boardTimer); boardTimer = null; }
   }
 
   function trySave() {
@@ -518,10 +585,19 @@
     els.nameInput.addEventListener('keydown', function (ev) {
       if (ev.key === 'Enter') { ev.preventDefault(); trySave(); }
     });
+    els.boardBtn.addEventListener('click', openBoard);
+    els.boardClose.addEventListener('click', closeBoard);
+    els.board.addEventListener('pointerdown', function (ev) {
+      if (ev.target === els.board) { closeBoard(); } /* tap outside the panel */
+    });
 
     window.addEventListener('keydown', function (ev) {
       if (ev.repeat) { return; }
       if (els && ev.target === els.nameInput) { return; } /* typing, not restarting */
+      if (boardOpen) {
+        if (ev.key === 'Escape') { ev.preventDefault(); closeBoard(); }
+        return; /* board view swallows all other keys */
+      }
       var k = ev.key;
       if (k !== ' ' && k !== 'Enter' && k !== 'Spacebar') { return; }
       if (state.mode === 'title') { ev.preventDefault(); tryStart(); }

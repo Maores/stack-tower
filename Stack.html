@@ -333,8 +333,23 @@
   display: none;
 }
 
+/* Short-screen fix: the overlay scrolls, and the panel centers itself with
+   auto margins so overflowing content stays reachable instead of clipping
+   past the top (the flex justify-content:center overflow trap). */
+.hud-over {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+.hud-over-backdrop {
+  position: fixed;
+}
 .hud-over-panel {
-  overflow-y: auto; /* board + keyboard can exceed short phone screens */
+  height: auto;
+  margin-top: auto;
+  margin-bottom: auto;
+  padding-top: 4vh;
+  padding-bottom: 4vh;
 }
 
 .hud-lb {
@@ -491,6 +506,124 @@
 }
 
 /* --------------------------------------------------------------------------
+   Corner trophy button + standalone board view
+   -------------------------------------------------------------------------- */
+.hud-board-btn {
+  position: fixed;
+  top: max(2.2vh, env(safe-area-inset-top, 0px));
+  right: max(2.2vh, env(safe-area-inset-right, 0px));
+  z-index: 110;
+  width: clamp(40px, 6.5vmin, 52px);
+  height: clamp(40px, 6.5vmin, 52px);
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  background: rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  cursor: pointer;
+  opacity: 0.8;
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.18);
+  transition: opacity 0.3s ease, transform 0.18s ease, background-color 0.18s ease;
+}
+.hud-board-btn:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.16);
+}
+.hud-board-btn:active {
+  transform: scale(0.92);
+}
+.hud-board-btn:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
+}
+.hud-board-btn svg {
+  width: 52%;
+  height: 52%;
+  display: block;
+}
+/* Any tap during play drops a block, so the button leaves the stage. */
+#hud-root[data-state="playing"] .hud-board-btn,
+#hud-root[data-state="boot"] .hud-board-btn {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.hud-board {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8, 14, 30, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.3s ease, visibility 0s linear 0.3s;
+}
+#hud-root[data-board="open"] .hud-board {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition: opacity 0.3s ease;
+}
+.hud-board-panel {
+  position: relative;
+  width: min(84vw, 380px);
+  max-height: 82vh;
+  display: flex;
+  flex-direction: column;
+  padding: 3.2vh 6vw 3.2vh;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 18px;
+  background: rgba(10, 18, 38, 0.35);
+  box-shadow: 0 0 30px rgba(255, 255, 255, 0.12), inset 0 0 18px rgba(255, 255, 255, 0.05);
+}
+.hud-board-panel .hud-lb-title {
+  margin-top: 6px; /* clear of the close button row */
+}
+.hud-board-close {
+  position: absolute;
+  z-index: 2; /* stays tappable above the title text */
+  top: 10px;
+  right: 10px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: transform 0.18s ease, background-color 0.18s ease;
+}
+.hud-board-close:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+.hud-board-close:active {
+  transform: scale(0.9);
+}
+.hud-board-close:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+.hud-board-close svg {
+  width: 55%;
+  height: 55%;
+  display: block;
+}
+.hud-board-list {
+  max-height: 58vh;
+  margin-top: 1.6vh;
+}
+
+/* --------------------------------------------------------------------------
    Reduced motion
    -------------------------------------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {
@@ -509,7 +642,9 @@
   #hud-root .hud-anim,
   #hud-root .hud-score,
   #hud-root .hud-title,
-  #hud-root .hud-over {
+  #hud-root .hud-over,
+  #hud-root .hud-board,
+  #hud-root .hud-board-btn {
     transition-duration: 0.01s;
   }
 }
@@ -2576,9 +2711,37 @@
     over.appendChild(backdrop);
     over.appendChild(panel);
 
+    /* Standalone board view + its corner toggle (title/over states only) */
+    var boardBtn = el('button', 'hud-board-btn');
+    boardBtn.type = 'button';
+    boardBtn.setAttribute('aria-label', 'Show leaderboard');
+    boardBtn.innerHTML =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" ' +
+      'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      '<path d="M8 21h8M12 17v4M7 4h10v4a5 5 0 0 1-10 0V4z"/>' +
+      '<path d="M7 6H4a2 2 0 0 0 2 4h1M17 6h3a2 2 0 0 1-2 4h-1"/></svg>';
+    var board = el('div', 'hud-board');
+    var boardPanel = el('div', 'hud-board-panel');
+    var boardClose = el('button', 'hud-board-close');
+    boardClose.type = 'button';
+    boardClose.setAttribute('aria-label', 'Close leaderboard');
+    boardClose.innerHTML =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" ' +
+      'stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+    var boardTitle = el('div', 'hud-lb-title', 'TOP 10');
+    var boardStatus = el('div', 'hud-lb-status', '');
+    var boardList = el('ol', 'hud-lb-list hud-board-list');
+    boardPanel.appendChild(boardClose);
+    boardPanel.appendChild(boardTitle);
+    boardPanel.appendChild(boardStatus);
+    boardPanel.appendChild(boardList);
+    board.appendChild(boardPanel);
+
     root.appendChild(scoreWrap);
     root.appendChild(title);
     root.appendChild(over);
+    root.appendChild(boardBtn);
+    root.appendChild(board);
 
     return {
       root: root,
@@ -2595,7 +2758,12 @@
       lbList: lbList,
       entry: entry,
       nameInput: nameInput,
-      saveBtn: saveBtn
+      saveBtn: saveBtn,
+      boardBtn: boardBtn,
+      board: board,
+      boardStatus: boardStatus,
+      boardList: boardList,
+      boardClose: boardClose
     };
   }
 
@@ -2723,11 +2891,11 @@
     } catch (err) { clearTimeout(timer); finish(false); }
   }
 
-  function renderBoard(rows, mine, label) {
-    els.lbStatus.textContent = label || '';
-    while (els.lbList.firstChild) { els.lbList.removeChild(els.lbList.firstChild); }
+  function renderRows(listEl, statusEl, rows, mine, label) {
+    statusEl.textContent = label || '';
+    while (listEl.firstChild) { listEl.removeChild(listEl.firstChild); }
     if (!rows || !rows.length) {
-      els.lbList.appendChild(el('li', 'hud-lb-empty', 'NO SCORES YET'));
+      listEl.appendChild(el('li', 'hud-lb-empty', 'NO SCORES YET'));
       return;
     }
     var mineMarked = false;
@@ -2740,8 +2908,12 @@
         li.className = 'hud-lb-mine';
         mineMarked = true;
       }
-      els.lbList.appendChild(li);
+      listEl.appendChild(li);
     }
+  }
+
+  function renderBoard(rows, mine, label) {
+    renderRows(els.lbList, els.lbStatus, rows, mine, label);
   }
 
   function refreshBoard(mine) {
@@ -2750,6 +2922,36 @@
       if (rows) { renderBoard(rows, mine, ''); }
       else { renderBoard(readLocalBoard(), mine, 'THIS DEVICE ONLY'); }
     });
+  }
+
+  /* Standalone board view: opens from the corner trophy, refreshes itself
+     every 15s while open so nobody has to reload anything. */
+  var boardOpen = false;
+  var boardTimer = null;
+  var BOARD_REFRESH_MS = 15000;
+
+  function refreshOverlayBoard(showLoading) {
+    if (showLoading) { els.boardStatus.textContent = 'LOADING'; }
+    fetchTop(function (rows) {
+      if (!boardOpen) { return; }
+      if (rows) { renderRows(els.boardList, els.boardStatus, rows, null, ''); }
+      else { renderRows(els.boardList, els.boardStatus, readLocalBoard(), null, 'THIS DEVICE ONLY'); }
+    });
+  }
+
+  function openBoard() {
+    if (boardOpen) { return; }
+    boardOpen = true;
+    els.root.setAttribute('data-board', 'open');
+    refreshOverlayBoard(true);
+    boardTimer = setInterval(function () { refreshOverlayBoard(false); }, BOARD_REFRESH_MS);
+  }
+
+  function closeBoard() {
+    if (!boardOpen) { return; }
+    boardOpen = false;
+    els.root.removeAttribute('data-board');
+    if (boardTimer) { clearInterval(boardTimer); boardTimer = null; }
   }
 
   function trySave() {
@@ -2895,10 +3097,19 @@
     els.nameInput.addEventListener('keydown', function (ev) {
       if (ev.key === 'Enter') { ev.preventDefault(); trySave(); }
     });
+    els.boardBtn.addEventListener('click', openBoard);
+    els.boardClose.addEventListener('click', closeBoard);
+    els.board.addEventListener('pointerdown', function (ev) {
+      if (ev.target === els.board) { closeBoard(); } /* tap outside the panel */
+    });
 
     window.addEventListener('keydown', function (ev) {
       if (ev.repeat) { return; }
       if (els && ev.target === els.nameInput) { return; } /* typing, not restarting */
+      if (boardOpen) {
+        if (ev.key === 'Escape') { ev.preventDefault(); closeBoard(); }
+        return; /* board view swallows all other keys */
+      }
       var k = ev.key;
       if (k !== ' ' && k !== 'Enter' && k !== 'Spacebar') { return; }
       if (state.mode === 'title') { ev.preventDefault(); tryStart(); }

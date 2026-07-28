@@ -305,8 +305,23 @@
   display: none;
 }
 
+/* Short-screen fix: the overlay scrolls, and the panel centers itself with
+   auto margins so overflowing content stays reachable instead of clipping
+   past the top (the flex justify-content:center overflow trap). */
+.hud-over {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+.hud-over-backdrop {
+  position: fixed;
+}
 .hud-over-panel {
-  overflow-y: auto; /* board + keyboard can exceed short phone screens */
+  height: auto;
+  margin-top: auto;
+  margin-bottom: auto;
+  padding-top: 4vh;
+  padding-bottom: 4vh;
 }
 
 .hud-lb {
@@ -463,6 +478,124 @@
 }
 
 /* --------------------------------------------------------------------------
+   Corner trophy button + standalone board view
+   -------------------------------------------------------------------------- */
+.hud-board-btn {
+  position: fixed;
+  top: max(2.2vh, env(safe-area-inset-top, 0px));
+  right: max(2.2vh, env(safe-area-inset-right, 0px));
+  z-index: 110;
+  width: clamp(40px, 6.5vmin, 52px);
+  height: clamp(40px, 6.5vmin, 52px);
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  background: rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  cursor: pointer;
+  opacity: 0.8;
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.18);
+  transition: opacity 0.3s ease, transform 0.18s ease, background-color 0.18s ease;
+}
+.hud-board-btn:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.16);
+}
+.hud-board-btn:active {
+  transform: scale(0.92);
+}
+.hud-board-btn:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
+}
+.hud-board-btn svg {
+  width: 52%;
+  height: 52%;
+  display: block;
+}
+/* Any tap during play drops a block, so the button leaves the stage. */
+#hud-root[data-state="playing"] .hud-board-btn,
+#hud-root[data-state="boot"] .hud-board-btn {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.hud-board {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8, 14, 30, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.3s ease, visibility 0s linear 0.3s;
+}
+#hud-root[data-board="open"] .hud-board {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition: opacity 0.3s ease;
+}
+.hud-board-panel {
+  position: relative;
+  width: min(84vw, 380px);
+  max-height: 82vh;
+  display: flex;
+  flex-direction: column;
+  padding: 3.2vh 6vw 3.2vh;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 18px;
+  background: rgba(10, 18, 38, 0.35);
+  box-shadow: 0 0 30px rgba(255, 255, 255, 0.12), inset 0 0 18px rgba(255, 255, 255, 0.05);
+}
+.hud-board-panel .hud-lb-title {
+  margin-top: 6px; /* clear of the close button row */
+}
+.hud-board-close {
+  position: absolute;
+  z-index: 2; /* stays tappable above the title text */
+  top: 10px;
+  right: 10px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: transform 0.18s ease, background-color 0.18s ease;
+}
+.hud-board-close:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+.hud-board-close:active {
+  transform: scale(0.9);
+}
+.hud-board-close:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+.hud-board-close svg {
+  width: 55%;
+  height: 55%;
+  display: block;
+}
+.hud-board-list {
+  max-height: 58vh;
+  margin-top: 1.6vh;
+}
+
+/* --------------------------------------------------------------------------
    Reduced motion
    -------------------------------------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {
@@ -481,7 +614,9 @@
   #hud-root .hud-anim,
   #hud-root .hud-score,
   #hud-root .hud-title,
-  #hud-root .hud-over {
+  #hud-root .hud-over,
+  #hud-root .hud-board,
+  #hud-root .hud-board-btn {
     transition-duration: 0.01s;
   }
 }
