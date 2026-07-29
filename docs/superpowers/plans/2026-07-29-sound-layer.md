@@ -754,6 +754,111 @@ Per the global vault rule: append the sound-layer line to the `## Current status
 
 ---
 
+### Task 5: Listen-feedback fixes (added 2026-07-29, approved end to end)
+
+Maor's phone listen: mute must be visible during play, game over must be silent, long streaks must not repeat one chime note. Spec revision section "Revision 2026-07-29 (post-listen feedback)" is the requirement source.
+
+**Files:**
+- Modify: `audio.js` (playPerfect index, remove playGameOver), `hud.css` (hide rule)
+- Modify (scratchpad, not committed): `<scratchpad>/pw-audio.js`, `<scratchpad>/pw-mute.js`
+- Regenerate: `Stack.html`
+
+**Interfaces:**
+- Consumes: everything from Tasks 1-3 as deployed.
+- Produces: no API changes; `debug.played`/`debug.last` semantics change only in that a miss no longer schedules a voice.
+
+- [ ] **Step 1: Update both tests first (RED)**
+
+In `<scratchpad>/pw-audio.js`, replace the whole `const counts = await page.evaluate(...)` block and the `expect` line with:
+
+```javascript
+  const counts = await page.evaluate(async () => {
+    const wait = ms => new Promise(r => setTimeout(r, ms));
+    const out = [];
+    await wait(400);
+    window.StackCore.debug.drop(0.5);  out.push([window.StackAudio.debug.played, window.StackAudio.debug.last]);
+    await wait(150);
+    window.StackCore.debug.drop(0);   out.push([window.StackAudio.debug.played, window.StackAudio.debug.last]);
+    await wait(150);
+    window.StackCore.debug.drop(0);
+    window.StackCore.debug.drop(0);   out.push([window.StackAudio.debug.played, window.StackAudio.debug.last]);
+    await wait(150);
+    for (let i = 0; i < 9; i++) { window.StackCore.debug.drop(0); }
+    out.push([window.StackAudio.debug.played, window.StackAudio.debug.last]);
+    await wait(150);
+    window.StackCore.debug.drop(6);   out.push([window.StackAudio.debug.played, window.StackAudio.debug.last]);
+    return out;
+  });
+  const expect = [[1, 'sliced'], [2, 'perfect'], [4, 'perfect'], [13, 'perfect'], [13, 'perfect']];
+```
+
+(12 consecutive perfects push the streak past the cap; the final miss must add no voice.)
+
+In `<scratchpad>/pw-mute.js`, replace the `hiddenPlaying` evaluate block and its `if` with:
+
+```javascript
+  const playingVis = await page.evaluate(() => {
+    const m = getComputedStyle(document.querySelector('.hud-mute-btn'));
+    const t = getComputedStyle(document.querySelector('.hud-board-btn'));
+    return { state: document.querySelector('#hud-root').getAttribute('data-state'),
+             muteOpacity: m.opacity, mutePe: m.pointerEvents,
+             trophyOpacity: t.opacity, trophyPe: t.pointerEvents };
+  });
+  if (playingVis.state !== 'playing' || playingVis.muteOpacity === '0' || playingVis.mutePe === 'none' ||
+      playingVis.trophyOpacity !== '0' || playingVis.trophyPe !== 'none')
+    throw new Error('FAIL: playing-state button visibility wrong: ' + JSON.stringify(playingVis));
+```
+
+Run both against local `index.html`; expected: pw-audio FAILS at the miss checkpoint (a gameover voice still fires), pw-mute FAILS on mute visibility during play.
+
+- [ ] **Step 2: audio.js changes**
+
+Delete the whole `playGameOver` function. Change the `game:over` listener to:
+
+```javascript
+  window.addEventListener('game:over', function () { streak = 0; });
+```
+
+Replace `playPerfect` with:
+
+```javascript
+  /* Perfect placement: chime stepping up the pentatonic ladder. Climbs for
+     the first 10 steps; past the cap it rotates the three highest notes so
+     the peak shimmers instead of repeating one chime. */
+  function playPerfect(t, step) {
+    var idx = step <= 10 ? step : 8 + ((step - 11) % 3);
+    var f = BASE_HZ * Math.pow(2, LADDER[idx] / 12);
+    tone(t, 'sine', f, 0.45, 0.35);
+    tone(t, 'sine', f * 2 * 1.003, 0.18, 0.35);   /* shimmer partial */
+  }
+```
+
+- [ ] **Step 3: hud.css hide rule**
+
+Replace the corner-button hide rule with (mute now hides in boot only):
+
+```css
+#hud-root[data-state="playing"] .hud-board-btn,
+#hud-root[data-state="boot"] .hud-board-btn,
+#hud-root[data-state="boot"] .hud-mute-btn {
+  opacity: 0;
+  pointer-events: none;
+}
+```
+
+- [ ] **Step 4: GREEN + regression + rebuild**
+
+Run pw-audio.js and pw-mute.js (both must PASS), then `node scripts/build-offline.mjs` and pw-offline.js (PASS).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add audio.js hud.css Stack.html
+git commit -m "Listen feedback: mute during play, silent game over, rotating streak peak"
+```
+
+---
+
 ## Self-review notes
 
 - Spec coverage: architecture and events (Task 1), context lifecycle (Task 1 code), all three sounds (Task 1 code), mute UX + accessibility (Task 2), platform notes need no code, verification checklist (Tasks 1-4), rollout items 1-5 (gitignore commit already landed pre-plan; Tasks 1-4 cover the rest).

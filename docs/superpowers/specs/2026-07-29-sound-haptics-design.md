@@ -36,14 +36,14 @@ Add synthesized sound to the stack-tower web game: glassy minimal SFX, no ambien
 Master chain: voices route into one master GainNode (0.5) into a DynamicsCompressor (defaults) into the destination.
 
 - **Sliced placement**: glass tap. Triangle oscillator, base 440Hz with random detune up to ±15Hz, 2ms attack, roughly 140ms exponential decay, peak gain 0.35. Layered with a white-noise burst through a bandpass sweeping 1200Hz down to 400Hz over roughly 120ms at gain 0.12 (the shaved-piece swish).
-- **Perfect placement**: the signature chime ladder. Major pentatonic on C5 (523.25Hz), steps C D E G A per octave, one step per consecutive perfect, capped at 10 steps (two octaves) and held at the cap; resets with the streak. Voice: sine at f plus sine at 2f (0.4 relative gain) with slight detune shimmer, roughly 350ms decay, peak gain 0.45.
-- **Game over**: a low felt thud (sine gliding 150Hz to 55Hz over 300ms, peak 0.6, roughly 500ms decay), then about 250ms later a quiet two-note descending motif (E4 then A3, triangle, gain 0.2).
+- **Perfect placement**: the signature chime ladder. Major pentatonic on C5 (523.25Hz), steps C D E G A per octave, one step per consecutive perfect, capped at 10 steps (two octaves) and held at the cap; resets with the streak. Voice: sine at f plus sine at 2f (0.4 relative gain) with slight detune shimmer, roughly 350ms decay, peak gain 0.45. From the 11th consecutive perfect the chime rotates the three highest ladder notes (G6, A6, C7) instead of holding the top one (revised 2026-07-29).
+- **Game over**: silent (revised 2026-07-29 after the phone listen: sounds fire only on successful placements; the roast text is the death feedback).
 - Exponential ramps bottom out at 0.0001; every voice stops and disconnects its nodes after the tail. Exact frequencies, decays, and gains are starting values, tunable by ear during implementation without changing this design.
 
 ## Mute UX
 
 - Speaker SVG button (slash overlay when muted), styled to mirror `.hud-board-btn`, fixed top-left with the same safe-area `max()` pattern the trophy uses on the right.
-- Hidden during play and boot, same rule as the trophy: any mid-run tap drops a block.
+- Visible in every state except the boot moment (revised 2026-07-29: mute must be reachable mid-run; safe because the game's global tap handler exempts buttons). The trophy keeps its play-state hiding: opening the board mid-run would cover the game.
 - Persistence: `localStorage['stack-muted']` is `'1'` or `'0'`; absent means sound on (the default).
 - Accessibility: `aria-label` "Mute sound" / "Unmute sound", `aria-pressed` reflects state.
 
@@ -57,8 +57,8 @@ Master chain: voices route into one master GainNode (0.5) into a DynamicsCompres
 Playwright emulated-phone run (project standard), against local `index.html` first, then the live URL after deploy:
 
 1. Load and tap to start: `StackAudio.isReady()` is true after the first gesture and the context state is `running`.
-2. Play mixed drops via `StackCore.debug.drop(offset)` (0 for perfect, small for slice, large for miss): `debug.played` grows and `debug.last` matches each event class.
-3. Mute button: visible on title and over states only; toggling flips the localStorage key and `aria-pressed`; while muted the context state is `suspended` and `debug.played` stops growing.
+2. Play mixed drops via `StackCore.debug.drop(offset)` (0 for perfect, small for slice): `debug.played` grows and `debug.last` matches; a large-offset miss adds no voice (revised 2026-07-29).
+3. Mute button: visible in every state except boot; toggling flips the localStorage key and `aria-pressed`; while muted the context state is `suspended` and `debug.played` stops growing.
 4. Zero console errors and pageerrors throughout.
 
 Synthesis quality is a human judgment: Maor listens on a real phone before the feature is called done.
@@ -76,3 +76,7 @@ Synthesis quality is a human judgment: Maor listens on a real phone before the f
 - `debug.state()` was added to the public debug API; the spec's own verification section requires asserting context state.
 - The gesture listeners stay attached permanently as cheap no-ops instead of being removed after context creation; removing them would contradict the spec's own "resume on later gestures" requirement (iOS interruptions).
 - Voices stop their nodes after the tail but do not explicitly disconnect them; the per-voice subgraph becomes unreachable and is garbage-collected, which satisfies the intent.
+
+## Revision 2026-07-29 (post-listen feedback)
+
+Maor's phone listen produced three changes, approved end to end and applied the same day: the mute button shows during play (was title/over only), the game-over sound was removed entirely, and long perfect streaks rotate the three highest chime notes past the two-octave cap instead of repeating the top note.
