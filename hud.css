@@ -665,7 +665,8 @@
   #hud-root .hud-title,
   #hud-root .hud-over,
   #hud-root .hud-board,
-  #hud-root .hud-board-btn {
+  #hud-root .hud-board-btn,
+  #hud-root .hud-mute-btn {
     transition-duration: 0.01s;
   }
 }

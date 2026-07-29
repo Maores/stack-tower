@@ -68,6 +68,7 @@
   };
 
   var els = null;
+  var muteOn = false;
 
   /* ---------------------------------------------------------------- utils */
 
@@ -432,7 +433,8 @@
   }
 
   function toggleMute() {
-    var muted = !readMuted();
+    muteOn = !muteOn;
+    var muted = muteOn;
     try { window.localStorage.setItem(MUTE_KEY, muted ? '1' : '0'); }
     catch (err) { /* ignore */ }
     applyMuteUi(muted);
@@ -702,6 +704,16 @@
       if (ev.target === els.board) { closeBoard(); } /* tap outside the panel */
     });
 
+    /* Corner buttons are keyboard-operable: Enter/Space must activate the
+       button, not fall through to the window-level start/restart/drop keys. */
+    function keepKeysLocal(btn) {
+      btn.addEventListener('keydown', function (ev) {
+        if (ev.key === ' ' || ev.key === 'Enter' || ev.key === 'Spacebar') { ev.stopPropagation(); }
+      });
+    }
+    keepKeysLocal(els.muteBtn);
+    keepKeysLocal(els.boardBtn);
+
     window.addEventListener('keydown', function (ev) {
       if (ev.repeat) { return; }
       if (els && ev.target === els.nameInput) { return; } /* typing, not restarting */
@@ -737,7 +749,8 @@
     document.body.appendChild(els.root);
     wireIncoming();
     wireOutgoing();
-    applyMuteUi(readMuted());
+    muteOn = readMuted();
+    applyMuteUi(muteOn);
     applyReady(); /* boot into title state */
     window.HUD = window.HUD || api;
   }

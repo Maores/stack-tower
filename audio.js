@@ -27,8 +27,9 @@
 
   var MUTE_KEY = 'stack-muted';   /* shared with hud.js */
   var MASTER_GAIN = 0.5;
-  /* Major pentatonic from C5, two octaves of semitone offsets; the streak
-     indexes into this ladder and holds at the top (spec: 10-step cap). */
+  /* Major pentatonic from C5: the base note plus 10 steps up (11 entries,
+     two octaves of semitone offsets); the streak indexes in and holds at
+     the top. */
   var LADDER = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24];
   var BASE_HZ = 523.25;
 
@@ -74,7 +75,7 @@
   window.addEventListener('pointerdown', wake, true);
   window.addEventListener('keydown', wake, true);
   document.addEventListener('visibilitychange', function () {
-    if (!document.hidden) { wake(); }
+    if (!document.hidden && ctx) { wake(); }
   });
 
   function setMuted(m) {

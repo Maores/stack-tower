@@ -70,3 +70,9 @@ Synthesis quality is a human judgment: Maor listens on a real phone before the f
 3. Offline build: add the inliner to the repo as `scripts/` (Node, no dependencies) and rebuild `Stack.html` with audio.js included.
 4. Push to main, GitHub Pages deploys, run the live verification pass. The test flow saves no scores; if any test row slips in, delete it per project rules.
 5. Update the vault note and daily log.
+
+## Implementation deviations (accepted)
+
+- `debug.state()` was added to the public debug API; the spec's own verification section requires asserting context state.
+- The gesture listeners stay attached permanently as cheap no-ops instead of being removed after context creation; removing them would contradict the spec's own "resume on later gestures" requirement (iOS interruptions).
+- Voices stop their nodes after the tail but do not explicitly disconnect them; the per-voice subgraph becomes unreachable and is garbage-collected, which satisfies the intent.
