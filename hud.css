@@ -515,9 +515,58 @@
   height: 52%;
   display: block;
 }
+
+/* Mute toggle, mirroring the trophy button on the left edge */
+.hud-mute-btn {
+  position: fixed;
+  top: max(2.2vh, env(safe-area-inset-top, 0px));
+  left: max(2.2vh, env(safe-area-inset-left, 0px));
+  z-index: 110;
+  width: clamp(40px, 6.5vmin, 52px);
+  height: clamp(40px, 6.5vmin, 52px);
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  background: rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  cursor: pointer;
+  opacity: 0.8;
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.18);
+  transition: opacity 0.3s ease, transform 0.18s ease, background-color 0.18s ease;
+}
+.hud-mute-btn:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.16);
+}
+.hud-mute-btn:active {
+  transform: scale(0.92);
+}
+.hud-mute-btn:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
+}
+.hud-mute-btn svg {
+  width: 52%;
+  height: 52%;
+  display: block;
+}
+.hud-mute-btn .hud-mute-slash {
+  display: none;
+}
+.hud-mute-btn.is-muted .hud-mute-slash {
+  display: block;
+}
+.hud-mute-btn.is-muted .hud-mute-wave {
+  display: none;
+}
+
 /* Any tap during play drops a block, so the button leaves the stage. */
 #hud-root[data-state="playing"] .hud-board-btn,
-#hud-root[data-state="boot"] .hud-board-btn {
+#hud-root[data-state="boot"] .hud-board-btn,
+#hud-root[data-state="playing"] .hud-mute-btn,
+#hud-root[data-state="boot"] .hud-mute-btn {
   opacity: 0;
   pointer-events: none;
 }

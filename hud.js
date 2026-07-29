@@ -41,6 +41,7 @@
   window.__STACK_HUD_INIT__ = true;
 
   var BEST_KEY = 'stack-best';
+  var MUTE_KEY = 'stack-muted';  /* shared with audio.js */
   var RESTART_LOCKOUT_MS = 500;  /* ignore taps right after game over */
   var RESTART_DEDUPE_MS = 400;   /* pointerdown + click on button = one restart */
 
@@ -208,6 +209,17 @@
       'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
       '<path d="M8 21h8M12 17v4M7 4h10v4a5 5 0 0 1-10 0V4z"/>' +
       '<path d="M7 6H4a2 2 0 0 0 2 4h1M17 6h3a2 2 0 0 1-2 4h-1"/></svg>';
+
+    /* Mute toggle (title/over states only), state broadcast via hud:mute */
+    var muteBtn = el('button', 'hud-mute-btn');
+    muteBtn.type = 'button';
+    muteBtn.innerHTML =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" ' +
+      'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      '<path d="M11 5 6.5 9H3v6h3.5L11 19V5z"/>' +
+      '<path class="hud-mute-wave" d="M15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12"/>' +
+      '<path class="hud-mute-slash" d="M4 4l16 16"/></svg>';
+
     var board = el('div', 'hud-board');
     var boardPanel = el('div', 'hud-board-panel');
     var boardClose = el('button', 'hud-board-close');
@@ -229,6 +241,7 @@
     root.appendChild(title);
     root.appendChild(over);
     root.appendChild(boardBtn);
+    root.appendChild(muteBtn);
     root.appendChild(board);
 
     return {
@@ -248,6 +261,7 @@
       nameInput: nameInput,
       saveBtn: saveBtn,
       boardBtn: boardBtn,
+      muteBtn: muteBtn,
       board: board,
       boardStatus: boardStatus,
       boardList: boardList,
@@ -404,6 +418,26 @@
 
   function writeName(v) {
     try { window.localStorage.setItem(NAME_KEY, v); } catch (err) { /* ignore */ }
+  }
+
+  function readMuted() {
+    try { return window.localStorage.getItem(MUTE_KEY) === '1'; }
+    catch (err) { return false; }
+  }
+
+  function applyMuteUi(muted) {
+    els.muteBtn.classList.toggle('is-muted', muted);
+    els.muteBtn.setAttribute('aria-pressed', muted ? 'true' : 'false');
+    els.muteBtn.setAttribute('aria-label', muted ? 'Unmute sound' : 'Mute sound');
+  }
+
+  function toggleMute() {
+    var muted = !readMuted();
+    try { window.localStorage.setItem(MUTE_KEY, muted ? '1' : '0'); }
+    catch (err) { /* ignore */ }
+    applyMuteUi(muted);
+    try { window.dispatchEvent(new CustomEvent('hud:mute', { detail: { muted: muted } })); }
+    catch (err) { /* ignore */ }
   }
 
   function readLocalBoard() {
@@ -663,6 +697,7 @@
     });
     els.boardBtn.addEventListener('click', openBoard);
     els.boardClose.addEventListener('click', closeBoard);
+    els.muteBtn.addEventListener('click', toggleMute);
     els.board.addEventListener('pointerdown', function (ev) {
       if (ev.target === els.board) { closeBoard(); } /* tap outside the panel */
     });
@@ -702,6 +737,7 @@
     document.body.appendChild(els.root);
     wireIncoming();
     wireOutgoing();
+    applyMuteUi(readMuted());
     applyReady(); /* boot into title state */
     window.HUD = window.HUD || api;
   }
