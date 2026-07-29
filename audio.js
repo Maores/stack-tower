@@ -5,7 +5,7 @@
    file's internals:
      'stack:placed' { perfect }   placement sound + streak tracking
      'game:start'                 streak reset
-     'game:over'                  game-over sound
+     'game:over'                  streak reset only (game over is silent)
      'hud:mute'    { muted }      mute state pushed by the HUD button
 
    Shared constant with hud.js: localStorage 'stack-muted' ('1' | '0',
@@ -28,8 +28,8 @@
   var MUTE_KEY = 'stack-muted';   /* shared with hud.js */
   var MASTER_GAIN = 0.5;
   /* Major pentatonic from C5: the base note plus 10 steps up (11 entries,
-     two octaves of semitone offsets); the streak indexes in and holds at
-     the top. */
+     two octaves of semitone offsets); the streak indexes in, and past the cap
+     it rotates the three highest notes. */
   var LADDER = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24];
   var BASE_HZ = 523.25;
 

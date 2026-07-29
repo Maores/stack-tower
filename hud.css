@@ -562,6 +562,7 @@
   display: none;
 }
 
+/* Trophy leaves the stage during play (a tap would cover the game with the board); mute stays reachable. */
 #hud-root[data-state="playing"] .hud-board-btn,
 #hud-root[data-state="boot"] .hud-board-btn,
 #hud-root[data-state="boot"] .hud-mute-btn {
