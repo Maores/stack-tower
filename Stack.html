@@ -694,7 +694,8 @@
   #hud-root .hud-title,
   #hud-root .hud-over,
   #hud-root .hud-board,
-  #hud-root .hud-board-btn {
+  #hud-root .hud-board-btn,
+  #hud-root .hud-mute-btn {
     transition-duration: 0.01s;
   }
 }
@@ -2629,6 +2630,7 @@
   };
 
   var els = null;
+  var muteOn = false;
 
   /* ---------------------------------------------------------------- utils */
 
@@ -2993,7 +2995,8 @@
   }
 
   function toggleMute() {
-    var muted = !readMuted();
+    muteOn = !muteOn;
+    var muted = muteOn;
     try { window.localStorage.setItem(MUTE_KEY, muted ? '1' : '0'); }
     catch (err) { /* ignore */ }
     applyMuteUi(muted);
@@ -3263,6 +3266,16 @@
       if (ev.target === els.board) { closeBoard(); } /* tap outside the panel */
     });
 
+    /* Corner buttons are keyboard-operable: Enter/Space must activate the
+       button, not fall through to the window-level start/restart/drop keys. */
+    function keepKeysLocal(btn) {
+      btn.addEventListener('keydown', function (ev) {
+        if (ev.key === ' ' || ev.key === 'Enter' || ev.key === 'Spacebar') { ev.stopPropagation(); }
+      });
+    }
+    keepKeysLocal(els.muteBtn);
+    keepKeysLocal(els.boardBtn);
+
     window.addEventListener('keydown', function (ev) {
       if (ev.repeat) { return; }
       if (els && ev.target === els.nameInput) { return; } /* typing, not restarting */
@@ -3298,7 +3311,8 @@
     document.body.appendChild(els.root);
     wireIncoming();
     wireOutgoing();
-    applyMuteUi(readMuted());
+    muteOn = readMuted();
+    applyMuteUi(muteOn);
     applyReady(); /* boot into title state */
     window.HUD = window.HUD || api;
   }
@@ -3338,8 +3352,9 @@
 
   var MUTE_KEY = 'stack-muted';   /* shared with hud.js */
   var MASTER_GAIN = 0.5;
-  /* Major pentatonic from C5, two octaves of semitone offsets; the streak
-     indexes into this ladder and holds at the top (spec: 10-step cap). */
+  /* Major pentatonic from C5: the base note plus 10 steps up (11 entries,
+     two octaves of semitone offsets); the streak indexes in and holds at
+     the top. */
   var LADDER = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24];
   var BASE_HZ = 523.25;
 
@@ -3385,7 +3400,7 @@
   window.addEventListener('pointerdown', wake, true);
   window.addEventListener('keydown', wake, true);
   document.addEventListener('visibilitychange', function () {
-    if (!document.hidden) { wake(); }
+    if (!document.hidden && ctx) { wake(); }
   });
 
   function setMuted(m) {
