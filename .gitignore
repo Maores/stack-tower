@@ -3,3 +3,6 @@
 reference/
 reference-vetting/
 review/
+
+# Project instructions stay local.
+CLAUDE.md
