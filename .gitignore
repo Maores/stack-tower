@@ -6,3 +6,6 @@ review/
 
 # Project instructions stay local.
 CLAUDE.md
+
+# Subagent-driven-development scratch (progress ledger).
+.superpowers/
