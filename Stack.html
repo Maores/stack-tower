@@ -591,10 +591,8 @@
   display: none;
 }
 
-/* Any tap during play drops a block, so the button leaves the stage. */
 #hud-root[data-state="playing"] .hud-board-btn,
 #hud-root[data-state="boot"] .hud-board-btn,
-#hud-root[data-state="playing"] .hud-mute-btn,
 #hud-root[data-state="boot"] .hud-mute-btn {
   opacity: 0;
   pointer-events: none;
@@ -3458,24 +3456,14 @@
     src.stop(t + 0.14);
   }
 
-  /* Perfect placement: chime stepping up the pentatonic ladder. */
+  /* Perfect placement: chime stepping up the pentatonic ladder. Climbs for
+     the first 10 steps; past the cap it rotates the three highest notes so
+     the peak shimmers instead of repeating one chime. */
   function playPerfect(t, step) {
-    var f = BASE_HZ * Math.pow(2, LADDER[Math.min(step, LADDER.length - 1)] / 12);
+    var idx = step <= 10 ? step : 8 + ((step - 11) % 3);
+    var f = BASE_HZ * Math.pow(2, LADDER[idx] / 12);
     tone(t, 'sine', f, 0.45, 0.35);
     tone(t, 'sine', f * 2 * 1.003, 0.18, 0.35);   /* shimmer partial */
-  }
-
-  /* Game over: low felt thud, then a quiet two-note descending motif. */
-  function playGameOver(t) {
-    var o = ctx.createOscillator();
-    o.type = 'sine';
-    o.frequency.setValueAtTime(150, t);
-    o.frequency.exponentialRampToValueAtTime(55, t + 0.3);
-    o.connect(envGain(t, 0.6, 0.5));
-    o.start(t);
-    o.stop(t + 0.55);
-    tone(t + 0.25, 'triangle', 329.63, 0.2, 0.18);  /* E4 */
-    tone(t + 0.45, 'triangle', 220.0, 0.2, 0.30);   /* A3 */
   }
 
   function voice(name, fn, arg) {
@@ -3502,10 +3490,7 @@
 
   window.addEventListener('game:start', function () { streak = 0; });
 
-  window.addEventListener('game:over', function () {
-    streak = 0;
-    voice('gameover', playGameOver);
-  });
+  window.addEventListener('game:over', function () { streak = 0; });
 
   window.addEventListener('hud:mute', function (e) {
     setMuted(!!(e && e.detail && e.detail.muted));

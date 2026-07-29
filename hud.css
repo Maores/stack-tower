@@ -562,10 +562,8 @@
   display: none;
 }
 
-/* Any tap during play drops a block, so the button leaves the stage. */
 #hud-root[data-state="playing"] .hud-board-btn,
 #hud-root[data-state="boot"] .hud-board-btn,
-#hud-root[data-state="playing"] .hud-mute-btn,
 #hud-root[data-state="boot"] .hud-mute-btn {
   opacity: 0;
   pointer-events: none;
