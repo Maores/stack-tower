@@ -160,6 +160,10 @@
     var overScore = el('div', 'hud-over-score hud-anim d2', '0');
     overScore.setAttribute('role', 'status');
     var overBest = el('div', 'hud-over-best hud-anim d3', '');
+    var overPct = el('div', 'hud-over-pct hud-anim d3', '');
+    overPct.hidden = true;
+    var overVictim = el('div', 'hud-over-victim hud-anim d4', '');
+    overVictim.hidden = true;
     var newBest = el('div', 'hud-over-newbest hud-anim d4', 'NEW BEST');
     newBest.hidden = true;
     var lb = el('div', 'hud-lb hud-anim d5');
@@ -218,6 +222,8 @@
     panel.appendChild(overLabel);
     panel.appendChild(overScore);
     panel.appendChild(overBest);
+    panel.appendChild(overPct);
+    panel.appendChild(overVictim);
     panel.appendChild(newBest);
     panel.appendChild(lb);
     panel.appendChild(restart);
@@ -287,6 +293,8 @@
       over: over,
       overScore: overScore,
       overBest: overBest,
+      overPct: overPct,
+      overVictim: overVictim,
       newBest: newBest,
       restart: restart,
       quip: quip,
@@ -525,7 +533,7 @@
       if (seq !== autoSeq || state.mode !== 'over') { return; }
       if (ok) {
         setAutoRow('SAVED AS ' + lrm(name), true);
-        refreshBoard(scope, row, true, null);
+        refreshBoard(scope, row, true, score);
       } else {
         setAutoRow('SAVED HERE AS ' + lrm(name), true);
         renderBoard(readLocalBoard(), row, 'THIS DEVICE ONLY');
@@ -598,6 +606,27 @@
     } catch (err) { clearTimeout(timer); finish(null); }
   }
 
+  /* HEAD + Prefer count=exact: row count for a filter, no rows transferred. */
+  function countRows(filters, cb) {
+    if (!window.fetch) { cb(null); return; }
+    var done = false;
+    var finish = function (n) { if (!done) { done = true; cb(n); } };
+    var timer = setTimeout(function () { finish(null); }, LB_TIMEOUT_MS);
+    try {
+      window.fetch(LB_URL + '?select=score' + filters + '&limit=1', {
+        method: 'HEAD',
+        headers: { apikey: LB_KEY, Prefer: 'count=exact' }
+      })
+        .then(function (r) {
+          clearTimeout(timer);
+          var cr = (r.headers.get('content-range') || '').split('/')[1];
+          var n = parseInt(cr, 10);
+          finish(isFinite(n) ? n : null);
+        })
+        .catch(function () { clearTimeout(timer); finish(null); });
+    } catch (err) { clearTimeout(timer); finish(null); }
+  }
+
   function submitScore(name, score, cb) {
     if (!window.fetch) { cb(false); return; }
     var done = false;
@@ -644,13 +673,60 @@
     offBtn.classList.remove('is-on');
   }
 
-  function showVictim(rows, myScore) { /* Task 5 fills this in */ }
+  /* "N MORE PASSES <name>": the daily row just above me; fallback: my best. */
+  function showVictim(rows, myScore) {
+    if (!(myScore > 0)) { return; }
+    var above = null, i, r;
+    if (rows && rows.length) {
+      for (i = rows.length - 1; i >= 0; i--) {
+        r = rows[i];
+        if (r && typeof r.score === 'number' && r.score >= myScore &&
+            r.name !== readName()) { above = r; break; }
+      }
+    }
+    if (above) {
+      els.overVictim.textContent =
+        (above.score - myScore + 1) + ' MORE PASSES ' +
+        lrm(String(above.name).slice(0, 16));
+      els.overVictim.hidden = false;
+      return;
+    }
+    var best = readBest();
+    if (best > myScore) {
+      els.overVictim.textContent = (best - myScore) + ' FROM YOUR BEST';
+      els.overVictim.hidden = false;
+    }
+  }
+
+  /* "TOP N% TODAY" from two window counts; hidden when thin (<10) or offline. */
+  function showPercentile(score) {
+    var seq = deathSeq;
+    var windowF = scopeFilter('day');
+    countRows(windowF, function (total) {
+      if (seq !== deathSeq || state.mode !== 'over' ||
+          total == null || total < 10) { return; }
+      countRows(windowF + '&score=gt.' + score, function (above) {
+        if (seq !== deathSeq || state.mode !== 'over' || above == null) { return; }
+        var pct = Math.max(1, Math.round(((above + 1) / total) * 100));
+        /* Dead last reads as "TOP 100%", and the two counts are taken a moment
+           apart, so a run whose own row is not in the window yet can even round
+           past 100. Neither is a brag worth printing: stay silent instead. */
+        if (pct >= 100) { return; }
+        els.overPct.textContent = 'TOP ' + pct + '% TODAY';
+        els.overPct.hidden = false;
+      });
+    });
+  }
 
   /* Render tokens, one per board, matching their independent scopes: a slow
      response must never paint under a tab the player has since left. Same
      idiom as autoSeq. Bumped by every request and by every scope change. */
   var deathBoardSeq = 0;
   var overlayBoardSeq = 0;
+  /* One generation per death, not per request: the death lines describe the
+     run that just ended, so they survive a tab switch (the board tokens do
+     not) but are dropped the moment the next run dies. */
+  var deathSeq = 0;
 
   function refreshBoard(scope, mine, wantRoast, myScore, isRetry) {
     /* A call for a scope the player already left (a late auto-post callback)
@@ -658,6 +734,7 @@
        they did pick would never get its own rows. */
     var showing = scope === deathScope;
     var seq = showing ? ++deathBoardSeq : deathBoardSeq;
+    var dseq = deathSeq;   /* which death asked: guards the victim line */
     if (showing) { els.lbStatus.textContent = 'LOADING'; }
     fetchTop(scope, function (rows) {
       var paint = showing && seq === deathBoardSeq;
@@ -667,7 +744,11 @@
         if (paint) { renderBoard(rows, mine, ''); }
         /* The roast belongs to this run's rows, not to whatever tab is showing. */
         if (wantRoast && state.mode === 'over') { applyRoast(rows); }
-        if (myScore != null && state.mode === 'over') { showVictim(rows, myScore); }
+        /* Same for the victim line, but keyed to the death it was asked for:
+           a response from the previous run must never write it. */
+        if (myScore != null && state.mode === 'over' && dseq === deathSeq) {
+          showVictim(rows, myScore);
+        }
         /* Only the daily board says who holds the crown; remembering an all-time
            leader here would fake a crown change on the next death's roast. */
         if (scope === 'day') { rememberTop(rows); }
@@ -782,6 +863,7 @@
   }
 
   function applyOver(detail) {
+    deathSeq++;   /* new run: any death line still in flight from the last one is void */
     var s = pickNumber(detail, ['score', 'value', 'points']);
     if (s != null) { state.score = Math.max(0, Math.round(s)); renderScore(); }
     var finalScore = state.score;
@@ -795,6 +877,11 @@
     els.overScore.textContent = String(finalScore);
     els.overBest.textContent = 'BEST ' + best;
     els.newBest.hidden = !isNewBest;
+    els.overPct.hidden = true;
+    els.overPct.textContent = '';
+    els.overVictim.hidden = true;
+    els.overVictim.textContent = '';
+    if (finalScore > 0) { showPercentile(finalScore); }
 
     els.quip.textContent = nextQuip();
     state.submitted = false;
@@ -817,7 +904,7 @@
       autoSubmit(autoName, finalScore);
     } else {
       els.entry.hidden = !(finalScore > 0);
-      refreshBoard(deathScope, null, true, null);
+      refreshBoard(deathScope, null, true, finalScore);
     }
 
     state.overAt = Date.now();

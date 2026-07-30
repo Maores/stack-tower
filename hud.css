@@ -230,6 +230,28 @@
   margin-right: -0.32em;
   opacity: 0.66;
 }
+.hud-over-pct {
+  margin-top: 1.2vh;
+  font-size: clamp(12px, 1.9vmin, 16px);
+  font-weight: 300;
+  letter-spacing: 0.3em;
+  margin-right: -0.3em;
+  text-shadow: 0 0 12px rgba(255, 255, 255, 0.45);
+}
+.hud-over-pct[hidden] {
+  display: none;
+}
+.hud-over-victim {
+  margin-top: 0.8vh;
+  font-size: clamp(11px, 1.7vmin, 14px);
+  font-weight: 300;
+  letter-spacing: 0.24em;
+  margin-right: -0.24em;
+  opacity: 0.8;
+}
+.hud-over-victim[hidden] {
+  display: none;
+}
 .hud-over-newbest {
   margin-top: 2vh;
   font-size: clamp(11px, 1.7vmin, 14px);
