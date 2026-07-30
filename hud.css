@@ -691,6 +691,14 @@
   pointer-events: auto;
   transition: opacity 0.3s ease;
 }
+/* The records overlay carries .hud-board for the shell, so the opener above
+   would show it too. Same specificity, later in the file: this wins. Its own
+   opener is later still, so data-records can always reopen it. */
+#hud-root[data-board="open"] .hud-records {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
 .hud-board-panel {
   position: relative;
   width: min(84vw, 380px);
@@ -741,6 +749,112 @@
 .hud-board-list {
   max-height: 58vh;
   margin-top: 1.6vh;
+}
+
+/* Title tier chip + progress bar + records pill */
+.hud-title-tier {
+  margin-top: 2.6vh;
+  font-size: clamp(11px, 1.7vmin, 14px);
+  font-weight: 300;
+  letter-spacing: 0.3em;
+  margin-right: -0.3em;
+  text-shadow: 0 0 12px rgba(255, 255, 255, 0.4);
+}
+.hud-title-tier:empty {
+  display: none;
+}
+.hud-title-bar {
+  margin-top: 1.2vh;
+  width: min(38vw, 170px);
+  height: 3px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.25);
+  overflow: hidden;
+}
+.hud-title-bar i {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: 3px;
+  background: #fff;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.8);
+  transition: width 0.5s cubic-bezier(0.2, 0.7, 0.25, 1);
+}
+.hud-title-records {
+  pointer-events: auto;
+  cursor: pointer;
+  margin-top: 3.2vh;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  padding: 0.5em 1.2em 0.5em 1.42em; /* extra left pad balances letter-spacing */
+  font-size: clamp(10px, 1.6vmin, 13px);
+  font-weight: 300;
+  letter-spacing: 0.22em;
+  transition: background-color 0.18s ease, transform 0.18s ease;
+}
+.hud-title-records:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+.hud-title-records:active {
+  transform: scale(0.95);
+}
+.hud-title-records:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+/* Death-screen tier line */
+.hud-over-tier {
+  margin-top: 0.8vh;
+  font-size: clamp(11px, 1.7vmin, 14px);
+  font-weight: 300;
+  letter-spacing: 0.26em;
+  margin-right: -0.26em;
+  opacity: 0.72;
+}
+.hud-over-tier[hidden] {
+  display: none;
+}
+
+/* Records overlay reuses the board shell; only rows are new */
+.hud-records {
+  z-index: 121; /* above the trophy board if both ever open */
+}
+#hud-root[data-records="open"] .hud-records {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition: opacity 0.3s ease;
+}
+.hud-rec-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 1vh 2px 0;
+  font-size: clamp(12px, 1.9vmin, 16px);
+  font-weight: 300;
+  letter-spacing: 0.14em;
+}
+.hud-rec-label {
+  opacity: 0.66;
+  font-size: clamp(10px, 1.5vmin, 12px);
+  letter-spacing: 0.24em;
+}
+.hud-rec-val {
+  font-variant-numeric: lining-nums tabular-nums;
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+}
+.hud-rec-bar {
+  margin: 2.2vh auto 0;
+}
+.hud-rec-tier {
+  margin-top: 1vh;
+  text-align: center;
+  font-size: clamp(10px, 1.5vmin, 12px);
+  font-weight: 300;
+  letter-spacing: 0.24em;
+  opacity: 0.75;
 }
 
 /* --------------------------------------------------------------------------

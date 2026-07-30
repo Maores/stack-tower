@@ -42,6 +42,9 @@
 
   var BEST_KEY = 'stack-best';
   var MUTE_KEY = 'stack-muted';  /* shared with audio.js */
+  var STREAK_KEY = 'stack-best-streak';
+  var BLOCKS_KEY = 'stack-blocks-ever';
+  var TODAY_KEY = 'stack-today';
   var RESTART_LOCKOUT_MS = 500;  /* ignore taps right after game over */
   var RESTART_DEDUPE_MS = 400;   /* pointerdown + click on button = one restart */
 
@@ -91,6 +94,68 @@
 
   function writeBest(v) {
     try { window.localStorage.setItem(BEST_KEY, String(v)); } catch (err) { /* ignore */ }
+  }
+
+  /* Non-demoting ladder from the all-time Normal best (retention spec). */
+  var TIERS = [
+    ['CARDBOARD', 10], ['PLYWOOD', 25], ['BRICK', 45], ['MARBLE', 70],
+    ['GRANITE', 100], ['STEEL', 140], ['TITAN', 190], ['OBSIDIAN', 250]
+  ];
+
+  function tierFor(best) {
+    var cur = null, next = null, i;
+    for (i = 0; i < TIERS.length; i++) {
+      if (best >= TIERS[i][1]) { cur = { name: TIERS[i][0], at: TIERS[i][1], idx: i }; }
+      else { next = { name: TIERS[i][0], at: TIERS[i][1], idx: i }; break; }
+    }
+    return { cur: cur, next: next };
+  }
+
+  function tierLine(best) {
+    var t = tierFor(best);
+    if (!t.cur && !t.next) { return ''; }
+    if (!t.cur) { return (t.next.at - best) + ' TO ' + t.next.name; }
+    if (!t.next) { return t.cur.name; }
+    return t.cur.name + ' · ' + (t.next.at - best) + ' TO ' + t.next.name;
+  }
+
+  function tierProgress(best) {
+    var t = tierFor(best);
+    if (!t.next) { return 1; }
+    var floor = t.cur ? t.cur.at : 0;
+    return Math.max(0, Math.min(1, (best - floor) / (t.next.at - floor)));
+  }
+
+  function readInt(key) {
+    try {
+      var v = parseInt(window.localStorage.getItem(key), 10);
+      return isFinite(v) && v > 0 ? v : 0;
+    } catch (err) { return 0; }
+  }
+
+  function writeInt(key, v) {
+    try { window.localStorage.setItem(key, String(v)); } catch (err) { /* ignore */ }
+  }
+
+  /* Local device date on purpose: the personal daily stat is "my day", not the
+     board's rolling 24h TODAY window. The two are meant to differ. */
+  function localDateStr() {
+    var d = new Date();
+    return d.getFullYear() + '-' +
+      ('0' + (d.getMonth() + 1)).slice(-2) + '-' +
+      ('0' + d.getDate()).slice(-2);
+  }
+
+  function readToday() {
+    try {
+      var v = JSON.parse(window.localStorage.getItem(TODAY_KEY) || 'null');
+      if (v && v.d === localDateStr() && typeof v.best === 'number') { return v; }
+    } catch (err) { /* ignore */ }
+    return { d: localDateStr(), best: 0 };
+  }
+
+  function writeToday(v) {
+    try { window.localStorage.setItem(TODAY_KEY, JSON.stringify(v)); } catch (err) { /* ignore */ }
   }
 
   function pickNumber(detail, keys) {
@@ -150,6 +215,15 @@
     title.appendChild(titleWord);
     title.appendChild(titleHint);
     title.appendChild(titleBest);
+    var titleTier = el('div', 'hud-title-tier', '');
+    var titleBar = el('div', 'hud-title-bar');
+    var titleBarFill = el('i', null);
+    titleBar.appendChild(titleBarFill);
+    var recordsBtn = el('button', 'hud-title-records', 'RECORDS');
+    recordsBtn.type = 'button';
+    title.appendChild(titleTier);
+    title.appendChild(titleBar);
+    title.appendChild(recordsBtn);
 
     /* game over */
     var over = el('div', 'hud-over');
@@ -164,6 +238,8 @@
     overPct.hidden = true;
     var overVictim = el('div', 'hud-over-victim hud-anim d4', '');
     overVictim.hidden = true;
+    var overTier = el('div', 'hud-over-tier hud-anim d3', '');
+    overTier.hidden = true;
     var newBest = el('div', 'hud-over-newbest hud-anim d4', 'NEW BEST');
     newBest.hidden = true;
     var lb = el('div', 'hud-lb hud-anim d5');
@@ -222,6 +298,7 @@
     panel.appendChild(overLabel);
     panel.appendChild(overScore);
     panel.appendChild(overBest);
+    panel.appendChild(overTier);
     panel.appendChild(overPct);
     panel.appendChild(overVictim);
     panel.appendChild(newBest);
@@ -278,21 +355,65 @@
     boardPanel.appendChild(boardList);
     board.appendChild(boardPanel);
 
+    /* Records view: local lifetime stats, same overlay shell as the board.
+       data-ui is core.js's documented opt-out: without it, a tap on the
+       backdrop reaches core's global pointerdown handler and starts a run
+       behind the panel the tap was only meant to dismiss. */
+    var records = el('div', 'hud-board hud-records');
+    records.setAttribute('data-ui', '1');
+    var recPanel = el('div', 'hud-board-panel');
+    var recClose = el('button', 'hud-board-close');
+    recClose.type = 'button';
+    recClose.setAttribute('aria-label', 'Close records');
+    recClose.innerHTML =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" ' +
+      'stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+    var recTitle = el('div', 'hud-lb-title', 'RECORDS');
+    function recRow(label, cls) {
+      var row = el('div', 'hud-rec-row');
+      row.appendChild(el('span', 'hud-rec-label', label));
+      var val = el('span', 'hud-rec-val ' + cls, '');
+      row.appendChild(val);
+      return { row: row, val: val };
+    }
+    var recBest = recRow('BEST', 'hud-rec-best');
+    var recStreak = recRow('BEST STREAK', 'hud-rec-streak');
+    var recToday = recRow('TODAY', 'hud-rec-today');
+    var recBlocks = recRow('BLOCKS EVER', 'hud-rec-blocks');
+    var recBar = el('div', 'hud-title-bar hud-rec-bar');
+    var recBarFill = el('i', null);
+    recBar.appendChild(recBarFill);
+    var recTier = el('div', 'hud-rec-tier', '');
+    recPanel.appendChild(recClose);
+    recPanel.appendChild(recTitle);
+    recPanel.appendChild(recBest.row);
+    recPanel.appendChild(recStreak.row);
+    recPanel.appendChild(recToday.row);
+    recPanel.appendChild(recBlocks.row);
+    recPanel.appendChild(recBar);
+    recPanel.appendChild(recTier);
+    records.appendChild(recPanel);
+
     root.appendChild(scoreWrap);
     root.appendChild(title);
     root.appendChild(over);
     root.appendChild(boardBtn);
     root.appendChild(muteBtn);
     root.appendChild(board);
+    root.appendChild(records);
 
     return {
       root: root,
       score: score,
       title: title,
       titleBest: titleBest,
+      titleTier: titleTier,
+      titleBarFill: titleBarFill,
+      recordsBtn: recordsBtn,
       over: over,
       overScore: overScore,
       overBest: overBest,
+      overTier: overTier,
       overPct: overPct,
       overVictim: overVictim,
       newBest: newBest,
@@ -316,7 +437,15 @@
       board: board,
       boardStatus: boardStatus,
       boardList: boardList,
-      boardClose: boardClose
+      boardClose: boardClose,
+      records: records,
+      recClose: recClose,
+      recBest: recBest.val,
+      recStreak: recStreak.val,
+      recToday: recToday.val,
+      recBlocks: recBlocks.val,
+      recBarFill: recBarFill,
+      recTier: recTier
     };
   }
 
@@ -338,6 +467,8 @@
   function renderTitleBest() {
     var best = readBest();
     els.titleBest.textContent = best > 0 ? 'BEST ' + best : '';
+    els.titleTier.textContent = tierLine(best);
+    els.titleBarFill.style.width = Math.round(tierProgress(best) * 100) + '%';
   }
 
   function renderScore() {
@@ -802,6 +933,34 @@
     if (boardTimer) { clearInterval(boardTimer); boardTimer = null; }
   }
 
+  /* Records view: purely local, so it renders once on open and never polls.
+     Every stat counts upward only; nothing here can shame a player for a
+     day off, which is why days-played is deliberately absent. */
+  var recordsOpen = false;
+
+  function renderRecords() {
+    var b = readBest();
+    els.recBest.textContent = String(b);
+    els.recStreak.textContent = String(readInt(STREAK_KEY));
+    els.recToday.textContent = String(readToday().best);
+    els.recBlocks.textContent = String(readInt(BLOCKS_KEY));
+    els.recBarFill.style.width = Math.round(tierProgress(b) * 100) + '%';
+    els.recTier.textContent = tierLine(b);
+  }
+
+  function openRecords() {
+    if (recordsOpen) { return; }
+    recordsOpen = true;
+    renderRecords();
+    els.root.setAttribute('data-records', 'open');
+  }
+
+  function closeRecords() {
+    if (!recordsOpen) { return; }
+    recordsOpen = false;
+    els.root.removeAttribute('data-records');
+  }
+
   function trySave() {
     if (state.mode !== 'over') { return; }
     var name = (els.nameInput.value || '').replace(/\s+/g, ' ').trim().slice(0, 16);
@@ -851,7 +1010,10 @@
     state.score = n;
     renderScore();
     if (state.mode === 'title' && n > 0) { setMode('playing'); }
-    if (state.mode === 'playing' && n > prev) { pop(); }
+    if (state.mode === 'playing' && n > prev) {
+      pop();
+      writeInt(BLOCKS_KEY, readInt(BLOCKS_KEY) + (n - prev));
+    }
   }
 
   function applyStart(detail) {
@@ -861,8 +1023,10 @@
     setMode('playing');
   }
 
-  function applyPerfect() {
+  function applyPerfect(detail) {
     if (state.mode !== 'playing') { return; }
+    var combo = pickNumber(detail, ['combo']);
+    if (combo != null && combo > readInt(STREAK_KEY)) { writeInt(STREAK_KEY, combo); }
     retrigger(els.score, 'is-flare');
   }
 
@@ -879,6 +1043,10 @@
     var isNewBest = finalScore > 0 && finalScore > baseline && finalScore >= gameBest;
     var best = Math.max(storedBest, gameBest, finalScore);
     if (best > storedBest) { writeBest(best); }
+    var today = readToday();
+    if (finalScore > today.best) { today.best = finalScore; writeToday(today); }
+    els.overTier.textContent = tierLine(best);
+    els.overTier.hidden = !els.overTier.textContent;
 
     els.overScore.textContent = String(finalScore);
     els.overBest.textContent = 'BEST ' + best;
@@ -947,7 +1115,9 @@
     on(['game:ready', 'game:reset', 'game:title'], applyReady);
   }
 
-  function tryStart() {
+  function tryStart(ev) {
+    /* The title screen is tap-anywhere-to-start; RECORDS is the one exception. */
+    if (ev && ev.target && ev.target.closest && ev.target.closest('.hud-title-records')) { return; }
     if (state.mode !== 'title') { return; }
     emit('hud:start');
     state.score = 0;
@@ -982,6 +1152,12 @@
     });
     els.boardBtn.addEventListener('click', openBoard);
     els.boardClose.addEventListener('click', closeBoard);
+    els.recordsBtn.addEventListener('click', openRecords);
+    els.recClose.addEventListener('click', closeRecords);
+    els.records.addEventListener('pointerdown', function (ev) {
+      if (ev.target === els.records) { closeRecords(); } /* tap outside the panel */
+    });
+    keepKeysLocal(els.recordsBtn);
     /* state.postedRow, not readName(): after a NOT YOU? rename the row on the
        board still carries the old name, and that is the row to highlight. */
     els.lbTabDay.addEventListener('click', function () {
@@ -1023,9 +1199,13 @@
     window.addEventListener('keydown', function (ev) {
       if (ev.repeat) { return; }
       if (els && ev.target === els.nameInput) { return; } /* typing, not restarting */
-      if (boardOpen) {
-        if (ev.key === 'Escape') { ev.preventDefault(); closeBoard(); }
-        return; /* board view swallows all other keys */
+      if (boardOpen || recordsOpen) {
+        if (ev.key === 'Escape') {
+          ev.preventDefault();
+          if (boardOpen) { closeBoard(); }
+          if (recordsOpen) { closeRecords(); }
+        }
+        return; /* overlay views swallow all other keys */
       }
       var k = ev.key;
       if (k !== ' ' && k !== 'Enter' && k !== 'Spacebar') { return; }
