@@ -160,8 +160,17 @@
     var newBest = el('div', 'hud-over-newbest hud-anim d4', 'NEW BEST');
     newBest.hidden = true;
     var lb = el('div', 'hud-lb hud-anim d5');
-    var lbTitle = el('div', 'hud-lb-title', 'TOP 10');
+    var lbTitle = el('div', 'hud-lb-title', 'TOP TOWERS');
     var lbStatus = el('div', 'hud-lb-status', '');
+    var lbTabs = el('div', 'hud-lb-tabs');
+    var lbTabDay = el('button', 'hud-lb-tab is-on', 'TODAY');
+    lbTabDay.type = 'button';
+    lbTabDay.setAttribute('data-scope', 'day');
+    var lbTabAll = el('button', 'hud-lb-tab', 'ALL TIME');
+    lbTabAll.type = 'button';
+    lbTabAll.setAttribute('data-scope', 'all');
+    lbTabs.appendChild(lbTabDay);
+    lbTabs.appendChild(lbTabAll);
     var lbList = el('ol', 'hud-lb-list');
     var entry = el('div', 'hud-lb-entry');
     var nameInput = el('input', 'hud-lb-input');
@@ -178,6 +187,7 @@
     entry.appendChild(saveBtn);
     lb.appendChild(lbTitle);
     lb.appendChild(lbStatus);
+    lb.appendChild(lbTabs);
     lb.appendChild(lbList);
     lb.appendChild(entry);
 
@@ -240,12 +250,22 @@
     boardClose.innerHTML =
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" ' +
       'stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
-    var boardTitle = el('div', 'hud-lb-title', 'TOP 10');
+    var boardTitle = el('div', 'hud-lb-title', 'TOP TOWERS');
     var boardStatus = el('div', 'hud-lb-status', '');
+    var boardTabs = el('div', 'hud-lb-tabs');
+    var boardTabDay = el('button', 'hud-lb-tab', 'TODAY');
+    boardTabDay.type = 'button';
+    boardTabDay.setAttribute('data-scope', 'day');
+    var boardTabAll = el('button', 'hud-lb-tab is-on', 'ALL TIME');
+    boardTabAll.type = 'button';
+    boardTabAll.setAttribute('data-scope', 'all');
+    boardTabs.appendChild(boardTabDay);
+    boardTabs.appendChild(boardTabAll);
     var boardList = el('ol', 'hud-lb-list hud-board-list');
     boardPanel.appendChild(boardClose);
     boardPanel.appendChild(boardTitle);
     boardPanel.appendChild(boardStatus);
+    boardPanel.appendChild(boardTabs);
     boardPanel.appendChild(boardList);
     board.appendChild(boardPanel);
 
@@ -268,6 +288,11 @@
       restart: restart,
       quip: quip,
       lbStatus: lbStatus,
+      lbTabs: lbTabs,
+      lbTabDay: lbTabDay,
+      lbTabAll: lbTabAll,
+      boardTabDay: boardTabDay,
+      boardTabAll: boardTabAll,
       lbList: lbList,
       entry: entry,
       nameInput: nameInput,
@@ -321,7 +346,32 @@
   var LB_URL = 'https://exfjfiuzrwuedztmdyqf.supabase.co/rest/v1/stack_scores';
   /* Publishable key by design: safe in public clients, access is RLS-gated. */
   var LB_KEY = 'sb_publishable_gJ5RS5qGx2_Md1J0fWBTBw_DFYDB0Dd';
-  var LB_QUERY = '?select=name,score&order=score.desc,created_at.asc&limit=10';
+  var LB_SELECT = '?select=name,score&order=score.desc,created_at.asc&limit=50';
+
+  function dayFloorIso() {
+    return new Date(Date.now() - 86400000).toISOString();
+  }
+
+  /* Every read is Normal-mode only; Hard gets its own board when modes ship. */
+  function scopeFilter(scope) {
+    var f = '&mode=eq.normal';
+    if (scope === 'day') { f += '&created_at=gte.' + encodeURIComponent(dayFloorIso()); }
+    return f;
+  }
+
+  /* One best row per player: rows arrive score-desc, keep the first per name. */
+  function dedupeBest(rows) {
+    var seen = {}, out = [], i, r, k;
+    for (i = 0; i < rows.length; i++) {
+      r = rows[i];
+      if (!r || r.name == null) { continue; }
+      k = String(r.name);
+      if (seen[k]) { continue; }
+      seen[k] = true;
+      out.push(r);
+    }
+    return out;
+  }
   var LB_TIMEOUT_MS = 6000;
   var LOCAL_BOARD_KEY = 'stack-local-board';
   var NAME_KEY = 'stack-player-name';
@@ -461,7 +511,7 @@
       if (seq !== autoSeq || state.mode !== 'over') { return; }
       if (ok) {
         setAutoRow('SAVED AS ' + lrm(name), true);
-        refreshBoard({ name: name, score: score }, true);
+        refreshBoard(deathScope, { name: name, score: score }, true, null);
       } else {
         setAutoRow('SAVED HERE AS ' + lrm(name), true);
         renderBoard(readLocalBoard(), { name: name, score: score }, 'THIS DEVICE ONLY');
@@ -518,15 +568,18 @@
     return rows;
   }
 
-  function fetchTop(cb) {
+  function fetchTop(scope, cb) {
     if (!window.fetch) { cb(null); return; }
     var done = false;
     var finish = function (rows) { if (!done) { done = true; cb(rows); } };
     var timer = setTimeout(function () { finish(null); }, LB_TIMEOUT_MS);
     try {
-      window.fetch(LB_URL + LB_QUERY, { headers: { apikey: LB_KEY } })
+      window.fetch(LB_URL + LB_SELECT + scopeFilter(scope), { headers: { apikey: LB_KEY } })
         .then(function (r) { if (!r.ok) { throw new Error('http ' + r.status); } return r.json(); })
-        .then(function (rows) { clearTimeout(timer); finish(Array.isArray(rows) ? rows : null); })
+        .then(function (rows) {
+          clearTimeout(timer);
+          finish(Array.isArray(rows) ? dedupeBest(rows).slice(0, 10) : null);
+        })
         .catch(function () { clearTimeout(timer); finish(null); });
     } catch (err) { clearTimeout(timer); finish(null); }
   }
@@ -572,12 +625,20 @@
     renderRows(els.lbList, els.lbStatus, rows, mine, label);
   }
 
-  function refreshBoard(mine, wantRoast) {
+  function markTab(onBtn, offBtn) {
+    onBtn.classList.add('is-on');
+    offBtn.classList.remove('is-on');
+  }
+
+  function showVictim(rows, myScore) { /* Task 5 fills this in */ }
+
+  function refreshBoard(scope, mine, wantRoast, myScore) {
     els.lbStatus.textContent = 'LOADING';
-    fetchTop(function (rows) {
+    fetchTop(scope, function (rows) {
       if (rows) {
         renderBoard(rows, mine, '');
         if (wantRoast && state.mode === 'over') { applyRoast(rows); }
+        if (myScore != null && state.mode === 'over') { showVictim(rows, myScore); }
         rememberTop(rows);
       }
       else { renderBoard(readLocalBoard(), mine, 'THIS DEVICE ONLY'); }
@@ -586,13 +647,15 @@
 
   /* Standalone board view: opens from the corner trophy, refreshes itself
      every 15s while open so nobody has to reload anything. */
+  var deathScope = 'day';
+  var overlayScope = 'all';
   var boardOpen = false;
   var boardTimer = null;
   var BOARD_REFRESH_MS = 15000;
 
   function refreshOverlayBoard(showLoading) {
     if (showLoading) { els.boardStatus.textContent = 'LOADING'; }
-    fetchTop(function (rows) {
+    fetchTop(overlayScope, function (rows) {
       if (!boardOpen) { return; }
       if (rows) { renderRows(els.boardList, els.boardStatus, rows, null, ''); }
       else { renderRows(els.boardList, els.boardStatus, readLocalBoard(), null, 'THIS DEVICE ONLY'); }
@@ -642,7 +705,7 @@
       els.entry.classList.add('is-done');
       if (ok) {
         els.saveBtn.textContent = 'SAVED';
-        refreshBoard({ name: name, score: score });
+        refreshBoard(deathScope, { name: name, score: score }, false, null);
       } else {
         addLocalScore(name, score);
         els.saveBtn.textContent = 'SAVED HERE';
@@ -699,13 +762,16 @@
     els.saveBtn.textContent = 'SAVE';
     els.entry.classList.remove('is-done');
     hideAutoRow();
+    /* Every death screen opens on TODAY, whatever the last tap chose. */
+    deathScope = 'day';
+    markTab(els.lbTabDay, els.lbTabAll);
     if (finalScore > 0 && autoName) {
       /* Known player: the run posts itself; the keyboard stays away. */
       els.entry.hidden = true;
       autoSubmit(autoName, finalScore);
     } else {
       els.entry.hidden = !(finalScore > 0);
-      refreshBoard(null, true);
+      refreshBoard(deathScope, null, true, null);
     }
 
     state.overAt = Date.now();
@@ -752,7 +818,7 @@
 
   function tryRestart(ev) {
     /* Taps on the name entry are for typing/saving, never restarts. */
-    if (ev && ev.target && ev.target.closest && ev.target.closest('.hud-lb-entry, .hud-lb-auto')) { return; }
+    if (ev && ev.target && ev.target.closest && ev.target.closest('.hud-lb-entry, .hud-lb-auto, .hud-lb-tabs')) { return; }
     if (state.mode !== 'over') { return; }
     var now = Date.now();
     if (now - state.overAt < RESTART_LOCKOUT_MS) { return; }
@@ -777,6 +843,26 @@
     });
     els.boardBtn.addEventListener('click', openBoard);
     els.boardClose.addEventListener('click', closeBoard);
+    els.lbTabDay.addEventListener('click', function () {
+      deathScope = 'day'; markTab(els.lbTabDay, els.lbTabAll);
+      refreshBoard(deathScope, null, false, null);
+    });
+    els.lbTabAll.addEventListener('click', function () {
+      deathScope = 'all'; markTab(els.lbTabAll, els.lbTabDay);
+      refreshBoard(deathScope, null, false, null);
+    });
+    els.boardTabDay.addEventListener('click', function () {
+      overlayScope = 'day'; markTab(els.boardTabDay, els.boardTabAll);
+      refreshOverlayBoard(true);
+    });
+    els.boardTabAll.addEventListener('click', function () {
+      overlayScope = 'all'; markTab(els.boardTabAll, els.boardTabDay);
+      refreshOverlayBoard(true);
+    });
+    keepKeysLocal(els.lbTabDay);
+    keepKeysLocal(els.lbTabAll);
+    keepKeysLocal(els.boardTabDay);
+    keepKeysLocal(els.boardTabAll);
     els.muteBtn.addEventListener('click', toggleMute);
     els.board.addEventListener('pointerdown', function (ev) {
       if (ev.target === els.board) { closeBoard(); } /* tap outside the panel */
