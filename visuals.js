@@ -624,7 +624,7 @@
     return out;
   }
 
-  function perfectFlash(center, sx, sz) {
+  function perfectFlash(center, sx, sz, opacity) {
     if (!S.inited) return;
     var f = null;
     for (var i = 0; i < S.flashPool.length; i++) {
@@ -643,7 +643,7 @@
     f.mesh.visible = true;
     f.mesh.position.set(center.x, center.y, center.z);
     f.mesh.scale.set(f.sx, f.sz, 1);
-    f.mesh.material.uniforms.uOpacity.value = 1;
+    f.mesh.material.uniforms.uOpacity.value = opacity == null ? 1 : opacity;
   }
 
   function perfectFlashForMesh(mesh) {
@@ -682,6 +682,62 @@
     });
   }
 
+  /* ---- ghost line: dashed outline at the personal-best height ---------- */
+  /* Reads StackCore.getTowerState() (public state seam); rebuilt fresh on
+     every init/reset so visuals' own reset can never leave a stale mesh. */
+
+  var GHOST = { line: null, best: 0, passed: false };
+
+  function ghostRemove() {
+    if (GHOST.line && ctx && ctx.scene) { ctx.scene.remove(GHOST.line); }
+    if (GHOST.line) {
+      if (GHOST.line.geometry) GHOST.line.geometry.dispose();
+      if (GHOST.line.material) GHOST.line.material.dispose();
+    }
+    GHOST.line = null;
+  }
+
+  function ghostStyle(passed) {
+    if (!GHOST.line) return;
+    GHOST.line.material.opacity = passed ? 0.85 : 0.38;
+  }
+
+  function ghostSync() {
+    if (!S.inited) return;
+    ghostRemove();
+    GHOST.passed = false;
+    var core = window.StackCore;
+    var st = core && core.getTowerState ? core.getTowerState() : null;
+    GHOST.best = st && st.best ? st.best : 0;
+    if (!st || GHOST.best < 10) return;
+    var half = st.blockSize * 0.62;
+    var pts = [
+      new T.Vector3(-half, 0, -half), new T.Vector3(half, 0, -half),
+      new T.Vector3(half, 0, half), new T.Vector3(-half, 0, half),
+      new T.Vector3(-half, 0, -half)
+    ];
+    var geo = new T.BufferGeometry().setFromPoints(pts);
+    var mat = new T.LineDashedMaterial({
+      color: 0xffffff, transparent: true, opacity: 0.38,
+      dashSize: 0.16, gapSize: 0.12, depthWrite: false
+    });
+    var line = new T.Line(geo, mat);
+    line.computeLineDistances();
+    line.position.y = GHOST.best * st.blockHeight + 0.01;
+    line.userData.svGhost = true;
+    line.renderOrder = 3;
+    ctx.scene.add(line);
+    GHOST.line = line;
+  }
+
+  function ghostCheckPassed(level) {
+    if (!GHOST.line || GHOST.passed) return;
+    if (typeof level === 'number' && level > GHOST.best) {
+      GHOST.passed = true;
+      ghostStyle(true);
+    }
+  }
+
   function onBlockPlaced(mesh, level, opts) {
     opts = opts || {};
     if (!S.inited) return;
@@ -691,9 +747,20 @@
     if (opts.perfect) {
       perfectFlashForMesh(mesh);
       startPulse(mesh, 0.05, true);
+    } else if (opts.almost) {
+      /* Near-miss: hairline cue, clearly weaker than the perfect flash. */
+      var afp = meshFootprint(mesh, {});
+      if (afp) {
+        perfectFlash(
+          { x: afp.cx, y: afp.topY + 0.03 * S.blockW, z: afp.cz },
+          afp.sx * 0.72, afp.sz * 0.72, 0.5
+        );
+      }
+      startPulse(mesh, 0.03, false);
     } else {
       startPulse(mesh, 0.016, false);
     }
+    ghostCheckPassed(level);
   }
 
   /* Cut piece handover. The piece must read as physical: it tips OUTWARD
@@ -1071,6 +1138,7 @@
   window.addEventListener('stack:init', function (e) {
     var d = det(e);
     init({ scene: d.scene, camera: d.camera, renderer: d.renderer, THREE: d.THREE });
+    ghostSync();
   });
   window.addEventListener('stack:block', function (e) {
     var d = det(e);
@@ -1089,5 +1157,9 @@
     if (typeof d.level === 'number') setLevel(d.level);
   });
   window.addEventListener('stack:gameover', function () { onGameOver(); });
-  window.addEventListener('stack:reset', function () { reset(); });
+  window.addEventListener('stack:reset', function () { reset(); ghostSync(); });
+  /* stack:reset only fires on restarts, and at stack:init time
+     window.StackCore may not be assigned yet; game:start fires on every run
+     start (including the first), so the ghost is guaranteed by then. */
+  window.addEventListener('game:start', function () { ghostSync(); });
 })();
