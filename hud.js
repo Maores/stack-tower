@@ -318,9 +318,9 @@
 
   /* ----------------------------------------------------------- leaderboard */
 
-  var LB_URL = 'https://uidxgisstzpsmepoatpm.supabase.co/rest/v1/stack_scores';
+  var LB_URL = 'https://exfjfiuzrwuedztmdyqf.supabase.co/rest/v1/stack_scores';
   /* Publishable key by design: safe in public clients, access is RLS-gated. */
-  var LB_KEY = 'sb_publishable_xW4Ov4SgXIxL6wT2sZ2fuw_0fAO7vbI';
+  var LB_KEY = 'sb_publishable_gJ5RS5qGx2_Md1J0fWBTBw_DFYDB0Dd';
   var LB_QUERY = '?select=name,score&order=score.desc,created_at.asc&limit=10';
   var LB_TIMEOUT_MS = 6000;
   var LOCAL_BOARD_KEY = 'stack-local-board';
