@@ -760,6 +760,12 @@
     } else {
       startPulse(mesh, 0.016, false);
     }
+    /* Track the tower's horizontal drift: placed blocks never move again, so
+       the ghost only needs updating when one lands, not every frame. */
+    if (GHOST.line && mesh) {
+      GHOST.line.position.x = mesh.position.x;
+      GHOST.line.position.z = mesh.position.z;
+    }
     ghostCheckPassed(level);
   }
 
@@ -999,18 +1005,6 @@
         }
       }
       if (gone) removeDebris(en);
-    }
-
-    // ghost line: follow tower drift on x/z (y stays pinned to best height)
-    if (GHOST.line) {
-      var ghCore = window.StackCore;
-      var ghState = ghCore && ghCore.getTowerState ? ghCore.getTowerState() : null;
-      var ghBlocks = ghState && ghState.blocks;
-      var ghTop = ghBlocks && ghBlocks.length ? ghBlocks[ghBlocks.length - 1] : null;
-      if (ghTop) {
-        GHOST.line.position.x = ghTop.x;
-        GHOST.line.position.z = ghTop.z;
-      }
     }
   }
 
