@@ -412,8 +412,12 @@
   }
 
   /* Personal roasts: when the live board is available at death time, the quip
-     targets someone real instead of the generic bag. */
-  var LAST_TOP_KEY = 'stack-last-top';
+     targets someone real instead of the generic bag. Namespaced to the daily
+     scope: a device from before the daily board existed may still hold a
+     value under the old unscoped 'stack-last-top' key, and that all-time
+     leader is not comparable to a daily top. Leaving that old key unread
+     orphans it, which is correct; it is never migrated. */
+  var LAST_TOP_KEY = 'stack-last-top-day';
   var ROAST_RIVAL = [
     'Even {n} got further. {n} got {s}.',
     'Somewhere, {n} ({s}) is not impressed.',
@@ -648,7 +652,7 @@
   var deathBoardSeq = 0;
   var overlayBoardSeq = 0;
 
-  function refreshBoard(scope, mine, wantRoast, myScore) {
+  function refreshBoard(scope, mine, wantRoast, myScore, isRetry) {
     /* A call for a scope the player already left (a late auto-post callback)
        is roast-only: it must neither paint nor take the token, or the tab
        they did pick would never get its own rows. */
@@ -659,15 +663,24 @@
       var paint = showing && seq === deathBoardSeq;
       if (!rows) {
         if (paint) { renderBoard(readLocalBoard(), mine, 'THIS DEVICE ONLY'); }
-        return;
+      } else {
+        if (paint) { renderBoard(rows, mine, ''); }
+        /* The roast belongs to this run's rows, not to whatever tab is showing. */
+        if (wantRoast && state.mode === 'over') { applyRoast(rows); }
+        if (myScore != null && state.mode === 'over') { showVictim(rows, myScore); }
+        /* Only the daily board says who holds the crown; remembering an all-time
+           leader here would fake a crown change on the next death's roast. */
+        if (scope === 'day') { rememberTop(rows); }
       }
-      if (paint) { renderBoard(rows, mine, ''); }
-      /* The roast belongs to this run's rows, not to whatever tab is showing. */
-      if (wantRoast && state.mode === 'over') { applyRoast(rows); }
-      if (myScore != null && state.mode === 'over') { showVictim(rows, myScore); }
-      /* Only the daily board says who holds the crown; remembering an all-time
-         leader here would fake a crown change on the next death's roast. */
-      if (scope === 'day') { rememberTop(rows); }
+      /* This request's scope was already stale when issued (roast-only, above:
+         no paint, no token), so the tab the player is actually on never got
+         painted from it. If a POST that only just completed saved a row the
+         tab's own earlier fetch predates, re-enter for the CURRENT scope so a
+         real, token-taking fetch picks it up. One hop only: a retry (isRetry)
+         never schedules another, so this can never loop. */
+      if (!showing && !isRetry && scope !== deathScope && state.mode === 'over') {
+        refreshBoard(deathScope, mine, false, null, true);
+      }
     });
   }
 
@@ -796,6 +809,7 @@
     /* Every death screen opens on TODAY, whatever the last tap chose. */
     deathScope = 'day';
     deathBoardSeq++;   /* a request from the last death screen must not paint here */
+    els.lbStatus.textContent = '';   /* and must not leave its LOADING label stuck either */
     markTab(els.lbTabDay, els.lbTabAll);
     if (finalScore > 0 && autoName) {
       /* Known player: the run posts itself; the keyboard stays away. */
