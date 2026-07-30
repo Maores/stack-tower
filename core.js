@@ -44,7 +44,7 @@
 
    Visuals bridge (for visuals.js, dispatched on window as CustomEvents):
      'stack:init' {scene, camera, renderer, THREE}, 'stack:block'
-     {mesh, level}, 'stack:placed' {mesh, level, perfect}, 'stack:debris'
+     {mesh, level}, 'stack:placed' {mesh, level, perfect, almost}, 'stack:debris'
      {mesh, level, dir}, 'stack:gameover', 'stack:reset'; plus a direct
      StackVisuals.update(dt) call each frame. When StackVisuals is ready it
      owns lighting, materials, debris animation, and placement juice; core
@@ -78,6 +78,8 @@
     speedGain: 0.055,     // per block index
     speedMax: 6.8,
     perfectEps: 0.14,     // |offset| below this snaps as a perfect drop
+    almostEps: 0.10,      // sliced drops within perfectEps+this of center flash
+                          // a near-miss cue (retention spec, tunable)
     growStep: 0.14,       // footprint regrowth per perfect while on a streak
     growCombo: 3,         // streak length at which regrowth starts
     gravity: 22,
@@ -410,7 +412,10 @@
     var recS = placedRecord(m, dropped, newW, newD, false);
     blocks.push(recS);
     score += 1; combo = 0;
-    fireDom('stack:placed', { mesh: m, level: dropped.index, perfect: false });
+    fireDom('stack:placed', {
+      mesh: m, level: dropped.index, perfect: false,
+      almost: Math.abs(delta) <= CFG.perfectEps + CFG.almostEps
+    });
     fireDom('game:score', { score: score });
     emit('drop', dropPayload('sliced', recS, pieces, delta));
     spawnNext();
