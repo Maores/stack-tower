@@ -243,6 +243,8 @@
 }
 .hud-over-victim {
   margin-top: 0.8vh;
+  max-width: min(84vw, 420px);
+  text-align: center;
   font-size: clamp(11px, 1.7vmin, 14px);
   font-weight: 300;
   letter-spacing: 0.24em;

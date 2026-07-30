@@ -521,19 +521,22 @@
      run can never produce two rows. */
   function autoSubmit(name, score) {
     state.submitted = true;
-    var seq = ++autoSeq;   /* invalidated by NOT YOU? or a newer run */
+    var seq = autoSeq;   /* bumped by every death (applyOver) and by NOT YOU? */
     var row = { name: name, score: score };
     state.postedRow = row;
     /* Scope at death time: a tab tapped during the save must not decide which
-       rows this run's roast is computed from. */
+       rows this run's roast is computed from. Same for the death generation:
+       this callback can land after the next run has already died, and that
+       screen's victim line must never be computed from this run's score. */
     var scope = deathScope;
+    var dseq = deathSeq;
     setAutoRow('SAVING AS ' + lrm(name), false);
     submitScore(name, score, function (ok) {
       if (!ok) { addLocalScore(name, score); } /* record even mid-restart */
       if (seq !== autoSeq || state.mode !== 'over') { return; }
       if (ok) {
         setAutoRow('SAVED AS ' + lrm(name), true);
-        refreshBoard(scope, row, true, score);
+        refreshBoard(scope, row, true, dseq === deathSeq ? score : null);
       } else {
         setAutoRow('SAVED HERE AS ' + lrm(name), true);
         renderBoard(readLocalBoard(), row, 'THIS DEVICE ONLY');
@@ -676,12 +679,13 @@
   /* "N MORE PASSES <name>": the daily row just above me; fallback: my best. */
   function showVictim(rows, myScore) {
     if (!(myScore > 0)) { return; }
+    var myName = readName();   /* hoisted: one storage read, not one per row */
     var above = null, i, r;
     if (rows && rows.length) {
       for (i = rows.length - 1; i >= 0; i--) {
         r = rows[i];
         if (r && typeof r.score === 'number' && r.score >= myScore &&
-            r.name !== readName()) { above = r; break; }
+            r.name !== myName) { above = r; break; }
       }
     }
     if (above) {
@@ -864,6 +868,8 @@
 
   function applyOver(detail) {
     deathSeq++;   /* new run: any death line still in flight from the last one is void */
+    autoSeq++;    /* and so is the last run's auto-post row, whether or not this
+                     run posts one of its own (a score-0 death posts nothing) */
     var s = pickNumber(detail, ['score', 'value', 'points']);
     if (s != null) { state.score = Math.max(0, Math.round(s)); renderScore(); }
     var finalScore = state.score;
