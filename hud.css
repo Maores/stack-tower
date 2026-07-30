@@ -496,6 +496,7 @@
   font-size: clamp(12px, 1.8vmin, 15px);
   font-weight: 300;
   letter-spacing: 0.18em;
+  margin-right: -0.18em;
   text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
 }
 .hud-lb-auto-btn {
@@ -504,7 +505,7 @@
   border: 1px solid rgba(255, 255, 255, 0.5);
   background: rgba(255, 255, 255, 0.08);
   border-radius: 8px;
-  padding: 0.3em 0.7em;
+  padding: 0.3em 0.7em 0.3em 0.88em; /* extra left pad balances letter-spacing */
   font-size: clamp(10px, 1.5vmin, 12px);
   font-weight: 300;
   letter-spacing: 0.18em;

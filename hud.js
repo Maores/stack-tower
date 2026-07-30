@@ -343,6 +343,7 @@
     'Your tower is now modern art.'
   ];
   var quipBag = [];
+  var autoSeq = 0;
 
   function nextQuip() {
     if (!quipBag.length) {
@@ -453,14 +454,15 @@
      run can never produce two rows. */
   function autoSubmit(name, score) {
     state.submitted = true;
+    var seq = ++autoSeq;   /* invalidated by NOT YOU? or a newer run */
     setAutoRow('SAVING AS ' + lrm(name), false);
     submitScore(name, score, function (ok) {
-      if (state.mode !== 'over') { return; } /* already restarted; run still posted */
+      if (!ok) { addLocalScore(name, score); } /* record even mid-restart */
+      if (seq !== autoSeq || state.mode !== 'over') { return; }
       if (ok) {
         setAutoRow('SAVED AS ' + lrm(name), true);
         refreshBoard({ name: name, score: score }, true);
       } else {
-        addLocalScore(name, score);
         setAutoRow('SAVED HERE AS ' + lrm(name), true);
         renderBoard(readLocalBoard(), { name: name, score: score }, 'THIS DEVICE ONLY');
       }
@@ -468,6 +470,8 @@
   }
 
   function changeName() {
+    if (state.mode !== 'over') { return; }
+    autoSeq++;   /* a late auto-post callback must not resurrect the row */
     hideAutoRow();
     els.entry.hidden = false;
     els.entry.classList.remove('is-done');

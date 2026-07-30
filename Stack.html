@@ -525,6 +525,7 @@
   font-size: clamp(12px, 1.8vmin, 15px);
   font-weight: 300;
   letter-spacing: 0.18em;
+  margin-right: -0.18em;
   text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
 }
 .hud-lb-auto-btn {
@@ -533,7 +534,7 @@
   border: 1px solid rgba(255, 255, 255, 0.5);
   background: rgba(255, 255, 255, 0.08);
   border-radius: 8px;
-  padding: 0.3em 0.7em;
+  padding: 0.3em 0.7em 0.3em 0.88em; /* extra left pad balances letter-spacing */
   font-size: clamp(10px, 1.5vmin, 12px);
   font-weight: 300;
   letter-spacing: 0.18em;
@@ -2948,6 +2949,7 @@
     'Your tower is now modern art.'
   ];
   var quipBag = [];
+  var autoSeq = 0;
 
   function nextQuip() {
     if (!quipBag.length) {
@@ -3058,14 +3060,15 @@
      run can never produce two rows. */
   function autoSubmit(name, score) {
     state.submitted = true;
+    var seq = ++autoSeq;   /* invalidated by NOT YOU? or a newer run */
     setAutoRow('SAVING AS ' + lrm(name), false);
     submitScore(name, score, function (ok) {
-      if (state.mode !== 'over') { return; } /* already restarted; run still posted */
+      if (!ok) { addLocalScore(name, score); } /* record even mid-restart */
+      if (seq !== autoSeq || state.mode !== 'over') { return; }
       if (ok) {
         setAutoRow('SAVED AS ' + lrm(name), true);
         refreshBoard({ name: name, score: score }, true);
       } else {
-        addLocalScore(name, score);
         setAutoRow('SAVED HERE AS ' + lrm(name), true);
         renderBoard(readLocalBoard(), { name: name, score: score }, 'THIS DEVICE ONLY');
       }
@@ -3073,6 +3076,8 @@
   }
 
   function changeName() {
+    if (state.mode !== 'over') { return; }
+    autoSeq++;   /* a late auto-post callback must not resurrect the row */
     hideAutoRow();
     els.entry.hidden = false;
     els.entry.classList.remove('is-done');
