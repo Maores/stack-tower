@@ -23,54 +23,88 @@
 
 ---
 
-### Task 1: `mode` column migration + live verification
+### Task 1: dedicated Supabase project + `mode` column (AMENDED 2026-07-30, Maor's call)
+
+Original task altered certimanager's table in place. Maor chose a dedicated project instead, so game auth at the identity item never mixes into certimanager's `auth.users` and quotas stay separate. certimanager's `stack_scores` stays untouched and keeps serving the currently-deployed site until this branch ships; dropping it is a rollout-time decision for Maor.
 
 **Files:**
-- No repo files. SQL runs against Supabase project `uidxgisstzpsmepoatpm` (certimanager), table `public.stack_scores`.
+- Modify: `hud.js` (LB_URL + LB_KEY constants, ~line 307)
+- SQL runs on the NEW project. Old data source: project `uidxgisstzpsmepoatpm` (certimanager), 39 rows as of amendment time, shape `(id uuid, name text, score int, created_at timestamptz)`.
 
 **Interfaces:**
-- Consumes: existing table `(name text CHECK 1-16 chars, score int CHECK 1-10000, created_at timestamptz default now())`, RLS anon SELECT+INSERT.
-- Produces: column `mode text not null default 'normal'` with CHECK `mode in ('normal','hard')`, readable and filterable by anon via PostgREST (`?mode=eq.normal`). Tasks 4-5 rely on exactly this name and default.
+- Consumes: Maor creates the project in the dashboard (org, name `stack-tower`, region of his choice, DB password his alone; the app never uses it). Both projects' publishable keys are public by design; row copy uses plain REST on both sides.
+- Produces: new project's `public.stack_scores` with `mode text not null default 'normal'` CHECK `('normal','hard')` built in, same name/score CHECKs and open RLS model as before; all 39 rows copied with `id`/`created_at` preserved; `hud.js` pointing at the new URL + key. Tasks 4-5 rely on the `mode` column name and default exactly.
 
-- [ ] **Step 1: Apply the migration**
+- [ ] **Step 1: Maor creates the project** (dashboard; Claude never handles the DB password)
 
-Invoke the `supabase` skill and run against the certimanager project (fallback: hand this SQL to Maor for the dashboard SQL editor):
+- [ ] **Step 2: Create the schema on the new project** (SQL editor):
 
 ```sql
-alter table public.stack_scores add column if not exists mode text not null default 'normal';
-alter table public.stack_scores add constraint stack_scores_mode_check check (mode in ('normal','hard'));
+create table public.stack_scores (
+  id uuid primary key default gen_random_uuid(),
+  name text not null check (char_length(name) >= 1 and char_length(name) <= 16),
+  score integer not null check (score >= 1 and score <= 10000),
+  mode text not null default 'normal' check (mode in ('normal','hard')),
+  created_at timestamptz not null default now()
+);
+alter table public.stack_scores enable row level security;
+create policy "anon read" on public.stack_scores for select to anon using (true);
+create policy "anon insert" on public.stack_scores for insert to anon with check (true);
 ```
 
-- [ ] **Step 2: Verify via anon REST probes**
+- [ ] **Step 3: Copy the 39 rows (REST both sides, ids + timestamps preserved)**
 
-Run in PowerShell (publishable key, same one shipped in hud.js):
+PowerShell (fill NEWREF + NEWKEY from the new project's Settings -> API):
 
 ```powershell
-$K = 'sb_publishable_xW4Ov4SgXIxL6wT2sZ2fuw_0fAO7vbI'
-$U = 'https://uidxgisstzpsmepoatpm.supabase.co/rest/v1/stack_scores'
-# a) mode visible and defaulted on existing rows
-Invoke-RestMethod -Uri "$U?select=name,mode&limit=2" -Headers @{ apikey = $K }
-# b) explicit valid mode accepted
-Invoke-WebRequest -Uri $U -Method Post -Headers @{ apikey = $K; 'Content-Type' = 'application/json' } -Body '{"name":"MODEPROBE","score":1,"mode":"hard"}' | Select-Object -ExpandProperty StatusCode
+$OLDK = 'sb_publishable_xW4Ov4SgXIxL6wT2sZ2fuw_0fAO7vbI'
+$OLDU = 'https://uidxgisstzpsmepoatpm.supabase.co/rest/v1/stack_scores'
+$NEWU = 'https://<NEWREF>.supabase.co/rest/v1/stack_scores'
+$NEWK = '<NEW PUBLISHABLE KEY>'
+$rows = Invoke-RestMethod -Uri "$OLDU?select=id,name,score,created_at&order=created_at.asc&limit=1000" -Headers @{ apikey = $OLDK }
+"fetched: $($rows.Count)"
+$body = $rows | ConvertTo-Json -Depth 3
+Invoke-WebRequest -Uri $NEWU -Method Post -Headers @{ apikey = $NEWK; 'Content-Type' = 'application/json'; Prefer = 'return=minimal' } -Body $body | Select-Object -ExpandProperty StatusCode
+(Invoke-WebRequest -Uri "$NEWU?select=id&limit=1" -Headers @{ apikey = $NEWK; Prefer = 'count=exact' } -Method Head).Headers['Content-Range']
+```
+
+Expected: `fetched: 39`, POST `201`, final count `0-0/39`.
+
+- [ ] **Step 4: Verify via anon REST probes on the NEW project**
+
+```powershell
+# a) mode defaulted on copied rows
+Invoke-RestMethod -Uri "$NEWU?select=name,mode&limit=2" -Headers @{ apikey = $NEWK }
+# b) valid explicit mode accepted
+Invoke-WebRequest -Uri $NEWU -Method Post -Headers @{ apikey = $NEWK; 'Content-Type' = 'application/json' } -Body '{"name":"MODEPROBE","score":1,"mode":"hard"}' | Select-Object -ExpandProperty StatusCode
 # c) invalid mode rejected by the CHECK
-try { Invoke-WebRequest -Uri $U -Method Post -Headers @{ apikey = $K; 'Content-Type' = 'application/json' } -Body '{"name":"MODEPROBE","score":1,"mode":"bogus"}' } catch { $_.Exception.Response.StatusCode.value__ }
+try { Invoke-WebRequest -Uri $NEWU -Method Post -Headers @{ apikey = $NEWK; 'Content-Type' = 'application/json' } -Body '{"name":"MODEPROBE","score":1,"mode":"bogus"}' } catch { $_.Exception.Response.StatusCode.value__ }
 # d) filter works
-Invoke-RestMethod -Uri "$U?select=name&mode=eq.hard&name=eq.MODEPROBE" -Headers @{ apikey = $K }
+Invoke-RestMethod -Uri "$NEWU?select=name&mode=eq.hard&name=eq.MODEPROBE" -Headers @{ apikey = $NEWK }
 ```
 
-Expected: (a) rows with `mode: normal`; (b) `201`; (c) `400`; (d) one `MODEPROBE` row.
+Expected: (a) `mode: normal`; (b) `201`; (c) `400`; (d) one `MODEPROBE` row.
 
-If (b) returns 401/403, the table uses column-level insert grants; run `grant insert (mode) on public.stack_scores to anon;` and repeat (b).
+- [ ] **Step 5: Delete the probe row (the friends' board stays real)**
 
-- [ ] **Step 3: Delete the probe rows (project rule: the friends' board stays real)**
+New project's SQL editor: `delete from public.stack_scores where name = 'MODEPROBE';` then confirm `GET $NEWU?select=name&name=eq.MODEPROBE` returns `[]`.
 
-Via the same SQL surface:
+- [ ] **Step 6: Point hud.js at the new project + commit**
 
-```sql
-delete from public.stack_scores where name = 'MODEPROBE';
+Replace the two constants in hud.js (~line 307):
+
+```javascript
+  var LB_URL = 'https://<NEWREF>.supabase.co/rest/v1/stack_scores';
+  /* Publishable key by design: safe in public clients, access is RLS-gated. */
+  var LB_KEY = '<NEW PUBLISHABLE KEY>';
 ```
 
-Verify: `GET $U?select=name&name=eq.MODEPROBE` returns `[]`.
+```bash
+git add hud.js
+git commit -m "Leaderboard: move to dedicated stack-tower Supabase project (mode column built in)"
+```
+
+certimanager's `stack_scores` is deliberately NOT dropped here: it keeps serving the deployed site until this branch ships; dropping it is a rollout-time decision for Maor.
 
 ---
 
