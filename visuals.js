@@ -1000,6 +1000,18 @@
       }
       if (gone) removeDebris(en);
     }
+
+    // ghost line: follow tower drift on x/z (y stays pinned to best height)
+    if (GHOST.line) {
+      var ghCore = window.StackCore;
+      var ghState = ghCore && ghCore.getTowerState ? ghCore.getTowerState() : null;
+      var ghBlocks = ghState && ghState.blocks;
+      var ghTop = ghBlocks && ghBlocks.length ? ghBlocks[ghBlocks.length - 1] : null;
+      if (ghTop) {
+        GHOST.line.position.x = ghTop.x;
+        GHOST.line.position.z = ghTop.z;
+      }
+    }
   }
 
   /* ------------------------------------------------ init and teardown */
@@ -1158,8 +1170,12 @@
   });
   window.addEventListener('stack:gameover', function () { onGameOver(); });
   window.addEventListener('stack:reset', function () { reset(); ghostSync(); });
-  /* stack:reset only fires on restarts, and at stack:init time
-     window.StackCore may not be assigned yet; game:start fires on every run
-     start (including the first), so the ghost is guaranteed by then. */
+  /* stack:reset only fires on restarts. game:start is still needed as a
+     fallback because core.js fires stack:init before it reads `best` from
+     localStorage (fireDom('stack:init', ...) runs ahead of the
+     localStorage read in init()), so the ghostSync() above always sees
+     best=0 on that first call and can build no line. game:start fires
+     once best is loaded, on every run start including the first, so the
+     ghost is guaranteed by then. */
   window.addEventListener('game:start', function () { ghostSync(); });
 })();
