@@ -24,6 +24,8 @@
                                       frame-time ring buffer (raw rAF deltas)
      debug.stats()                    { phase, score, blocks, debris,
                                         drawCalls, triangles, geometries }
+                                      (debug.* is real only with ?debug=1 in
+                                       the URL; plain URLs get a taunting decoy)
 
    Bus events (payload always includes state = getTowerState()):
      'ready'    boot finished
@@ -725,7 +727,7 @@
      real thing needs ?debug=1 (the test suites append it). The source is
      public, so this is a speed bump for lazy cheaters, not a lock. */
   var debugAllowed = false;
-  try { debugAllowed = /[?&]debug=1/.test(window.location.search); }
+  try { debugAllowed = /[?&]debug=1(?:&|$)/.test(window.location.search); }
   catch (err) { debugAllowed = false; }
 
   var TAUNTS = [
