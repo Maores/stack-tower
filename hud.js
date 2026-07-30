@@ -181,6 +181,17 @@
     lb.appendChild(lbList);
     lb.appendChild(entry);
 
+    /* Auto-post status row for returning players: "SAVED AS X" + NOT YOU? */
+    var autoRow = el('div', 'hud-lb-auto');
+    var autoText = el('span', 'hud-lb-auto-text', '');
+    var autoBtn = el('button', 'hud-lb-auto-btn', 'NOT YOU?');
+    autoBtn.type = 'button';
+    autoBtn.setAttribute('aria-label', 'Change saved name');
+    autoRow.hidden = true;
+    autoRow.appendChild(autoText);
+    autoRow.appendChild(autoBtn);
+    lb.appendChild(autoRow);
+
     var restart = el('button', 'hud-restart hud-anim d5');
     restart.type = 'button';
     restart.setAttribute('aria-label', 'Restart game');
@@ -261,6 +272,9 @@
       entry: entry,
       nameInput: nameInput,
       saveBtn: saveBtn,
+      autoRow: autoRow,
+      autoText: autoText,
+      autoBtn: autoBtn,
       boardBtn: boardBtn,
       muteBtn: muteBtn,
       board: board,
@@ -421,6 +435,48 @@
     try { window.localStorage.setItem(NAME_KEY, v); } catch (err) { /* ignore */ }
   }
 
+  /* --------------------------------------------- auto-post status row */
+
+  function setAutoRow(text, done) {
+    els.autoText.textContent = text;
+    els.autoRow.hidden = false;
+    els.autoRow.classList.toggle('is-done', !!done);
+  }
+
+  function hideAutoRow() {
+    els.autoRow.hidden = true;
+    els.autoRow.classList.remove('is-done');
+  }
+
+  /* Once a name is known on this device, every scoring run posts itself.
+     NOT YOU? renames future runs only: the posted row stays as-is, so one
+     run can never produce two rows. */
+  function autoSubmit(name, score) {
+    state.submitted = true;
+    setAutoRow('SAVING AS ' + lrm(name), false);
+    submitScore(name, score, function (ok) {
+      if (state.mode !== 'over') { return; } /* already restarted; run still posted */
+      if (ok) {
+        setAutoRow('SAVED AS ' + lrm(name), true);
+        refreshBoard({ name: name, score: score }, true);
+      } else {
+        addLocalScore(name, score);
+        setAutoRow('SAVED HERE AS ' + lrm(name), true);
+        renderBoard(readLocalBoard(), { name: name, score: score }, 'THIS DEVICE ONLY');
+      }
+    });
+  }
+
+  function changeName() {
+    hideAutoRow();
+    els.entry.hidden = false;
+    els.entry.classList.remove('is-done');
+    els.nameInput.disabled = false;
+    els.saveBtn.disabled = false;
+    els.saveBtn.textContent = 'USE NAME';
+    try { els.nameInput.focus(); } catch (err) { /* ignore */ }
+  }
+
   function readMuted() {
     try { return window.localStorage.getItem(MUTE_KEY) === '1'; }
     catch (err) { return false; }
@@ -555,14 +611,23 @@
   }
 
   function trySave() {
-    if (state.mode !== 'over' || state.submitted) { return; }
+    if (state.mode !== 'over') { return; }
     var name = (els.nameInput.value || '').replace(/\s+/g, ' ').trim().slice(0, 16);
-    var score = state.score;
     if (!name) {
       retrigger(els.entry, 'is-shake');
       try { els.nameInput.focus(); } catch (err) { /* ignore */ }
       return;
     }
+    if (state.submitted) {
+      /* Rename after an auto-post: future runs save as the new name. */
+      writeName(name);
+      els.nameInput.disabled = true;
+      els.saveBtn.disabled = true;
+      els.saveBtn.textContent = 'SAVED FOR NEXT';
+      els.entry.classList.add('is-done');
+      return;
+    }
+    var score = state.score;
     if (!(score > 0)) { return; }
     state.submitted = true;
     writeName(name);
@@ -623,13 +688,21 @@
 
     els.quip.textContent = nextQuip();
     state.submitted = false;
+    var autoName = readName();
     els.nameInput.disabled = false;
-    els.nameInput.value = readName();
+    els.nameInput.value = autoName;
     els.saveBtn.disabled = false;
     els.saveBtn.textContent = 'SAVE';
     els.entry.classList.remove('is-done');
-    els.entry.hidden = !(finalScore > 0);
-    refreshBoard(null, true);
+    hideAutoRow();
+    if (finalScore > 0 && autoName) {
+      /* Known player: the run posts itself; the keyboard stays away. */
+      els.entry.hidden = true;
+      autoSubmit(autoName, finalScore);
+    } else {
+      els.entry.hidden = !(finalScore > 0);
+      refreshBoard(null, true);
+    }
 
     state.overAt = Date.now();
     setMode('over');
@@ -675,7 +748,7 @@
 
   function tryRestart(ev) {
     /* Taps on the name entry are for typing/saving, never restarts. */
-    if (ev && ev.target && ev.target.closest && ev.target.closest('.hud-lb-entry')) { return; }
+    if (ev && ev.target && ev.target.closest && ev.target.closest('.hud-lb-entry, .hud-lb-auto')) { return; }
     if (state.mode !== 'over') { return; }
     var now = Date.now();
     if (now - state.overAt < RESTART_LOCKOUT_MS) { return; }
@@ -694,6 +767,7 @@
     els.over.addEventListener('pointerdown', tryRestart);
     els.restart.addEventListener('click', tryRestart);
     els.saveBtn.addEventListener('click', trySave);
+    els.autoBtn.addEventListener('click', changeName);
     els.nameInput.addEventListener('keydown', function (ev) {
       if (ev.key === 'Enter') { ev.preventDefault(); trySave(); }
     });
@@ -713,6 +787,7 @@
     }
     keepKeysLocal(els.muteBtn);
     keepKeysLocal(els.boardBtn);
+    keepKeysLocal(els.autoBtn);
 
     window.addEventListener('keydown', function (ev) {
       if (ev.repeat) { return; }

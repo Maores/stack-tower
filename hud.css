@@ -477,6 +477,50 @@
   animation: hudShake 0.3s ease;
 }
 
+/* Auto-post status row (returning players): "SAVED AS X" + NOT YOU? */
+.hud-lb-auto {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 1.4vh;
+  pointer-events: auto;
+}
+.hud-lb-auto[hidden] {
+  display: none;
+}
+.hud-lb-auto.is-done {
+  opacity: 0.85;
+}
+.hud-lb-auto-text {
+  font-size: clamp(12px, 1.8vmin, 15px);
+  font-weight: 300;
+  letter-spacing: 0.18em;
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+}
+.hud-lb-auto-btn {
+  pointer-events: auto;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 0.3em 0.7em;
+  font-size: clamp(10px, 1.5vmin, 12px);
+  font-weight: 300;
+  letter-spacing: 0.18em;
+  transition: background-color 0.18s ease, transform 0.18s ease;
+}
+.hud-lb-auto-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+.hud-lb-auto-btn:active {
+  transform: scale(0.95);
+}
+.hud-lb-auto-btn:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
 /* --------------------------------------------------------------------------
    Corner trophy button + standalone board view
    -------------------------------------------------------------------------- */
