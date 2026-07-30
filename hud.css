@@ -344,7 +344,9 @@
   height: auto;
   margin-top: auto;
   margin-bottom: auto;
-  padding-top: 4vh;
+  /* Clear the fixed corner buttons (mute / trophy): their top offset plus
+     their clamped height plus a gap, so the quip can never sit under them. */
+  padding-top: calc(max(2.2vh, env(safe-area-inset-top, 0px)) + clamp(40px, 6.5vmin, 52px) + 1.8vh);
   padding-bottom: 4vh;
 }
 

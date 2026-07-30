@@ -67,6 +67,9 @@
     overAt: 0,
     lastRestart: 0,
     runStartBest: null, /* stored best snapshotted when a run starts */
+    runBlocks: 0,       /* blocks landed this run; flushed to storage at death
+                           so the landing frame never pays a storage write */
+    runStreakPeak: 0,   /* highest perfect combo this run, flushed the same way */
     submitted: false,   /* this run's score already sent to the board */
     postedRow: null     /* {name, score} actually posted this run, for the
                            "my row" highlight; the name can differ from the
@@ -464,6 +467,8 @@
          already have persisted the new best under the same storage key, so a
          read at that point can never detect "beat my old best". */
       state.runStartBest = readBest();
+      state.runBlocks = 0;      /* fresh in-memory accumulators for this run */
+      state.runStreakPeak = 0;
     }
     state.mode = mode;
     els.root.setAttribute('data-state', mode);
@@ -783,7 +788,8 @@
     } catch (err) { clearTimeout(timer); finish(false); }
   }
 
-  function renderRows(listEl, statusEl, rows, mine, label) {
+  function renderRows(listEl, statusEl, rows, mine, label, max) {
+    var cap = max || 10;
     statusEl.textContent = label || '';
     while (listEl.firstChild) { listEl.removeChild(listEl.firstChild); }
     if (!rows || !rows.length) {
@@ -791,7 +797,7 @@
       return;
     }
     var mineMarked = false;
-    for (var i = 0; i < rows.length && i < 10; i++) {
+    for (var i = 0; i < rows.length && i < cap; i++) {
       var r = rows[i] || {};
       var li = el('li', null);
       li.appendChild(el('span', 'hud-lb-name', String(r.name == null ? '?' : r.name).slice(0, 16)));
@@ -805,7 +811,9 @@
   }
 
   function renderBoard(rows, mine, label) {
-    renderRows(els.lbList, els.lbStatus, rows, mine, label);
+    /* Death screen shows a 5-row context window, not the hall of fame; the
+       trophy overlay keeps the full 10 (phone-density fix, 2026-07-31). */
+    renderRows(els.lbList, els.lbStatus, rows, mine, label, 5);
   }
 
   function markTab(onBtn, offBtn) {
@@ -881,18 +889,26 @@
       var paint = showing && seq === deathBoardSeq;
       if (!rows) {
         if (paint) { renderBoard(readLocalBoard(), mine, 'THIS DEVICE ONLY'); }
+        /* Offline still owes the death screen a victim line: with no rows the
+           helper falls back to the personal-best delta. Same guards as the
+           rows branch, keyed to the same death. */
+        if (myScore != null && state.mode === 'over' && dseq === deathSeq) {
+          showVictim([], myScore);
+        }
       } else {
         if (paint) { renderBoard(rows, mine, ''); }
-        /* The roast belongs to this run's rows, not to whatever tab is showing. */
-        if (wantRoast && state.mode === 'over') { applyRoast(rows); }
+        /* The roast belongs to this run's rows, not to whatever tab is showing,
+           and not to a late response from the previous death either. */
+        if (wantRoast && state.mode === 'over' && dseq === deathSeq) { applyRoast(rows); }
         /* Same for the victim line, but keyed to the death it was asked for:
            a response from the previous run must never write it. */
         if (myScore != null && state.mode === 'over' && dseq === deathSeq) {
           showVictim(rows, myScore);
         }
         /* Only the daily board says who holds the crown; remembering an all-time
-           leader here would fake a crown change on the next death's roast. */
-        if (scope === 'day') { rememberTop(rows); }
+           leader here would fake a crown change on the next death's roast. Same
+           death key: a stale response must not regress the crown either. */
+        if (scope === 'day' && dseq === deathSeq) { rememberTop(rows); }
       }
       /* This request's scope was already stale when issued (roast-only, above:
          no paint, no token), so the tab the player is actually on never got
@@ -1024,7 +1040,9 @@
     if (state.mode === 'title' && n > 0) { setMode('playing'); }
     if (state.mode === 'playing' && n > prev) {
       pop();
-      writeInt(BLOCKS_KEY, readInt(BLOCKS_KEY) + (n - prev));
+      /* Count in memory only: this runs on the frame a block lands, and a
+         synchronous storage write per block costs frames. Flushed at death. */
+      state.runBlocks += (n - prev);
     }
   }
 
@@ -1038,7 +1056,8 @@
   function applyPerfect(detail) {
     if (state.mode !== 'playing') { return; }
     var combo = pickNumber(detail, ['combo']);
-    if (combo != null && combo > readInt(STREAK_KEY)) { writeInt(STREAK_KEY, combo); }
+    /* Track the run's peak in memory; compared to storage once, at death. */
+    if (combo != null && combo > state.runStreakPeak) { state.runStreakPeak = combo; }
     retrigger(els.score, 'is-flare');
   }
 
@@ -1046,6 +1065,16 @@
     deathSeq++;   /* new run: any death line still in flight from the last one is void */
     autoSeq++;    /* and so is the last run's auto-post row, whether or not this
                      run posts one of its own (a score-0 death posts nothing) */
+    /* Flush the run's stat accumulators: one storage write per key per death
+       instead of one per block. First thing here, so everything below (and a
+       records panel opened later) reads the settled values. Trade-off: a tab
+       closed mid-run loses that run's counts; upward-only stats, minor. */
+    if (state.runBlocks > 0) {
+      writeInt(BLOCKS_KEY, readInt(BLOCKS_KEY) + state.runBlocks);
+      state.runBlocks = 0;
+    }
+    if (state.runStreakPeak > readInt(STREAK_KEY)) { writeInt(STREAK_KEY, state.runStreakPeak); }
+    state.runStreakPeak = 0;
     var s = pickNumber(detail, ['score', 'value', 'points']);
     if (s != null) { state.score = Math.max(0, Math.round(s)); renderScore(); }
     var finalScore = state.score;
@@ -1057,11 +1086,14 @@
     if (best > storedBest) { writeBest(best); }
     var today = readToday();
     if (finalScore > today.best) { today.best = finalScore; writeToday(today); }
-    els.overTier.textContent = tierLine(best);
-    els.overTier.hidden = !els.overTier.textContent;
+    /* Tier folds into the BEST line on death (phone-density fix, 2026-07-31);
+       progress-to-next stays on the title chip and records panel. */
+    var overCur = tierFor(best).cur;
+    els.overTier.hidden = true;
+    els.overTier.textContent = '';
 
     els.overScore.textContent = String(finalScore);
-    els.overBest.textContent = 'BEST ' + best;
+    els.overBest.textContent = 'BEST ' + best + (overCur ? ' · ' + overCur.name : '');
     els.newBest.hidden = !isNewBest;
     els.overPct.hidden = true;
     els.overPct.textContent = '';
