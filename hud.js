@@ -328,7 +328,13 @@
       '<path class="hud-mute-wave" d="M15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12"/>' +
       '<path class="hud-mute-slash" d="M4 4l16 16"/></svg>';
 
+    /* data-ui is core.js's documented opt-out (see the records view below).
+       Without it every tap inside this subtree that is not one of the three
+       buttons (panel body, heading, status line, every leaderboard row)
+       reaches core's global pointerdown handler and starts or restarts a run
+       behind the open board. */
     var board = el('div', 'hud-board');
+    board.setAttribute('data-ui', '1');
     var boardPanel = el('div', 'hud-board-panel');
     var boardClose = el('button', 'hud-board-close');
     boardClose.type = 'button';
@@ -920,6 +926,7 @@
 
   function openBoard() {
     if (boardOpen) { return; }
+    closeRecords();   /* one overlay at a time: both openers are keyboard-reachable */
     boardOpen = true;
     els.root.setAttribute('data-board', 'open');
     refreshOverlayBoard(true);
@@ -950,6 +957,11 @@
 
   function openRecords() {
     if (recordsOpen) { return; }
+    /* Title screen only. The pill spends 400ms fading out after a run starts
+       and stays clickable for all of it, so the tap meant to drop the first
+       block could otherwise open this panel over a live tower. */
+    if (state.mode !== 'title') { return; }
+    closeBoard();   /* one overlay at a time: both openers are keyboard-reachable */
     recordsOpen = true;
     renderRecords();
     els.root.setAttribute('data-records', 'open');
@@ -1185,8 +1197,11 @@
       if (ev.target === els.board) { closeBoard(); } /* tap outside the panel */
     });
 
-    /* Corner buttons are keyboard-operable: Enter/Space must activate the
-       button, not fall through to the window-level start/restart/drop keys. */
+    /* Corner and overlay buttons are keyboard-operable: Enter/Space must
+       activate the button, not fall through to the window-level
+       start/restart/drop keys. core.js listens on window too and calls
+       preventDefault, which would eat the button's own activation, so every
+       focusable control the player can Tab to has to stop these keys here. */
     function keepKeysLocal(btn) {
       btn.addEventListener('keydown', function (ev) {
         if (ev.key === ' ' || ev.key === 'Enter' || ev.key === 'Spacebar') { ev.stopPropagation(); }
@@ -1195,6 +1210,8 @@
     keepKeysLocal(els.muteBtn);
     keepKeysLocal(els.boardBtn);
     keepKeysLocal(els.autoBtn);
+    keepKeysLocal(els.boardClose);
+    keepKeysLocal(els.recClose);
 
     window.addEventListener('keydown', function (ev) {
       if (ev.repeat) { return; }
@@ -1205,7 +1222,10 @@
           if (boardOpen) { closeBoard(); }
           if (recordsOpen) { closeRecords(); }
         }
-        return; /* overlay views swallow all other keys */
+        /* This handler stops here, but core.js has its own window keydown
+           listener that no return of ours can reach, which is why the
+           overlay's own controls call keepKeysLocal. */
+        return;
       }
       var k = ev.key;
       if (k !== ' ' && k !== 'Enter' && k !== 'Spacebar') { return; }

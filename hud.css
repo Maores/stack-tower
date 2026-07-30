@@ -803,6 +803,13 @@
   outline: 2px solid #fff;
   outline-offset: 2px;
 }
+/* The title column fades for 400ms after a run starts and the pill keeps its
+   own pointer-events for all of it. A <button> is on core.js's skip list, so
+   a drop tap landing here would be swallowed instead of dropping the block.
+   Going inert hands that tap back to the title div, which core does act on. */
+#hud-root:not([data-state="title"]) .hud-title-records {
+  pointer-events: none;
+}
 
 /* Death-screen tier line */
 .hud-over-tier {
