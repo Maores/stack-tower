@@ -1480,8 +1480,39 @@
     }
   };
 
+  /* The real debug API drives the automated tests (deterministic drops).
+     On a plain URL, console visitors get a decoy that only talks back; the
+     real thing needs ?debug=1 (the test suites append it). The source is
+     public, so this is a speed bump for lazy cheaters, not a lock. */
+  var debugAllowed = false;
+  try { debugAllowed = /[?&]debug=1/.test(window.location.search); }
+  catch (err) { debugAllowed = false; }
+
+  var TAUNTS = [
+    'The tower remembers cheaters.',
+    'Nice try. Stack it with your fingers.',
+    'This path is for robots. You do not look like a robot.',
+    'Imagine console-cheating a game about patience.'
+  ];
+  var tauntIdx = 0;
+
+  function decoyCall() {
+    var line = TAUNTS[tauntIdx % TAUNTS.length];
+    tauntIdx++;
+    try { console.log('%c' + line, 'font-weight:bold'); } catch (err) { /* ignore */ }
+    return false;
+  }
+
+  var decoy = {
+    drop: decoyCall,
+    build: decoyCall,
+    tap: decoyCall,
+    fps: decoyCall,
+    stats: decoyCall
+  };
+
   var api = {
-    version: '1.1.0',
+    version: '1.2.0',
     config: CFG,
     on: on,
     off: off,
@@ -1493,7 +1524,7 @@
       renderHook = typeof fn === 'function' ? fn : null;
     },
     scene: null, camera: null, renderer: null, lights: null, container: null,
-    debug: debug
+    debug: debugAllowed ? debug : decoy
   };
 
   window.StackCore = api;
