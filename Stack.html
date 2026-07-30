@@ -259,6 +259,30 @@
   margin-right: -0.32em;
   opacity: 0.66;
 }
+.hud-over-pct {
+  margin-top: 1.2vh;
+  font-size: clamp(12px, 1.9vmin, 16px);
+  font-weight: 300;
+  letter-spacing: 0.3em;
+  margin-right: -0.3em;
+  text-shadow: 0 0 12px rgba(255, 255, 255, 0.45);
+}
+.hud-over-pct[hidden] {
+  display: none;
+}
+.hud-over-victim {
+  margin-top: 0.8vh;
+  max-width: min(84vw, 420px);
+  text-align: center;
+  font-size: clamp(11px, 1.7vmin, 14px);
+  font-weight: 300;
+  letter-spacing: 0.24em;
+  margin-right: -0.24em;
+  opacity: 0.8;
+}
+.hud-over-victim[hidden] {
+  display: none;
+}
 .hud-over-newbest {
   margin-top: 2vh;
   font-size: clamp(11px, 1.7vmin, 14px);
@@ -379,6 +403,37 @@
 }
 .hud-lb-status:empty {
   display: none;
+}
+/* Board scope tabs: TODAY | ALL TIME */
+.hud-lb-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 1vh;
+  pointer-events: auto;
+}
+.hud-lb-tab {
+  pointer-events: auto;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: transparent;
+  border-radius: 999px;
+  padding: 0.28em 0.9em 0.28em 1.08em; /* extra left pad balances letter-spacing */
+  font-size: clamp(10px, 1.5vmin, 12px);
+  font-weight: 300;
+  letter-spacing: 0.18em;
+  opacity: 0.6;
+  transition: opacity 0.18s ease, background-color 0.18s ease;
+}
+.hud-lb-tab.is-on {
+  opacity: 1;
+  border-color: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.10);
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.18);
+}
+.hud-lb-tab:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
 }
 .hud-lb-list {
   list-style: none;
@@ -665,6 +720,14 @@
   pointer-events: auto;
   transition: opacity 0.3s ease;
 }
+/* The records overlay carries .hud-board for the shell, so the opener above
+   would show it too. Same specificity, later in the file: this wins. Its own
+   opener is later still, so data-records can always reopen it. */
+#hud-root[data-board="open"] .hud-records {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
 .hud-board-panel {
   position: relative;
   width: min(84vw, 380px);
@@ -715,6 +778,119 @@
 .hud-board-list {
   max-height: 58vh;
   margin-top: 1.6vh;
+}
+
+/* Title tier chip + progress bar + records pill */
+.hud-title-tier {
+  margin-top: 2.6vh;
+  font-size: clamp(11px, 1.7vmin, 14px);
+  font-weight: 300;
+  letter-spacing: 0.3em;
+  margin-right: -0.3em;
+  text-shadow: 0 0 12px rgba(255, 255, 255, 0.4);
+}
+.hud-title-tier:empty {
+  display: none;
+}
+.hud-title-bar {
+  margin-top: 1.2vh;
+  width: min(38vw, 170px);
+  height: 3px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.25);
+  overflow: hidden;
+}
+.hud-title-bar i {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: 3px;
+  background: #fff;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.8);
+  transition: width 0.5s cubic-bezier(0.2, 0.7, 0.25, 1);
+}
+.hud-title-records {
+  pointer-events: auto;
+  cursor: pointer;
+  margin-top: 3.2vh;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  padding: 0.5em 1.2em 0.5em 1.42em; /* extra left pad balances letter-spacing */
+  font-size: clamp(10px, 1.6vmin, 13px);
+  font-weight: 300;
+  letter-spacing: 0.22em;
+  transition: background-color 0.18s ease, transform 0.18s ease;
+}
+.hud-title-records:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+.hud-title-records:active {
+  transform: scale(0.95);
+}
+.hud-title-records:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+/* The title column fades for 400ms after a run starts and the pill keeps its
+   own pointer-events for all of it. A <button> is on core.js's skip list, so
+   a drop tap landing here would be swallowed instead of dropping the block.
+   Going inert hands that tap back to the title div, which core does act on. */
+#hud-root:not([data-state="title"]) .hud-title-records {
+  pointer-events: none;
+}
+
+/* Death-screen tier line */
+.hud-over-tier {
+  margin-top: 0.8vh;
+  font-size: clamp(11px, 1.7vmin, 14px);
+  font-weight: 300;
+  letter-spacing: 0.26em;
+  margin-right: -0.26em;
+  opacity: 0.72;
+}
+.hud-over-tier[hidden] {
+  display: none;
+}
+
+/* Records overlay reuses the board shell; only rows are new */
+.hud-records {
+  z-index: 121; /* above the trophy board if both ever open */
+}
+#hud-root[data-records="open"] .hud-records {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition: opacity 0.3s ease;
+}
+.hud-rec-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 1vh 2px 0;
+  font-size: clamp(12px, 1.9vmin, 16px);
+  font-weight: 300;
+  letter-spacing: 0.14em;
+}
+.hud-rec-label {
+  opacity: 0.66;
+  font-size: clamp(10px, 1.5vmin, 12px);
+  letter-spacing: 0.24em;
+}
+.hud-rec-val {
+  font-variant-numeric: lining-nums tabular-nums;
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+}
+.hud-rec-bar {
+  margin: 2.2vh auto 0;
+}
+.hud-rec-tier {
+  margin-top: 1vh;
+  text-align: center;
+  font-size: clamp(10px, 1.5vmin, 12px);
+  font-weight: 300;
+  letter-spacing: 0.24em;
+  opacity: 0.75;
 }
 
 /* --------------------------------------------------------------------------
@@ -804,7 +980,7 @@
 
    Visuals bridge (for visuals.js, dispatched on window as CustomEvents):
      'stack:init' {scene, camera, renderer, THREE}, 'stack:block'
-     {mesh, level}, 'stack:placed' {mesh, level, perfect}, 'stack:debris'
+     {mesh, level}, 'stack:placed' {mesh, level, perfect, almost}, 'stack:debris'
      {mesh, level, dir}, 'stack:gameover', 'stack:reset'; plus a direct
      StackVisuals.update(dt) call each frame. When StackVisuals is ready it
      owns lighting, materials, debris animation, and placement juice; core
@@ -838,6 +1014,8 @@
     speedGain: 0.055,     // per block index
     speedMax: 6.8,
     perfectEps: 0.14,     // |offset| below this snaps as a perfect drop
+    almostEps: 0.10,      // sliced drops within perfectEps+this of center flash
+                          // a near-miss cue (retention spec, tunable)
     growStep: 0.14,       // footprint regrowth per perfect while on a streak
     growCombo: 3,         // streak length at which regrowth starts
     gravity: 22,
@@ -1170,7 +1348,10 @@
     var recS = placedRecord(m, dropped, newW, newD, false);
     blocks.push(recS);
     score += 1; combo = 0;
-    fireDom('stack:placed', { mesh: m, level: dropped.index, perfect: false });
+    fireDom('stack:placed', {
+      mesh: m, level: dropped.index, perfect: false,
+      almost: Math.abs(delta) <= CFG.perfectEps + CFG.almostEps
+    });
     fireDom('game:score', { score: score });
     emit('drop', dropPayload('sliced', recS, pieces, delta));
     spawnNext();
@@ -2167,7 +2348,7 @@
     return out;
   }
 
-  function perfectFlash(center, sx, sz) {
+  function perfectFlash(center, sx, sz, opacity) {
     if (!S.inited) return;
     var f = null;
     for (var i = 0; i < S.flashPool.length; i++) {
@@ -2186,7 +2367,7 @@
     f.mesh.visible = true;
     f.mesh.position.set(center.x, center.y, center.z);
     f.mesh.scale.set(f.sx, f.sz, 1);
-    f.mesh.material.uniforms.uOpacity.value = 1;
+    f.mesh.material.uniforms.uOpacity.value = opacity == null ? 1 : opacity;
   }
 
   function perfectFlashForMesh(mesh) {
@@ -2225,6 +2406,62 @@
     });
   }
 
+  /* ---- ghost line: dashed outline at the personal-best height ---------- */
+  /* Reads StackCore.getTowerState() (public state seam); rebuilt fresh on
+     every init/reset so visuals' own reset can never leave a stale mesh. */
+
+  var GHOST = { line: null, best: 0, passed: false };
+
+  function ghostRemove() {
+    if (GHOST.line && ctx && ctx.scene) { ctx.scene.remove(GHOST.line); }
+    if (GHOST.line) {
+      if (GHOST.line.geometry) GHOST.line.geometry.dispose();
+      if (GHOST.line.material) GHOST.line.material.dispose();
+    }
+    GHOST.line = null;
+  }
+
+  function ghostStyle(passed) {
+    if (!GHOST.line) return;
+    GHOST.line.material.opacity = passed ? 0.85 : 0.38;
+  }
+
+  function ghostSync() {
+    if (!S.inited) return;
+    ghostRemove();
+    GHOST.passed = false;
+    var core = window.StackCore;
+    var st = core && core.getTowerState ? core.getTowerState() : null;
+    GHOST.best = st && st.best ? st.best : 0;
+    if (!st || GHOST.best < 10) return;
+    var half = st.blockSize * 0.62;
+    var pts = [
+      new T.Vector3(-half, 0, -half), new T.Vector3(half, 0, -half),
+      new T.Vector3(half, 0, half), new T.Vector3(-half, 0, half),
+      new T.Vector3(-half, 0, -half)
+    ];
+    var geo = new T.BufferGeometry().setFromPoints(pts);
+    var mat = new T.LineDashedMaterial({
+      color: 0xffffff, transparent: true, opacity: 0.38,
+      dashSize: 0.16, gapSize: 0.12, depthWrite: false
+    });
+    var line = new T.Line(geo, mat);
+    line.computeLineDistances();
+    line.position.y = GHOST.best * st.blockHeight + 0.01;
+    line.userData.svGhost = true;
+    line.renderOrder = 3;
+    ctx.scene.add(line);
+    GHOST.line = line;
+  }
+
+  function ghostCheckPassed(level) {
+    if (!GHOST.line || GHOST.passed) return;
+    if (typeof level === 'number' && level > GHOST.best) {
+      GHOST.passed = true;
+      ghostStyle(true);
+    }
+  }
+
   function onBlockPlaced(mesh, level, opts) {
     opts = opts || {};
     if (!S.inited) return;
@@ -2234,9 +2471,26 @@
     if (opts.perfect) {
       perfectFlashForMesh(mesh);
       startPulse(mesh, 0.05, true);
+    } else if (opts.almost) {
+      /* Near-miss: hairline cue, clearly weaker than the perfect flash. */
+      var afp = meshFootprint(mesh, {});
+      if (afp) {
+        perfectFlash(
+          { x: afp.cx, y: afp.topY + 0.03 * S.blockW, z: afp.cz },
+          afp.sx * 0.72, afp.sz * 0.72, 0.5
+        );
+      }
+      startPulse(mesh, 0.03, false);
     } else {
       startPulse(mesh, 0.016, false);
     }
+    /* Track the tower's horizontal drift: placed blocks never move again, so
+       the ghost only needs updating when one lands, not every frame. */
+    if (GHOST.line && mesh) {
+      GHOST.line.position.x = mesh.position.x;
+      GHOST.line.position.z = mesh.position.z;
+    }
+    ghostCheckPassed(level);
   }
 
   /* Cut piece handover. The piece must read as physical: it tips OUTWARD
@@ -2614,6 +2868,7 @@
   window.addEventListener('stack:init', function (e) {
     var d = det(e);
     init({ scene: d.scene, camera: d.camera, renderer: d.renderer, THREE: d.THREE });
+    ghostSync();
   });
   window.addEventListener('stack:block', function (e) {
     var d = det(e);
@@ -2632,7 +2887,15 @@
     if (typeof d.level === 'number') setLevel(d.level);
   });
   window.addEventListener('stack:gameover', function () { onGameOver(); });
-  window.addEventListener('stack:reset', function () { reset(); });
+  window.addEventListener('stack:reset', function () { reset(); ghostSync(); });
+  /* stack:reset only fires on restarts. game:start is still needed as a
+     fallback because core.js fires stack:init before it reads `best` from
+     localStorage (fireDom('stack:init', ...) runs ahead of the
+     localStorage read in init()), so the ghostSync() above always sees
+     best=0 on that first call and can build no line. game:start fires
+     once best is loaded, on every run start including the first, so the
+     ghost is guaranteed by then. */
+  window.addEventListener('game:start', function () { ghostSync(); });
 })();
 
 </script>
@@ -2681,6 +2944,9 @@
 
   var BEST_KEY = 'stack-best';
   var MUTE_KEY = 'stack-muted';  /* shared with audio.js */
+  var STREAK_KEY = 'stack-best-streak';
+  var BLOCKS_KEY = 'stack-blocks-ever';
+  var TODAY_KEY = 'stack-today';
   var RESTART_LOCKOUT_MS = 500;  /* ignore taps right after game over */
   var RESTART_DEDUPE_MS = 400;   /* pointerdown + click on button = one restart */
 
@@ -2703,7 +2969,10 @@
     overAt: 0,
     lastRestart: 0,
     runStartBest: null, /* stored best snapshotted when a run starts */
-    submitted: false    /* this run's score already sent to the board */
+    submitted: false,   /* this run's score already sent to the board */
+    postedRow: null     /* {name, score} actually posted this run, for the
+                           "my row" highlight; the name can differ from the
+                           stored one after a NOT YOU? rename */
   };
 
   var els = null;
@@ -2727,6 +2996,68 @@
 
   function writeBest(v) {
     try { window.localStorage.setItem(BEST_KEY, String(v)); } catch (err) { /* ignore */ }
+  }
+
+  /* Non-demoting ladder from the all-time Normal best (retention spec). */
+  var TIERS = [
+    ['CARDBOARD', 10], ['PLYWOOD', 25], ['BRICK', 45], ['MARBLE', 70],
+    ['GRANITE', 100], ['STEEL', 140], ['TITAN', 190], ['OBSIDIAN', 250]
+  ];
+
+  function tierFor(best) {
+    var cur = null, next = null, i;
+    for (i = 0; i < TIERS.length; i++) {
+      if (best >= TIERS[i][1]) { cur = { name: TIERS[i][0], at: TIERS[i][1], idx: i }; }
+      else { next = { name: TIERS[i][0], at: TIERS[i][1], idx: i }; break; }
+    }
+    return { cur: cur, next: next };
+  }
+
+  function tierLine(best) {
+    var t = tierFor(best);
+    if (!t.cur && !t.next) { return ''; }
+    if (!t.cur) { return (t.next.at - best) + ' TO ' + t.next.name; }
+    if (!t.next) { return t.cur.name; }
+    return t.cur.name + ' · ' + (t.next.at - best) + ' TO ' + t.next.name;
+  }
+
+  function tierProgress(best) {
+    var t = tierFor(best);
+    if (!t.next) { return 1; }
+    var floor = t.cur ? t.cur.at : 0;
+    return Math.max(0, Math.min(1, (best - floor) / (t.next.at - floor)));
+  }
+
+  function readInt(key) {
+    try {
+      var v = parseInt(window.localStorage.getItem(key), 10);
+      return isFinite(v) && v > 0 ? v : 0;
+    } catch (err) { return 0; }
+  }
+
+  function writeInt(key, v) {
+    try { window.localStorage.setItem(key, String(v)); } catch (err) { /* ignore */ }
+  }
+
+  /* Local device date on purpose: the personal daily stat is "my day", not the
+     board's rolling 24h TODAY window. The two are meant to differ. */
+  function localDateStr() {
+    var d = new Date();
+    return d.getFullYear() + '-' +
+      ('0' + (d.getMonth() + 1)).slice(-2) + '-' +
+      ('0' + d.getDate()).slice(-2);
+  }
+
+  function readToday() {
+    try {
+      var v = JSON.parse(window.localStorage.getItem(TODAY_KEY) || 'null');
+      if (v && v.d === localDateStr() && typeof v.best === 'number') { return v; }
+    } catch (err) { /* ignore */ }
+    return { d: localDateStr(), best: 0 };
+  }
+
+  function writeToday(v) {
+    try { window.localStorage.setItem(TODAY_KEY, JSON.stringify(v)); } catch (err) { /* ignore */ }
   }
 
   function pickNumber(detail, keys) {
@@ -2786,6 +3117,15 @@
     title.appendChild(titleWord);
     title.appendChild(titleHint);
     title.appendChild(titleBest);
+    var titleTier = el('div', 'hud-title-tier', '');
+    var titleBar = el('div', 'hud-title-bar');
+    var titleBarFill = el('i', null);
+    titleBar.appendChild(titleBarFill);
+    var recordsBtn = el('button', 'hud-title-records', 'RECORDS');
+    recordsBtn.type = 'button';
+    title.appendChild(titleTier);
+    title.appendChild(titleBar);
+    title.appendChild(recordsBtn);
 
     /* game over */
     var over = el('div', 'hud-over');
@@ -2796,11 +3136,26 @@
     var overScore = el('div', 'hud-over-score hud-anim d2', '0');
     overScore.setAttribute('role', 'status');
     var overBest = el('div', 'hud-over-best hud-anim d3', '');
+    var overPct = el('div', 'hud-over-pct hud-anim d3', '');
+    overPct.hidden = true;
+    var overVictim = el('div', 'hud-over-victim hud-anim d4', '');
+    overVictim.hidden = true;
+    var overTier = el('div', 'hud-over-tier hud-anim d3', '');
+    overTier.hidden = true;
     var newBest = el('div', 'hud-over-newbest hud-anim d4', 'NEW BEST');
     newBest.hidden = true;
     var lb = el('div', 'hud-lb hud-anim d5');
-    var lbTitle = el('div', 'hud-lb-title', 'TOP 10');
+    var lbTitle = el('div', 'hud-lb-title', 'TOP TOWERS');
     var lbStatus = el('div', 'hud-lb-status', '');
+    var lbTabs = el('div', 'hud-lb-tabs');
+    var lbTabDay = el('button', 'hud-lb-tab is-on', 'TODAY');
+    lbTabDay.type = 'button';
+    lbTabDay.setAttribute('data-scope', 'day');
+    var lbTabAll = el('button', 'hud-lb-tab', 'ALL TIME');
+    lbTabAll.type = 'button';
+    lbTabAll.setAttribute('data-scope', 'all');
+    lbTabs.appendChild(lbTabDay);
+    lbTabs.appendChild(lbTabAll);
     var lbList = el('ol', 'hud-lb-list');
     var entry = el('div', 'hud-lb-entry');
     var nameInput = el('input', 'hud-lb-input');
@@ -2817,6 +3172,7 @@
     entry.appendChild(saveBtn);
     lb.appendChild(lbTitle);
     lb.appendChild(lbStatus);
+    lb.appendChild(lbTabs);
     lb.appendChild(lbList);
     lb.appendChild(entry);
 
@@ -2844,6 +3200,9 @@
     panel.appendChild(overLabel);
     panel.appendChild(overScore);
     panel.appendChild(overBest);
+    panel.appendChild(overTier);
+    panel.appendChild(overPct);
+    panel.appendChild(overVictim);
     panel.appendChild(newBest);
     panel.appendChild(lb);
     panel.appendChild(restart);
@@ -2871,7 +3230,13 @@
       '<path class="hud-mute-wave" d="M15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12"/>' +
       '<path class="hud-mute-slash" d="M4 4l16 16"/></svg>';
 
+    /* data-ui is core.js's documented opt-out (see the records view below).
+       Without it every tap inside this subtree that is not one of the three
+       buttons (panel body, heading, status line, every leaderboard row)
+       reaches core's global pointerdown handler and starts or restarts a run
+       behind the open board. */
     var board = el('div', 'hud-board');
+    board.setAttribute('data-ui', '1');
     var boardPanel = el('div', 'hud-board-panel');
     var boardClose = el('button', 'hud-board-close');
     boardClose.type = 'button';
@@ -2879,14 +3244,63 @@
     boardClose.innerHTML =
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" ' +
       'stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
-    var boardTitle = el('div', 'hud-lb-title', 'TOP 10');
+    var boardTitle = el('div', 'hud-lb-title', 'TOP TOWERS');
     var boardStatus = el('div', 'hud-lb-status', '');
+    var boardTabs = el('div', 'hud-lb-tabs');
+    var boardTabDay = el('button', 'hud-lb-tab', 'TODAY');
+    boardTabDay.type = 'button';
+    boardTabDay.setAttribute('data-scope', 'day');
+    var boardTabAll = el('button', 'hud-lb-tab is-on', 'ALL TIME');
+    boardTabAll.type = 'button';
+    boardTabAll.setAttribute('data-scope', 'all');
+    boardTabs.appendChild(boardTabDay);
+    boardTabs.appendChild(boardTabAll);
     var boardList = el('ol', 'hud-lb-list hud-board-list');
     boardPanel.appendChild(boardClose);
     boardPanel.appendChild(boardTitle);
     boardPanel.appendChild(boardStatus);
+    boardPanel.appendChild(boardTabs);
     boardPanel.appendChild(boardList);
     board.appendChild(boardPanel);
+
+    /* Records view: local lifetime stats, same overlay shell as the board.
+       data-ui is core.js's documented opt-out: without it, a tap on the
+       backdrop reaches core's global pointerdown handler and starts a run
+       behind the panel the tap was only meant to dismiss. */
+    var records = el('div', 'hud-board hud-records');
+    records.setAttribute('data-ui', '1');
+    var recPanel = el('div', 'hud-board-panel');
+    var recClose = el('button', 'hud-board-close');
+    recClose.type = 'button';
+    recClose.setAttribute('aria-label', 'Close records');
+    recClose.innerHTML =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" ' +
+      'stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+    var recTitle = el('div', 'hud-lb-title', 'RECORDS');
+    function recRow(label, cls) {
+      var row = el('div', 'hud-rec-row');
+      row.appendChild(el('span', 'hud-rec-label', label));
+      var val = el('span', 'hud-rec-val ' + cls, '');
+      row.appendChild(val);
+      return { row: row, val: val };
+    }
+    var recBest = recRow('BEST', 'hud-rec-best');
+    var recStreak = recRow('BEST STREAK', 'hud-rec-streak');
+    var recToday = recRow('TODAY', 'hud-rec-today');
+    var recBlocks = recRow('BLOCKS EVER', 'hud-rec-blocks');
+    var recBar = el('div', 'hud-title-bar hud-rec-bar');
+    var recBarFill = el('i', null);
+    recBar.appendChild(recBarFill);
+    var recTier = el('div', 'hud-rec-tier', '');
+    recPanel.appendChild(recClose);
+    recPanel.appendChild(recTitle);
+    recPanel.appendChild(recBest.row);
+    recPanel.appendChild(recStreak.row);
+    recPanel.appendChild(recToday.row);
+    recPanel.appendChild(recBlocks.row);
+    recPanel.appendChild(recBar);
+    recPanel.appendChild(recTier);
+    records.appendChild(recPanel);
 
     root.appendChild(scoreWrap);
     root.appendChild(title);
@@ -2894,19 +3308,31 @@
     root.appendChild(boardBtn);
     root.appendChild(muteBtn);
     root.appendChild(board);
+    root.appendChild(records);
 
     return {
       root: root,
       score: score,
       title: title,
       titleBest: titleBest,
+      titleTier: titleTier,
+      titleBarFill: titleBarFill,
+      recordsBtn: recordsBtn,
       over: over,
       overScore: overScore,
       overBest: overBest,
+      overTier: overTier,
+      overPct: overPct,
+      overVictim: overVictim,
       newBest: newBest,
       restart: restart,
       quip: quip,
       lbStatus: lbStatus,
+      lbTabs: lbTabs,
+      lbTabDay: lbTabDay,
+      lbTabAll: lbTabAll,
+      boardTabDay: boardTabDay,
+      boardTabAll: boardTabAll,
       lbList: lbList,
       entry: entry,
       nameInput: nameInput,
@@ -2919,7 +3345,15 @@
       board: board,
       boardStatus: boardStatus,
       boardList: boardList,
-      boardClose: boardClose
+      boardClose: boardClose,
+      records: records,
+      recClose: recClose,
+      recBest: recBest.val,
+      recStreak: recStreak.val,
+      recToday: recToday.val,
+      recBlocks: recBlocks.val,
+      recBarFill: recBarFill,
+      recTier: recTier
     };
   }
 
@@ -2941,6 +3375,8 @@
   function renderTitleBest() {
     var best = readBest();
     els.titleBest.textContent = best > 0 ? 'BEST ' + best : '';
+    els.titleTier.textContent = tierLine(best);
+    els.titleBarFill.style.width = Math.round(tierProgress(best) * 100) + '%';
   }
 
   function renderScore() {
@@ -2957,10 +3393,37 @@
 
   /* ----------------------------------------------------------- leaderboard */
 
-  var LB_URL = 'https://uidxgisstzpsmepoatpm.supabase.co/rest/v1/stack_scores';
+  var LB_URL = 'https://exfjfiuzrwuedztmdyqf.supabase.co/rest/v1/stack_scores';
   /* Publishable key by design: safe in public clients, access is RLS-gated. */
-  var LB_KEY = 'sb_publishable_xW4Ov4SgXIxL6wT2sZ2fuw_0fAO7vbI';
-  var LB_QUERY = '?select=name,score&order=score.desc,created_at.asc&limit=10';
+  var LB_KEY = 'sb_publishable_gJ5RS5qGx2_Md1J0fWBTBw_DFYDB0Dd';
+  var LB_SELECT = '?select=name,score&order=score.desc,created_at.asc&limit=50';
+
+  function dayFloorIso() {
+    return new Date(Date.now() - 86400000).toISOString();
+  }
+
+  /* Every read is Normal-mode only; Hard gets its own board when modes ship. */
+  function scopeFilter(scope) {
+    var f = '&mode=eq.normal';
+    if (scope === 'day') { f += '&created_at=gte.' + encodeURIComponent(dayFloorIso()); }
+    return f;
+  }
+
+  /* One best row per player: rows arrive score-desc, keep the first per name.
+     Keys carry a '#' prefix so a player named toString / valueOf / __proto__
+     cannot read back truthy off Object.prototype and vanish from the board. */
+  function dedupeBest(rows) {
+    var seen = {}, out = [], i, r, k;
+    for (i = 0; i < rows.length; i++) {
+      r = rows[i];
+      if (!r || r.name == null) { continue; }
+      k = '#' + String(r.name);
+      if (seen[k]) { continue; }
+      seen[k] = true;
+      out.push(r);
+    }
+    return out;
+  }
   var LB_TIMEOUT_MS = 6000;
   var LOCAL_BOARD_KEY = 'stack-local-board';
   var NAME_KEY = 'stack-player-name';
@@ -2996,8 +3459,12 @@
   }
 
   /* Personal roasts: when the live board is available at death time, the quip
-     targets someone real instead of the generic bag. */
-  var LAST_TOP_KEY = 'stack-last-top';
+     targets someone real instead of the generic bag. Namespaced to the daily
+     scope: a device from before the daily board existed may still hold a
+     value under the old unscoped 'stack-last-top' key, and that all-time
+     leader is not comparable to a daily top. Leaving that old key unread
+     orphans it, which is correct; it is never migrated. */
+  var LAST_TOP_KEY = 'stack-last-top-day';
   var ROAST_RIVAL = [
     'Even {n} got further. {n} got {s}.',
     'Somewhere, {n} ({s}) is not impressed.',
@@ -3093,17 +3560,25 @@
      run can never produce two rows. */
   function autoSubmit(name, score) {
     state.submitted = true;
-    var seq = ++autoSeq;   /* invalidated by NOT YOU? or a newer run */
+    var seq = autoSeq;   /* bumped by every death (applyOver) and by NOT YOU? */
+    var row = { name: name, score: score };
+    state.postedRow = row;
+    /* Scope at death time: a tab tapped during the save must not decide which
+       rows this run's roast is computed from. Same for the death generation:
+       this callback can land after the next run has already died, and that
+       screen's victim line must never be computed from this run's score. */
+    var scope = deathScope;
+    var dseq = deathSeq;
     setAutoRow('SAVING AS ' + lrm(name), false);
     submitScore(name, score, function (ok) {
       if (!ok) { addLocalScore(name, score); } /* record even mid-restart */
       if (seq !== autoSeq || state.mode !== 'over') { return; }
       if (ok) {
         setAutoRow('SAVED AS ' + lrm(name), true);
-        refreshBoard({ name: name, score: score }, true);
+        refreshBoard(scope, row, true, dseq === deathSeq ? score : null);
       } else {
         setAutoRow('SAVED HERE AS ' + lrm(name), true);
-        renderBoard(readLocalBoard(), { name: name, score: score }, 'THIS DEVICE ONLY');
+        renderBoard(readLocalBoard(), row, 'THIS DEVICE ONLY');
       }
     });
   }
@@ -3157,15 +3632,39 @@
     return rows;
   }
 
-  function fetchTop(cb) {
+  function fetchTop(scope, cb) {
     if (!window.fetch) { cb(null); return; }
     var done = false;
     var finish = function (rows) { if (!done) { done = true; cb(rows); } };
     var timer = setTimeout(function () { finish(null); }, LB_TIMEOUT_MS);
     try {
-      window.fetch(LB_URL + LB_QUERY, { headers: { apikey: LB_KEY } })
+      window.fetch(LB_URL + LB_SELECT + scopeFilter(scope), { headers: { apikey: LB_KEY } })
         .then(function (r) { if (!r.ok) { throw new Error('http ' + r.status); } return r.json(); })
-        .then(function (rows) { clearTimeout(timer); finish(Array.isArray(rows) ? rows : null); })
+        .then(function (rows) {
+          clearTimeout(timer);
+          finish(Array.isArray(rows) ? dedupeBest(rows).slice(0, 10) : null);
+        })
+        .catch(function () { clearTimeout(timer); finish(null); });
+    } catch (err) { clearTimeout(timer); finish(null); }
+  }
+
+  /* HEAD + Prefer count=exact: row count for a filter, no rows transferred. */
+  function countRows(filters, cb) {
+    if (!window.fetch) { cb(null); return; }
+    var done = false;
+    var finish = function (n) { if (!done) { done = true; cb(n); } };
+    var timer = setTimeout(function () { finish(null); }, LB_TIMEOUT_MS);
+    try {
+      window.fetch(LB_URL + '?select=score' + filters + '&limit=1', {
+        method: 'HEAD',
+        headers: { apikey: LB_KEY, Prefer: 'count=exact' }
+      })
+        .then(function (r) {
+          clearTimeout(timer);
+          var cr = (r.headers.get('content-range') || '').split('/')[1];
+          var n = parseInt(cr, 10);
+          finish(isFinite(n) ? n : null);
+        })
         .catch(function () { clearTimeout(timer); finish(null); });
     } catch (err) { clearTimeout(timer); finish(null); }
   }
@@ -3211,28 +3710,117 @@
     renderRows(els.lbList, els.lbStatus, rows, mine, label);
   }
 
-  function refreshBoard(mine, wantRoast) {
-    els.lbStatus.textContent = 'LOADING';
-    fetchTop(function (rows) {
-      if (rows) {
-        renderBoard(rows, mine, '');
-        if (wantRoast && state.mode === 'over') { applyRoast(rows); }
-        rememberTop(rows);
+  function markTab(onBtn, offBtn) {
+    onBtn.classList.add('is-on');
+    offBtn.classList.remove('is-on');
+  }
+
+  /* "N MORE PASSES <name>": the daily row just above me; fallback: my best. */
+  function showVictim(rows, myScore) {
+    if (!(myScore > 0)) { return; }
+    var myName = readName();   /* hoisted: one storage read, not one per row */
+    var above = null, i, r;
+    if (rows && rows.length) {
+      for (i = rows.length - 1; i >= 0; i--) {
+        r = rows[i];
+        if (r && typeof r.score === 'number' && r.score >= myScore &&
+            r.name !== myName) { above = r; break; }
       }
-      else { renderBoard(readLocalBoard(), mine, 'THIS DEVICE ONLY'); }
+    }
+    if (above) {
+      els.overVictim.textContent =
+        (above.score - myScore + 1) + ' MORE PASSES ' +
+        lrm(String(above.name).slice(0, 16));
+      els.overVictim.hidden = false;
+      return;
+    }
+    var best = readBest();
+    if (best > myScore) {
+      els.overVictim.textContent = (best - myScore) + ' FROM YOUR BEST';
+      els.overVictim.hidden = false;
+    }
+  }
+
+  /* "TOP N% TODAY" from two window counts; hidden when thin (<10) or offline. */
+  function showPercentile(score) {
+    var seq = deathSeq;
+    var windowF = scopeFilter('day');
+    countRows(windowF, function (total) {
+      if (seq !== deathSeq || state.mode !== 'over' ||
+          total == null || total < 10) { return; }
+      countRows(windowF + '&score=gt.' + score, function (above) {
+        if (seq !== deathSeq || state.mode !== 'over' || above == null) { return; }
+        var pct = Math.max(1, Math.round(((above + 1) / total) * 100));
+        /* Dead last reads as "TOP 100%", and the two counts are taken a moment
+           apart, so a run whose own row is not in the window yet can even round
+           past 100. Neither is a brag worth printing: stay silent instead. */
+        if (pct >= 100) { return; }
+        els.overPct.textContent = 'TOP ' + pct + '% TODAY';
+        els.overPct.hidden = false;
+      });
+    });
+  }
+
+  /* Render tokens, one per board, matching their independent scopes: a slow
+     response must never paint under a tab the player has since left. Same
+     idiom as autoSeq. Bumped by every request and by every scope change. */
+  var deathBoardSeq = 0;
+  var overlayBoardSeq = 0;
+  /* One generation per death, not per request: the death lines describe the
+     run that just ended, so they survive a tab switch (the board tokens do
+     not) but are dropped the moment the next run dies. */
+  var deathSeq = 0;
+
+  function refreshBoard(scope, mine, wantRoast, myScore, isRetry) {
+    /* A call for a scope the player already left (a late auto-post callback)
+       is roast-only: it must neither paint nor take the token, or the tab
+       they did pick would never get its own rows. */
+    var showing = scope === deathScope;
+    var seq = showing ? ++deathBoardSeq : deathBoardSeq;
+    var dseq = deathSeq;   /* which death asked: guards the victim line */
+    if (showing) { els.lbStatus.textContent = 'LOADING'; }
+    fetchTop(scope, function (rows) {
+      var paint = showing && seq === deathBoardSeq;
+      if (!rows) {
+        if (paint) { renderBoard(readLocalBoard(), mine, 'THIS DEVICE ONLY'); }
+      } else {
+        if (paint) { renderBoard(rows, mine, ''); }
+        /* The roast belongs to this run's rows, not to whatever tab is showing. */
+        if (wantRoast && state.mode === 'over') { applyRoast(rows); }
+        /* Same for the victim line, but keyed to the death it was asked for:
+           a response from the previous run must never write it. */
+        if (myScore != null && state.mode === 'over' && dseq === deathSeq) {
+          showVictim(rows, myScore);
+        }
+        /* Only the daily board says who holds the crown; remembering an all-time
+           leader here would fake a crown change on the next death's roast. */
+        if (scope === 'day') { rememberTop(rows); }
+      }
+      /* This request's scope was already stale when issued (roast-only, above:
+         no paint, no token), so the tab the player is actually on never got
+         painted from it. If a POST that only just completed saved a row the
+         tab's own earlier fetch predates, re-enter for the CURRENT scope so a
+         real, token-taking fetch picks it up. One hop only: a retry (isRetry)
+         never schedules another, so this can never loop. */
+      if (!showing && !isRetry && scope !== deathScope && state.mode === 'over') {
+        refreshBoard(deathScope, mine, false, null, true);
+      }
     });
   }
 
   /* Standalone board view: opens from the corner trophy, refreshes itself
      every 15s while open so nobody has to reload anything. */
+  var deathScope = 'day';
+  var overlayScope = 'all';
   var boardOpen = false;
   var boardTimer = null;
   var BOARD_REFRESH_MS = 15000;
 
   function refreshOverlayBoard(showLoading) {
+    var seq = ++overlayBoardSeq;
     if (showLoading) { els.boardStatus.textContent = 'LOADING'; }
-    fetchTop(function (rows) {
-      if (!boardOpen) { return; }
+    fetchTop(overlayScope, function (rows) {
+      if (!boardOpen || seq !== overlayBoardSeq) { return; }
       if (rows) { renderRows(els.boardList, els.boardStatus, rows, null, ''); }
       else { renderRows(els.boardList, els.boardStatus, readLocalBoard(), null, 'THIS DEVICE ONLY'); }
     });
@@ -3240,6 +3828,7 @@
 
   function openBoard() {
     if (boardOpen) { return; }
+    closeRecords();   /* one overlay at a time: both openers are keyboard-reachable */
     boardOpen = true;
     els.root.setAttribute('data-board', 'open');
     refreshOverlayBoard(true);
@@ -3251,6 +3840,39 @@
     boardOpen = false;
     els.root.removeAttribute('data-board');
     if (boardTimer) { clearInterval(boardTimer); boardTimer = null; }
+  }
+
+  /* Records view: purely local, so it renders once on open and never polls.
+     Every stat counts upward only; nothing here can shame a player for a
+     day off, which is why days-played is deliberately absent. */
+  var recordsOpen = false;
+
+  function renderRecords() {
+    var b = readBest();
+    els.recBest.textContent = String(b);
+    els.recStreak.textContent = String(readInt(STREAK_KEY));
+    els.recToday.textContent = String(readToday().best);
+    els.recBlocks.textContent = String(readInt(BLOCKS_KEY));
+    els.recBarFill.style.width = Math.round(tierProgress(b) * 100) + '%';
+    els.recTier.textContent = tierLine(b);
+  }
+
+  function openRecords() {
+    if (recordsOpen) { return; }
+    /* Title screen only. The pill spends 400ms fading out after a run starts
+       and stays clickable for all of it, so the tap meant to drop the first
+       block could otherwise open this panel over a live tower. */
+    if (state.mode !== 'title') { return; }
+    closeBoard();   /* one overlay at a time: both openers are keyboard-reachable */
+    recordsOpen = true;
+    renderRecords();
+    els.root.setAttribute('data-records', 'open');
+  }
+
+  function closeRecords() {
+    if (!recordsOpen) { return; }
+    recordsOpen = false;
+    els.root.removeAttribute('data-records');
   }
 
   function trySave() {
@@ -3273,6 +3895,9 @@
     var score = state.score;
     if (!(score > 0)) { return; }
     state.submitted = true;
+    var row = { name: name, score: score };
+    state.postedRow = row;
+    var scope = deathScope;   /* as above: not whatever tab wins the race */
     writeName(name);
     els.nameInput.disabled = true;
     els.saveBtn.disabled = true;
@@ -3281,11 +3906,11 @@
       els.entry.classList.add('is-done');
       if (ok) {
         els.saveBtn.textContent = 'SAVED';
-        refreshBoard({ name: name, score: score });
+        refreshBoard(scope, row, false, null);
       } else {
         addLocalScore(name, score);
         els.saveBtn.textContent = 'SAVED HERE';
-        renderBoard(readLocalBoard(), { name: name, score: score }, 'THIS DEVICE ONLY');
+        renderBoard(readLocalBoard(), row, 'THIS DEVICE ONLY');
       }
     });
   }
@@ -3299,7 +3924,10 @@
     state.score = n;
     renderScore();
     if (state.mode === 'title' && n > 0) { setMode('playing'); }
-    if (state.mode === 'playing' && n > prev) { pop(); }
+    if (state.mode === 'playing' && n > prev) {
+      pop();
+      writeInt(BLOCKS_KEY, readInt(BLOCKS_KEY) + (n - prev));
+    }
   }
 
   function applyStart(detail) {
@@ -3309,12 +3937,17 @@
     setMode('playing');
   }
 
-  function applyPerfect() {
+  function applyPerfect(detail) {
     if (state.mode !== 'playing') { return; }
+    var combo = pickNumber(detail, ['combo']);
+    if (combo != null && combo > readInt(STREAK_KEY)) { writeInt(STREAK_KEY, combo); }
     retrigger(els.score, 'is-flare');
   }
 
   function applyOver(detail) {
+    deathSeq++;   /* new run: any death line still in flight from the last one is void */
+    autoSeq++;    /* and so is the last run's auto-post row, whether or not this
+                     run posts one of its own (a score-0 death posts nothing) */
     var s = pickNumber(detail, ['score', 'value', 'points']);
     if (s != null) { state.score = Math.max(0, Math.round(s)); renderScore(); }
     var finalScore = state.score;
@@ -3324,13 +3957,23 @@
     var isNewBest = finalScore > 0 && finalScore > baseline && finalScore >= gameBest;
     var best = Math.max(storedBest, gameBest, finalScore);
     if (best > storedBest) { writeBest(best); }
+    var today = readToday();
+    if (finalScore > today.best) { today.best = finalScore; writeToday(today); }
+    els.overTier.textContent = tierLine(best);
+    els.overTier.hidden = !els.overTier.textContent;
 
     els.overScore.textContent = String(finalScore);
     els.overBest.textContent = 'BEST ' + best;
     els.newBest.hidden = !isNewBest;
+    els.overPct.hidden = true;
+    els.overPct.textContent = '';
+    els.overVictim.hidden = true;
+    els.overVictim.textContent = '';
+    if (finalScore > 0) { showPercentile(finalScore); }
 
     els.quip.textContent = nextQuip();
     state.submitted = false;
+    state.postedRow = null;
     var autoName = readName();
     els.nameInput.disabled = false;
     els.nameInput.value = autoName;
@@ -3338,13 +3981,18 @@
     els.saveBtn.textContent = 'SAVE';
     els.entry.classList.remove('is-done');
     hideAutoRow();
+    /* Every death screen opens on TODAY, whatever the last tap chose. */
+    deathScope = 'day';
+    deathBoardSeq++;   /* a request from the last death screen must not paint here */
+    els.lbStatus.textContent = '';   /* and must not leave its LOADING label stuck either */
+    markTab(els.lbTabDay, els.lbTabAll);
     if (finalScore > 0 && autoName) {
       /* Known player: the run posts itself; the keyboard stays away. */
       els.entry.hidden = true;
       autoSubmit(autoName, finalScore);
     } else {
       els.entry.hidden = !(finalScore > 0);
-      refreshBoard(null, true);
+      refreshBoard(deathScope, null, true, finalScore);
     }
 
     state.overAt = Date.now();
@@ -3381,7 +4029,9 @@
     on(['game:ready', 'game:reset', 'game:title'], applyReady);
   }
 
-  function tryStart() {
+  function tryStart(ev) {
+    /* The title screen is tap-anywhere-to-start; RECORDS is the one exception. */
+    if (ev && ev.target && ev.target.closest && ev.target.closest('.hud-title-records')) { return; }
     if (state.mode !== 'title') { return; }
     emit('hud:start');
     state.score = 0;
@@ -3391,7 +4041,7 @@
 
   function tryRestart(ev) {
     /* Taps on the name entry are for typing/saving, never restarts. */
-    if (ev && ev.target && ev.target.closest && ev.target.closest('.hud-lb-entry, .hud-lb-auto')) { return; }
+    if (ev && ev.target && ev.target.closest && ev.target.closest('.hud-lb-entry, .hud-lb-auto, .hud-lb-tabs')) { return; }
     if (state.mode !== 'over') { return; }
     var now = Date.now();
     if (now - state.overAt < RESTART_LOCKOUT_MS) { return; }
@@ -3416,13 +4066,44 @@
     });
     els.boardBtn.addEventListener('click', openBoard);
     els.boardClose.addEventListener('click', closeBoard);
+    els.recordsBtn.addEventListener('click', openRecords);
+    els.recClose.addEventListener('click', closeRecords);
+    els.records.addEventListener('pointerdown', function (ev) {
+      if (ev.target === els.records) { closeRecords(); } /* tap outside the panel */
+    });
+    keepKeysLocal(els.recordsBtn);
+    /* state.postedRow, not readName(): after a NOT YOU? rename the row on the
+       board still carries the old name, and that is the row to highlight. */
+    els.lbTabDay.addEventListener('click', function () {
+      deathScope = 'day'; markTab(els.lbTabDay, els.lbTabAll);
+      refreshBoard(deathScope, state.postedRow, false, null);
+    });
+    els.lbTabAll.addEventListener('click', function () {
+      deathScope = 'all'; markTab(els.lbTabAll, els.lbTabDay);
+      refreshBoard(deathScope, state.postedRow, false, null);
+    });
+    els.boardTabDay.addEventListener('click', function () {
+      overlayScope = 'day'; markTab(els.boardTabDay, els.boardTabAll);
+      refreshOverlayBoard(true);
+    });
+    els.boardTabAll.addEventListener('click', function () {
+      overlayScope = 'all'; markTab(els.boardTabAll, els.boardTabDay);
+      refreshOverlayBoard(true);
+    });
+    keepKeysLocal(els.lbTabDay);
+    keepKeysLocal(els.lbTabAll);
+    keepKeysLocal(els.boardTabDay);
+    keepKeysLocal(els.boardTabAll);
     els.muteBtn.addEventListener('click', toggleMute);
     els.board.addEventListener('pointerdown', function (ev) {
       if (ev.target === els.board) { closeBoard(); } /* tap outside the panel */
     });
 
-    /* Corner buttons are keyboard-operable: Enter/Space must activate the
-       button, not fall through to the window-level start/restart/drop keys. */
+    /* Corner and overlay buttons are keyboard-operable: Enter/Space must
+       activate the button, not fall through to the window-level
+       start/restart/drop keys. core.js listens on window too and calls
+       preventDefault, which would eat the button's own activation, so every
+       focusable control the player can Tab to has to stop these keys here. */
     function keepKeysLocal(btn) {
       btn.addEventListener('keydown', function (ev) {
         if (ev.key === ' ' || ev.key === 'Enter' || ev.key === 'Spacebar') { ev.stopPropagation(); }
@@ -3431,13 +4112,22 @@
     keepKeysLocal(els.muteBtn);
     keepKeysLocal(els.boardBtn);
     keepKeysLocal(els.autoBtn);
+    keepKeysLocal(els.boardClose);
+    keepKeysLocal(els.recClose);
 
     window.addEventListener('keydown', function (ev) {
       if (ev.repeat) { return; }
       if (els && ev.target === els.nameInput) { return; } /* typing, not restarting */
-      if (boardOpen) {
-        if (ev.key === 'Escape') { ev.preventDefault(); closeBoard(); }
-        return; /* board view swallows all other keys */
+      if (boardOpen || recordsOpen) {
+        if (ev.key === 'Escape') {
+          ev.preventDefault();
+          if (boardOpen) { closeBoard(); }
+          if (recordsOpen) { closeRecords(); }
+        }
+        /* This handler stops here, but core.js has its own window keydown
+           listener that no return of ours can reach, which is why the
+           overlay's own controls call keepKeysLocal. */
+        return;
       }
       var k = ev.key;
       if (k !== ' ' && k !== 'Enter' && k !== 'Spacebar') { return; }
