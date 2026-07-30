@@ -64,7 +64,10 @@
     overAt: 0,
     lastRestart: 0,
     runStartBest: null, /* stored best snapshotted when a run starts */
-    submitted: false    /* this run's score already sent to the board */
+    submitted: false,   /* this run's score already sent to the board */
+    postedRow: null     /* {name, score} actually posted this run, for the
+                           "my row" highlight; the name can differ from the
+                           stored one after a NOT YOU? rename */
   };
 
   var els = null;
@@ -359,13 +362,15 @@
     return f;
   }
 
-  /* One best row per player: rows arrive score-desc, keep the first per name. */
+  /* One best row per player: rows arrive score-desc, keep the first per name.
+     Keys carry a '#' prefix so a player named toString / valueOf / __proto__
+     cannot read back truthy off Object.prototype and vanish from the board. */
   function dedupeBest(rows) {
     var seen = {}, out = [], i, r, k;
     for (i = 0; i < rows.length; i++) {
       r = rows[i];
       if (!r || r.name == null) { continue; }
-      k = String(r.name);
+      k = '#' + String(r.name);
       if (seen[k]) { continue; }
       seen[k] = true;
       out.push(r);
@@ -505,16 +510,21 @@
   function autoSubmit(name, score) {
     state.submitted = true;
     var seq = ++autoSeq;   /* invalidated by NOT YOU? or a newer run */
+    var row = { name: name, score: score };
+    state.postedRow = row;
+    /* Scope at death time: a tab tapped during the save must not decide which
+       rows this run's roast is computed from. */
+    var scope = deathScope;
     setAutoRow('SAVING AS ' + lrm(name), false);
     submitScore(name, score, function (ok) {
       if (!ok) { addLocalScore(name, score); } /* record even mid-restart */
       if (seq !== autoSeq || state.mode !== 'over') { return; }
       if (ok) {
         setAutoRow('SAVED AS ' + lrm(name), true);
-        refreshBoard(deathScope, { name: name, score: score }, true, null);
+        refreshBoard(scope, row, true, null);
       } else {
         setAutoRow('SAVED HERE AS ' + lrm(name), true);
-        renderBoard(readLocalBoard(), { name: name, score: score }, 'THIS DEVICE ONLY');
+        renderBoard(readLocalBoard(), row, 'THIS DEVICE ONLY');
       }
     });
   }
@@ -632,16 +642,32 @@
 
   function showVictim(rows, myScore) { /* Task 5 fills this in */ }
 
+  /* Render tokens, one per board, matching their independent scopes: a slow
+     response must never paint under a tab the player has since left. Same
+     idiom as autoSeq. Bumped by every request and by every scope change. */
+  var deathBoardSeq = 0;
+  var overlayBoardSeq = 0;
+
   function refreshBoard(scope, mine, wantRoast, myScore) {
-    els.lbStatus.textContent = 'LOADING';
+    /* A call for a scope the player already left (a late auto-post callback)
+       is roast-only: it must neither paint nor take the token, or the tab
+       they did pick would never get its own rows. */
+    var showing = scope === deathScope;
+    var seq = showing ? ++deathBoardSeq : deathBoardSeq;
+    if (showing) { els.lbStatus.textContent = 'LOADING'; }
     fetchTop(scope, function (rows) {
-      if (rows) {
-        renderBoard(rows, mine, '');
-        if (wantRoast && state.mode === 'over') { applyRoast(rows); }
-        if (myScore != null && state.mode === 'over') { showVictim(rows, myScore); }
-        rememberTop(rows);
+      var paint = showing && seq === deathBoardSeq;
+      if (!rows) {
+        if (paint) { renderBoard(readLocalBoard(), mine, 'THIS DEVICE ONLY'); }
+        return;
       }
-      else { renderBoard(readLocalBoard(), mine, 'THIS DEVICE ONLY'); }
+      if (paint) { renderBoard(rows, mine, ''); }
+      /* The roast belongs to this run's rows, not to whatever tab is showing. */
+      if (wantRoast && state.mode === 'over') { applyRoast(rows); }
+      if (myScore != null && state.mode === 'over') { showVictim(rows, myScore); }
+      /* Only the daily board says who holds the crown; remembering an all-time
+         leader here would fake a crown change on the next death's roast. */
+      if (scope === 'day') { rememberTop(rows); }
     });
   }
 
@@ -654,9 +680,10 @@
   var BOARD_REFRESH_MS = 15000;
 
   function refreshOverlayBoard(showLoading) {
+    var seq = ++overlayBoardSeq;
     if (showLoading) { els.boardStatus.textContent = 'LOADING'; }
     fetchTop(overlayScope, function (rows) {
-      if (!boardOpen) { return; }
+      if (!boardOpen || seq !== overlayBoardSeq) { return; }
       if (rows) { renderRows(els.boardList, els.boardStatus, rows, null, ''); }
       else { renderRows(els.boardList, els.boardStatus, readLocalBoard(), null, 'THIS DEVICE ONLY'); }
     });
@@ -697,6 +724,9 @@
     var score = state.score;
     if (!(score > 0)) { return; }
     state.submitted = true;
+    var row = { name: name, score: score };
+    state.postedRow = row;
+    var scope = deathScope;   /* as above: not whatever tab wins the race */
     writeName(name);
     els.nameInput.disabled = true;
     els.saveBtn.disabled = true;
@@ -705,11 +735,11 @@
       els.entry.classList.add('is-done');
       if (ok) {
         els.saveBtn.textContent = 'SAVED';
-        refreshBoard(deathScope, { name: name, score: score }, false, null);
+        refreshBoard(scope, row, false, null);
       } else {
         addLocalScore(name, score);
         els.saveBtn.textContent = 'SAVED HERE';
-        renderBoard(readLocalBoard(), { name: name, score: score }, 'THIS DEVICE ONLY');
+        renderBoard(readLocalBoard(), row, 'THIS DEVICE ONLY');
       }
     });
   }
@@ -755,6 +785,7 @@
 
     els.quip.textContent = nextQuip();
     state.submitted = false;
+    state.postedRow = null;
     var autoName = readName();
     els.nameInput.disabled = false;
     els.nameInput.value = autoName;
@@ -764,6 +795,7 @@
     hideAutoRow();
     /* Every death screen opens on TODAY, whatever the last tap chose. */
     deathScope = 'day';
+    deathBoardSeq++;   /* a request from the last death screen must not paint here */
     markTab(els.lbTabDay, els.lbTabAll);
     if (finalScore > 0 && autoName) {
       /* Known player: the run posts itself; the keyboard stays away. */
@@ -843,13 +875,15 @@
     });
     els.boardBtn.addEventListener('click', openBoard);
     els.boardClose.addEventListener('click', closeBoard);
+    /* state.postedRow, not readName(): after a NOT YOU? rename the row on the
+       board still carries the old name, and that is the row to highlight. */
     els.lbTabDay.addEventListener('click', function () {
       deathScope = 'day'; markTab(els.lbTabDay, els.lbTabAll);
-      refreshBoard(deathScope, null, false, null);
+      refreshBoard(deathScope, state.postedRow, false, null);
     });
     els.lbTabAll.addEventListener('click', function () {
       deathScope = 'all'; markTab(els.lbTabAll, els.lbTabDay);
-      refreshBoard(deathScope, null, false, null);
+      refreshBoard(deathScope, state.postedRow, false, null);
     });
     els.boardTabDay.addEventListener('click', function () {
       overlayScope = 'day'; markTab(els.boardTabDay, els.boardTabAll);
