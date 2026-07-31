@@ -302,6 +302,11 @@
     panel.appendChild(overVictim);
     panel.appendChild(restart);
     panel.appendChild(overHint);
+    /* Way back to the title from a death (Maor, 2026-07-31). */
+    var overMenu = el('button', 'hud-over-menu', 'MENU');
+    overMenu.type = 'button';
+    overMenu.setAttribute('aria-label', 'Back to the title screen');
+    panel.appendChild(overMenu);
     over.appendChild(backdrop);
     over.appendChild(panel);
 
@@ -411,6 +416,7 @@
       overScore: overScore,
       overBest: overBest,
       overTier: overTier,
+      overMenu: overMenu,
       overVictim: overVictim,
       newBest: newBest,
       restart: restart,
@@ -1128,6 +1134,7 @@
   function applyReady() {
     state.score = 0;
     renderScore();
+    renderTitleBest();   /* a menu return after a new best must show it */
     setMode('title');
   }
 
@@ -1166,7 +1173,7 @@
 
   function tryRestart(ev) {
     /* Taps on the name entry are for typing/saving, never restarts. */
-    if (ev && ev.target && ev.target.closest && ev.target.closest('.hud-lb-entry, .hud-lb-auto')) { return; }
+    if (ev && ev.target && ev.target.closest && ev.target.closest('.hud-lb-entry, .hud-lb-auto, .hud-over-menu')) { return; }
     if (state.mode !== 'over') { return; }
     var now = Date.now();
     if (now - state.overAt < RESTART_LOCKOUT_MS) { return; }
@@ -1186,6 +1193,10 @@
     els.restart.addEventListener('click', tryRestart);
     els.saveBtn.addEventListener('click', trySave);
     els.autoBtn.addEventListener('click', changeName);
+    els.overMenu.addEventListener('click', function () {
+      if (state.mode !== 'over') { return; }
+      emit('hud:menu');   /* core flips to ready and answers with game:ready */
+    });
     els.nameInput.addEventListener('keydown', function (ev) {
       if (ev.key === 'Enter') { ev.preventDefault(); trySave(); }
     });
@@ -1243,6 +1254,7 @@
     keepKeysLocal(els.boardBtn);
     keepKeysLocal(els.autoBtn);
     keepKeysLocal(els.boardClose);
+    keepKeysLocal(els.overMenu);
 
     window.addEventListener('keydown', function (ev) {
       if (ev.repeat) { return; }

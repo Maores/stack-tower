@@ -780,6 +780,33 @@
 }
 
 /* Records pane inside the trophy overlay (third tab) */
+/* Menu pill: the quiet way home from a death */
+.hud-over-menu {
+  pointer-events: auto;
+  cursor: pointer;
+  margin-top: 2.2vh;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 999px;
+  padding: 0.45em 1.3em 0.45em 1.56em; /* extra left pad balances letter-spacing */
+  font-size: clamp(10px, 1.5vmin, 12px);
+  font-weight: 300;
+  letter-spacing: 0.26em;
+  opacity: 0.7;
+  transition: opacity 0.18s ease, background-color 0.18s ease, transform 0.18s ease;
+}
+.hud-over-menu:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.14);
+}
+.hud-over-menu:active {
+  transform: scale(0.95);
+}
+.hud-over-menu:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
 /* Tier-up toast */
 .hud-toast {
   position: fixed;

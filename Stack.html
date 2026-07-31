@@ -809,6 +809,33 @@
 }
 
 /* Records pane inside the trophy overlay (third tab) */
+/* Menu pill: the quiet way home from a death */
+.hud-over-menu {
+  pointer-events: auto;
+  cursor: pointer;
+  margin-top: 2.2vh;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 999px;
+  padding: 0.45em 1.3em 0.45em 1.56em; /* extra left pad balances letter-spacing */
+  font-size: clamp(10px, 1.5vmin, 12px);
+  font-weight: 300;
+  letter-spacing: 0.26em;
+  opacity: 0.7;
+  transition: opacity 0.18s ease, background-color 0.18s ease, transform 0.18s ease;
+}
+.hud-over-menu:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.14);
+}
+.hud-over-menu:active {
+  transform: scale(0.95);
+}
+.hud-over-menu:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
 /* Tier-up toast */
 .hud-toast {
   position: fixed;
@@ -983,7 +1010,7 @@
    DOM bridge (for the HUD layer, dispatched on window as CustomEvents):
      out: 'game:ready', 'game:start' {score}, 'game:score' {score},
           'game:perfect' {combo}, 'game:over' {score, best}
-     in:  'hud:start', 'hud:restart'
+     in:  'hud:start', 'hud:restart', 'hud:menu' (gameover -> title)
 
    Visuals bridge (for visuals.js, dispatched on window as CustomEvents):
      'stack:init' {scene, camera, renderer, THREE}, 'stack:block'
@@ -1440,6 +1467,16 @@
     });
     window.addEventListener('hud:restart', function () {
       if (phase === 'gameover') { restartGame(); }
+    });
+    /* Back to the title screen from a death (menu pill). Same lockout as
+       restart so a stray double-tap at death cannot bounce through it. */
+    window.addEventListener('hud:menu', function () {
+      if (phase !== 'gameover') { return; }
+      if (performance.now() - gameOverAt < CFG.restartLockMs) { return; }
+      fireDom('stack:reset');   /* before rebuilding, so the new base stays registered */
+      resetTower();
+      phase = 'ready';
+      fireDom('game:ready');
     });
   }
 
@@ -3211,6 +3248,11 @@
     panel.appendChild(overVictim);
     panel.appendChild(restart);
     panel.appendChild(overHint);
+    /* Way back to the title from a death (Maor, 2026-07-31). */
+    var overMenu = el('button', 'hud-over-menu', 'MENU');
+    overMenu.type = 'button';
+    overMenu.setAttribute('aria-label', 'Back to the title screen');
+    panel.appendChild(overMenu);
     over.appendChild(backdrop);
     over.appendChild(panel);
 
@@ -3320,6 +3362,7 @@
       overScore: overScore,
       overBest: overBest,
       overTier: overTier,
+      overMenu: overMenu,
       overVictim: overVictim,
       newBest: newBest,
       restart: restart,
@@ -4037,6 +4080,7 @@
   function applyReady() {
     state.score = 0;
     renderScore();
+    renderTitleBest();   /* a menu return after a new best must show it */
     setMode('title');
   }
 
@@ -4075,7 +4119,7 @@
 
   function tryRestart(ev) {
     /* Taps on the name entry are for typing/saving, never restarts. */
-    if (ev && ev.target && ev.target.closest && ev.target.closest('.hud-lb-entry, .hud-lb-auto')) { return; }
+    if (ev && ev.target && ev.target.closest && ev.target.closest('.hud-lb-entry, .hud-lb-auto, .hud-over-menu')) { return; }
     if (state.mode !== 'over') { return; }
     var now = Date.now();
     if (now - state.overAt < RESTART_LOCKOUT_MS) { return; }
@@ -4095,6 +4139,10 @@
     els.restart.addEventListener('click', tryRestart);
     els.saveBtn.addEventListener('click', trySave);
     els.autoBtn.addEventListener('click', changeName);
+    els.overMenu.addEventListener('click', function () {
+      if (state.mode !== 'over') { return; }
+      emit('hud:menu');   /* core flips to ready and answers with game:ready */
+    });
     els.nameInput.addEventListener('keydown', function (ev) {
       if (ev.key === 'Enter') { ev.preventDefault(); trySave(); }
     });
@@ -4152,6 +4200,7 @@
     keepKeysLocal(els.boardBtn);
     keepKeysLocal(els.autoBtn);
     keepKeysLocal(els.boardClose);
+    keepKeysLocal(els.overMenu);
 
     window.addEventListener('keydown', function (ev) {
       if (ev.repeat) { return; }
@@ -4282,6 +4331,12 @@
 
   window.addEventListener('pointerdown', wake, true);
   window.addEventListener('keydown', wake, true);
+  /* Touch browsers grant audio permission on the END of a tap, not the
+     start: a pointerdown-only unlock loses the whole first tap (and the
+     second tap's sound fires while resume() is still settling). */
+  window.addEventListener('pointerup', wake, true);
+  window.addEventListener('touchend', wake, true);
+  window.addEventListener('click', wake, true);
   document.addEventListener('visibilitychange', function () {
     if (!document.hidden && ctx) { wake(); }
   });
@@ -4351,13 +4406,31 @@
     tone(t, 'sine', f * 2 * 1.003, 0.18, 0.35);   /* shimmer partial */
   }
 
-  function voice(name, fn, arg) {
-    if (muted || !ctx || ctx.state !== 'running') { return; }
+  function speak(name, fn, arg) {
     try {
       fn(ctx.currentTime, arg);
       dbg.played++;
       dbg.last = name;
     } catch (err) { /* audio must never break the game */ }
+  }
+
+  function voice(name, fn, arg) {
+    if (muted || !ctx) { return; }
+    if (ctx.state === 'running') { speak(name, fn, arg); return; }
+    /* Mid-wakeup (resume() still settling): play the sound the moment the
+       context runs instead of dropping it — that gap is the audible first
+       placement. A short freshness cap keeps a stalled resume from firing
+       a ghost sound seconds later. */
+    try {
+      var p = ctx.resume();
+      if (p && p.then) {
+        var asked = Date.now();
+        p.then(function () {
+          if (muted || Date.now() - asked > 300) { return; }
+          speak(name, fn, arg);
+        }, function () { /* rejected resume: stay silent */ });
+      }
+    } catch (err) { /* ignore */ }
   }
 
   /* ----------------------------------------------------------- events */

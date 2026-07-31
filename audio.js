@@ -74,6 +74,12 @@
 
   window.addEventListener('pointerdown', wake, true);
   window.addEventListener('keydown', wake, true);
+  /* Touch browsers grant audio permission on the END of a tap, not the
+     start: a pointerdown-only unlock loses the whole first tap (and the
+     second tap's sound fires while resume() is still settling). */
+  window.addEventListener('pointerup', wake, true);
+  window.addEventListener('touchend', wake, true);
+  window.addEventListener('click', wake, true);
   document.addEventListener('visibilitychange', function () {
     if (!document.hidden && ctx) { wake(); }
   });
@@ -143,13 +149,31 @@
     tone(t, 'sine', f * 2 * 1.003, 0.18, 0.35);   /* shimmer partial */
   }
 
-  function voice(name, fn, arg) {
-    if (muted || !ctx || ctx.state !== 'running') { return; }
+  function speak(name, fn, arg) {
     try {
       fn(ctx.currentTime, arg);
       dbg.played++;
       dbg.last = name;
     } catch (err) { /* audio must never break the game */ }
+  }
+
+  function voice(name, fn, arg) {
+    if (muted || !ctx) { return; }
+    if (ctx.state === 'running') { speak(name, fn, arg); return; }
+    /* Mid-wakeup (resume() still settling): play the sound the moment the
+       context runs instead of dropping it — that gap is the audible first
+       placement. A short freshness cap keeps a stalled resume from firing
+       a ghost sound seconds later. */
+    try {
+      var p = ctx.resume();
+      if (p && p.then) {
+        var asked = Date.now();
+        p.then(function () {
+          if (muted || Date.now() - asked > 300) { return; }
+          speak(name, fn, arg);
+        }, function () { /* rejected resume: stay silent */ });
+      }
+    } catch (err) { /* ignore */ }
   }
 
   /* ----------------------------------------------------------- events */

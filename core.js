@@ -40,7 +40,7 @@
    DOM bridge (for the HUD layer, dispatched on window as CustomEvents):
      out: 'game:ready', 'game:start' {score}, 'game:score' {score},
           'game:perfect' {combo}, 'game:over' {score, best}
-     in:  'hud:start', 'hud:restart'
+     in:  'hud:start', 'hud:restart', 'hud:menu' (gameover -> title)
 
    Visuals bridge (for visuals.js, dispatched on window as CustomEvents):
      'stack:init' {scene, camera, renderer, THREE}, 'stack:block'
@@ -497,6 +497,16 @@
     });
     window.addEventListener('hud:restart', function () {
       if (phase === 'gameover') { restartGame(); }
+    });
+    /* Back to the title screen from a death (menu pill). Same lockout as
+       restart so a stray double-tap at death cannot bounce through it. */
+    window.addEventListener('hud:menu', function () {
+      if (phase !== 'gameover') { return; }
+      if (performance.now() - gameOverAt < CFG.restartLockMs) { return; }
+      fireDom('stack:reset');   /* before rebuilding, so the new base stays registered */
+      resetTower();
+      phase = 'ready';
+      fireDom('game:ready');
     });
   }
 
