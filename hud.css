@@ -762,6 +762,74 @@
   margin-top: 1.6vh;
 }
 
+/* Board-pane scope segment: TODAY | ALL TIME */
+.hud-lb-seg {
+  display: flex;
+  justify-content: center;
+  margin-top: 1vh;
+  pointer-events: auto;
+}
+.hud-lb-seg[hidden] {
+  display: none;
+}
+.hud-lb-seg-btn {
+  pointer-events: auto;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: transparent;
+  padding: 0.22em 0.85em 0.22em 1.01em; /* extra left pad balances letter-spacing */
+  font-size: clamp(9px, 1.4vmin, 11px);
+  font-weight: 300;
+  letter-spacing: 0.16em;
+  opacity: 0.55;
+  transition: opacity 0.18s ease, background-color 0.18s ease;
+}
+.hud-lb-seg-btn:first-child {
+  border-radius: 999px 0 0 999px;
+}
+.hud-lb-seg-btn:last-child {
+  border-radius: 0 999px 999px 0;
+  border-left: none;
+}
+.hud-lb-seg-btn.is-on {
+  opacity: 1;
+  border-color: rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.10);
+}
+.hud-lb-seg-btn:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+/* Shop pane (trophy overlay third destination) */
+.hud-board-shop {
+  margin-top: 1.6vh;
+  overflow-y: auto;
+  max-height: 58vh;
+}
+.hud-board-shop[hidden] {
+  display: none;
+}
+.hud-shop-bal {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 0.4vh 2px 0;
+}
+.hud-shop-bal-label {
+  opacity: 0.66;
+  font-size: clamp(10px, 1.5vmin, 12px);
+  font-weight: 300;
+  letter-spacing: 0.24em;
+}
+.hud-shop-bal-val {
+  font-size: clamp(13px, 2vmin, 16px);
+  font-weight: 300;
+  letter-spacing: 0.12em;
+  font-variant-numeric: lining-nums tabular-nums;
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+}
+
 /* Death-screen tier line */
 .hud-over-tier {
   margin-top: 0.8vh;

@@ -117,21 +117,6 @@
     return { cur: cur, next: next };
   }
 
-  function tierLine(best) {
-    var t = tierFor(best);
-    if (!t.cur && !t.next) { return ''; }
-    if (!t.cur) { return (t.next.at - best) + ' TO ' + t.next.name; }
-    if (!t.next) { return t.cur.name; }
-    return t.cur.name + ' · ' + (t.next.at - best) + ' TO ' + t.next.name;
-  }
-
-  function tierProgress(best) {
-    var t = tierFor(best);
-    if (!t.next) { return 1; }
-    var floor = t.cur ? t.cur.at : 0;
-    return Math.max(0, Math.min(1, (best - floor) / (t.next.at - floor)));
-  }
-
   function readInt(key) {
     try {
       var v = parseInt(window.localStorage.getItem(key), 10);
@@ -365,18 +350,31 @@
     var boardTitle = el('div', 'hud-lb-title', 'TOP TOWERS');
     var boardStatus = el('div', 'hud-lb-status', '');
     var boardTabs = el('div', 'hud-lb-tabs');
-    var boardTabDay = el('button', 'hud-lb-tab', 'TODAY');
-    boardTabDay.type = 'button';
-    boardTabDay.setAttribute('data-scope', 'day');
-    var boardTabAll = el('button', 'hud-lb-tab is-on', 'ALL TIME');
-    boardTabAll.type = 'button';
-    boardTabAll.setAttribute('data-scope', 'all');
-    boardTabs.appendChild(boardTabDay);
-    boardTabs.appendChild(boardTabAll);
+    var boardTabBoard = el('button', 'hud-lb-tab is-on', 'BOARD');
+    boardTabBoard.type = 'button';
+    boardTabBoard.setAttribute('data-pane', 'board');
     var boardTabRec = el('button', 'hud-lb-tab', 'RECORDS');
     boardTabRec.type = 'button';
-    boardTabRec.setAttribute('data-scope', 'records');
+    boardTabRec.setAttribute('data-pane', 'records');
+    var boardTabShop = el('button', 'hud-lb-tab', 'SHOP');
+    boardTabShop.type = 'button';
+    boardTabShop.setAttribute('data-pane', 'shop');
+    boardTabs.appendChild(boardTabBoard);
     boardTabs.appendChild(boardTabRec);
+    boardTabs.appendChild(boardTabShop);
+
+    /* TODAY | ALL TIME, demoted from top-level tabs into the board pane
+       when SHOP arrived (round-2 mockup pick): places on top, views of the
+       board inside it. */
+    var boardSeg = el('div', 'hud-lb-seg');
+    var segDay = el('button', 'hud-lb-seg-btn', 'TODAY');
+    segDay.type = 'button';
+    segDay.setAttribute('data-scope', 'day');
+    var segAll = el('button', 'hud-lb-seg-btn is-on', 'ALL TIME');
+    segAll.type = 'button';
+    segAll.setAttribute('data-scope', 'all');
+    boardSeg.appendChild(segDay);
+    boardSeg.appendChild(segAll);
 
     /* Records pane: stats + tier ladder, shown in place of the list. */
     var boardRecords = el('div', 'hud-board-records');
@@ -396,10 +394,21 @@
     boardRecords.appendChild(recStreak.row);
     boardRecords.appendChild(recToday.row);
     boardRecords.appendChild(recBlocks.row);
+    var recPts = recRow('POINTS', 'hud-rec-pts');
+    boardRecords.appendChild(recPts.row);
     var ladder = el('div', 'hud-ladder');
     boardRecords.appendChild(ladder);
     var ladderNote = el('div', 'hud-ladder-note', 'TOWER TIERS · FROM YOUR BEST · NEVER DROP');
     boardRecords.appendChild(ladderNote);
+
+    /* Shop pane shell: balance now, cards in the shop task. */
+    var boardShop = el('div', 'hud-board-shop');
+    boardShop.hidden = true;
+    var shopBal = el('div', 'hud-shop-bal');
+    shopBal.appendChild(el('span', 'hud-shop-bal-label', 'POINTS'));
+    var shopBalVal = el('span', 'hud-shop-bal-val', '0');
+    shopBal.appendChild(shopBalVal);
+    boardShop.appendChild(shopBal);
 
     var boardList = el('ol', 'hud-lb-list hud-board-list');
     /* TODAY-tab percentile header (density revision: relocated from death) */
@@ -409,8 +418,10 @@
     boardPanel.appendChild(boardTitle);
     boardPanel.appendChild(boardStatus);
     boardPanel.appendChild(boardTabs);
+    boardPanel.appendChild(boardSeg);
     boardPanel.appendChild(boardPct);
-    boardPanel.appendChild(boardRecords);   /* between boardTabs row and boardList */
+    boardPanel.appendChild(boardRecords);
+    boardPanel.appendChild(boardShop);
     boardPanel.appendChild(boardList);
     board.appendChild(boardPanel);
 
@@ -442,9 +453,14 @@
       restart: restart,
       quip: quip,
       lbStatus: lbStatus,
-      boardTabDay: boardTabDay,
-      boardTabAll: boardTabAll,
+      boardTabBoard: boardTabBoard,
       boardTabRec: boardTabRec,
+      boardTabShop: boardTabShop,
+      segDay: segDay,
+      segAll: segAll,
+      boardSeg: boardSeg,
+      boardShop: boardShop,
+      shopBalVal: shopBalVal,
       boardPct: boardPct,
       toast: toast,
       lbList: lbList,
@@ -465,7 +481,8 @@
       recBest: recBest.val,
       recStreak: recStreak.val,
       recToday: recToday.val,
-      recBlocks: recBlocks.val
+      recBlocks: recBlocks.val,
+      recPts: recPts.val
     };
   }
 
@@ -821,11 +838,6 @@
     renderRows(els.lbList, els.lbStatus, rows, mine, label, 3);
   }
 
-  function markTab(onBtn, offBtn) {
-    onBtn.classList.add('is-on');
-    offBtn.classList.remove('is-on');
-  }
-
   /* Rank sandwich: the deduped all-time list windowed around my best row.
      Anchor by stored name; the row's score is that player's best. */
   function buildSandwich(rows) {
@@ -893,9 +905,9 @@
     if (!(myToday > 0)) { return; }
     var windowF = scopeFilter('day');
     countRows(windowF, function (total) {
-      if (overlayScope !== 'day' || total == null || total < 10) { return; }
+      if (overlayPane !== 'board' || overlayScope !== 'day' || total == null || total < 10) { return; }
       countRows(windowF + '&score=gt.' + myToday, function (above) {
-        if (overlayScope !== 'day' || above == null) { return; }
+        if (overlayPane !== 'board' || overlayScope !== 'day' || above == null) { return; }
         var pct = Math.max(1, Math.round(((above + 1) / total) * 100));
         /* Dead last reads as "TOP 100%"; not a brag worth printing. */
         if (pct >= 100) { return; }
@@ -945,12 +957,13 @@
   /* Standalone board view: opens from the corner trophy, refreshes itself
      every 15s while open so nobody has to reload anything. */
   var overlayScope = 'all';
+  var overlayPane = 'board';
   var boardOpen = false;
   var boardTimer = null;
   var BOARD_REFRESH_MS = 15000;
 
   function refreshOverlayBoard(showLoading) {
-    if (overlayScope === 'records') { return; }  /* records pane is local: the 15s tick must not fetch */
+    if (overlayPane !== 'board') { return; }  /* records/shop panes are local: the 15s tick must not fetch */
     var seq = ++overlayBoardSeq;
     if (showLoading) { els.boardStatus.textContent = 'LOADING'; }
     fetchTop(overlayScope, function (rows) {
@@ -960,23 +973,48 @@
     });
   }
 
-  function openBoard() {
-    if (boardOpen) { return; }
-    boardOpen = true;
-    els.root.setAttribute('data-board', 'open');
-    /* Always open on a board tab: closing on RECORDS must not leave the next
-       open showing local stats with the fetch short-circuited above. */
-    if (overlayScope === 'records') {
-      overlayScope = 'all';
-      markTab(els.boardTabAll, els.boardTabDay);
-      els.boardTabRec.classList.remove('is-on');
-      els.boardRecords.hidden = true;
-      els.boardList.hidden = false;
-    }
+  function fmtPts(n) {
+    return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+
+  /* Balance-only for now; the shop task adds the cards. */
+  function renderShopPane() {
+    els.shopBalVal.textContent = fmtPts(readInt(PTS_KEY));
+  }
+
+  function setPane(pane) {
+    overlayPane = pane;
+    els.boardTabBoard.classList.toggle('is-on', pane === 'board');
+    els.boardTabRec.classList.toggle('is-on', pane === 'records');
+    els.boardTabShop.classList.toggle('is-on', pane === 'shop');
+    els.boardSeg.hidden = pane !== 'board';
+    els.boardList.hidden = pane !== 'board';
+    els.boardRecords.hidden = pane !== 'records';
+    els.boardShop.hidden = pane !== 'shop';
     els.boardPct.hidden = true;
-    refreshOverlayBoard(true);
-    if (overlayScope === 'day') { showPercentile(); }
-    boardTimer = setInterval(function () { refreshOverlayBoard(false); }, BOARD_REFRESH_MS);
+    els.boardStatus.textContent = '';
+    if (pane === 'board') {
+      refreshOverlayBoard(true);
+      if (overlayScope === 'day') { showPercentile(); }
+    } else {
+      overlayBoardSeq++;  /* an in-flight list fetch must not repaint under another pane */
+    }
+    if (pane === 'records') { renderRecordsPane(); }
+    if (pane === 'shop') { renderShopPane(); }
+  }
+
+  function openBoardTo(pane) {
+    if (!boardOpen) {
+      boardOpen = true;
+      els.root.setAttribute('data-board', 'open');
+      boardTimer = setInterval(function () { refreshOverlayBoard(false); }, BOARD_REFRESH_MS);
+    }
+    setPane(pane);
+  }
+
+  /* Opens on the board pane; the scope (TODAY / ALL TIME) persists. */
+  function openBoard() {
+    openBoardTo('board');
   }
 
   function closeBoard() {
@@ -996,6 +1034,7 @@
     els.recStreak.textContent = readInt(STREAK_KEY) > 0 ? readInt(STREAK_KEY) + ' PERFECT' : '0';
     els.recToday.textContent = String(readToday().best);
     els.recBlocks.textContent = String(readInt(BLOCKS_KEY));
+    els.recPts.textContent = String(readInt(PTS_KEY));
     while (els.ladder.firstChild) { els.ladder.removeChild(els.ladder.firstChild); }
     var t = tierFor(b), i, row, reached, cur;
     for (i = 0; i < TIERS.length; i++) {
@@ -1246,37 +1285,30 @@
     els.boardClose.addEventListener('click', closeBoard);
     /* state.postedRow, not readName(): after a NOT YOU? rename the row on the
        board still carries the old name, and that is the row to highlight. */
-    els.boardTabDay.addEventListener('click', function () {
-      overlayScope = 'day'; markTab(els.boardTabDay, els.boardTabAll);
-      els.boardRecords.hidden = true;
-      els.boardList.hidden = false;
-      els.boardTabRec.classList.remove('is-on');
+    els.boardTabBoard.addEventListener('click', function () { setPane('board'); });
+    els.boardTabRec.addEventListener('click', function () { setPane('records'); });
+    els.boardTabShop.addEventListener('click', function () { setPane('shop'); });
+    els.segDay.addEventListener('click', function () {
+      if (overlayScope === 'day') { return; }
+      overlayScope = 'day';
+      els.segDay.classList.add('is-on');
+      els.segAll.classList.remove('is-on');
       refreshOverlayBoard(true);
       showPercentile();
     });
-    els.boardTabAll.addEventListener('click', function () {
-      overlayScope = 'all'; markTab(els.boardTabAll, els.boardTabDay);
-      els.boardRecords.hidden = true;
-      els.boardList.hidden = false;
-      els.boardTabRec.classList.remove('is-on');
+    els.segAll.addEventListener('click', function () {
+      if (overlayScope === 'all') { return; }
+      overlayScope = 'all';
+      els.segAll.classList.add('is-on');
+      els.segDay.classList.remove('is-on');
       els.boardPct.hidden = true;
       refreshOverlayBoard(true);
     });
-    els.boardTabRec.addEventListener('click', function () {
-      overlayBoardSeq++;  /* take the token: an in-flight fetch from the list tabs must not repaint over this pane */
-      overlayScope = 'records';
-      els.boardTabRec.classList.add('is-on');
-      els.boardTabDay.classList.remove('is-on');
-      els.boardTabAll.classList.remove('is-on');
-      els.boardRecords.hidden = false;
-      els.boardList.hidden = true;
-      els.boardStatus.textContent = '';
-      els.boardPct.hidden = true;
-      renderRecordsPane();
-    });
-    keepKeysLocal(els.boardTabDay);
-    keepKeysLocal(els.boardTabAll);
+    keepKeysLocal(els.boardTabBoard);
     keepKeysLocal(els.boardTabRec);
+    keepKeysLocal(els.boardTabShop);
+    keepKeysLocal(els.segDay);
+    keepKeysLocal(els.segAll);
     els.muteBtn.addEventListener('click', toggleMute);
     els.board.addEventListener('pointerdown', function (ev) {
       if (ev.target === els.board) { closeBoard(); } /* tap outside the panel */
