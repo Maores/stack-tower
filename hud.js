@@ -295,9 +295,11 @@
     panel.appendChild(overScore);
     panel.appendChild(overBest);
     panel.appendChild(overTier);
-    panel.appendChild(overVictim);
     panel.appendChild(newBest);
     panel.appendChild(lb);
+    /* Spec order (density revision): the chase target sits under the
+       sandwich that names it, not between BEST and the board. */
+    panel.appendChild(overVictim);
     panel.appendChild(restart);
     panel.appendChild(overHint);
     over.appendChild(backdrop);
