@@ -230,19 +230,8 @@
   margin-right: -0.32em;
   opacity: 0.66;
 }
-.hud-over-pct {
-  margin-top: 1.2vh;
-  font-size: clamp(12px, 1.9vmin, 16px);
-  font-weight: 300;
-  letter-spacing: 0.3em;
-  margin-right: -0.3em;
-  text-shadow: 0 0 12px rgba(255, 255, 255, 0.45);
-}
-.hud-over-pct[hidden] {
-  display: none;
-}
 .hud-over-victim {
-  margin-top: 0.8vh;
+  margin-top: 1.8vh;
   max-width: min(84vw, 420px);
   text-align: center;
   font-size: clamp(11px, 1.7vmin, 14px);
@@ -272,7 +261,7 @@
 .hud-restart {
   pointer-events: auto;
   cursor: pointer;
-  margin-top: 3.2vh;
+  margin-top: 3.4vh;
   width: clamp(64px, 9.5vmin, 88px);
   height: clamp(64px, 9.5vmin, 88px);
   border-radius: 50%;
@@ -351,7 +340,7 @@
 }
 
 .hud-lb {
-  margin-top: 2.4vh;
+  margin-top: 3.2vh;
   width: min(78vw, 340px);
   display: flex;
   flex-direction: column;
@@ -428,6 +417,17 @@
   font-weight: 300;
   letter-spacing: 0.08em;
   opacity: 0.9;
+}
+/* Sandwich rows carry explicit rank spans (real ranks, not list order);
+   suppress the counter for those rows so ranks never double up. */
+.hud-lb-list li .hud-lb-rank {
+  width: 1.5em;
+  flex: none;
+  opacity: 0.5;
+  font-variant-numeric: tabular-nums;
+}
+.hud-lb-list li:has(.hud-lb-rank)::before {
+  content: none;
 }
 .hud-lb-list li::before {
   counter-increment: lbrow;
@@ -540,7 +540,7 @@
   align-items: center;
   justify-content: center;
   gap: 10px;
-  margin-top: 1.4vh;
+  margin-top: 2.4vh;
   pointer-events: auto;
 }
 .hud-lb-auto[hidden] {
@@ -550,7 +550,8 @@
   opacity: 0.85;
 }
 .hud-lb-auto-text {
-  font-size: clamp(12px, 1.8vmin, 15px);
+  font-size: clamp(10px, 1.5vmin, 12px);
+  opacity: 0.6;
   font-weight: 300;
   letter-spacing: 0.18em;
   margin-right: -0.18em;

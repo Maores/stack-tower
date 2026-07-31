@@ -228,8 +228,6 @@
     var overScore = el('div', 'hud-over-score hud-anim d2', '0');
     overScore.setAttribute('role', 'status');
     var overBest = el('div', 'hud-over-best hud-anim d3', '');
-    var overPct = el('div', 'hud-over-pct hud-anim d3', '');
-    overPct.hidden = true;
     var overVictim = el('div', 'hud-over-victim hud-anim d4', '');
     overVictim.hidden = true;
     var overTier = el('div', 'hud-over-tier hud-anim d3', '');
@@ -239,15 +237,6 @@
     var lb = el('div', 'hud-lb hud-anim d5');
     var lbTitle = el('div', 'hud-lb-title', 'TOP TOWERS');
     var lbStatus = el('div', 'hud-lb-status', '');
-    var lbTabs = el('div', 'hud-lb-tabs');
-    var lbTabDay = el('button', 'hud-lb-tab is-on', 'TODAY');
-    lbTabDay.type = 'button';
-    lbTabDay.setAttribute('data-scope', 'day');
-    var lbTabAll = el('button', 'hud-lb-tab', 'ALL TIME');
-    lbTabAll.type = 'button';
-    lbTabAll.setAttribute('data-scope', 'all');
-    lbTabs.appendChild(lbTabDay);
-    lbTabs.appendChild(lbTabAll);
     var lbList = el('ol', 'hud-lb-list');
     var entry = el('div', 'hud-lb-entry');
     var nameInput = el('input', 'hud-lb-input');
@@ -264,7 +253,6 @@
     entry.appendChild(saveBtn);
     lb.appendChild(lbTitle);
     lb.appendChild(lbStatus);
-    lb.appendChild(lbTabs);
     lb.appendChild(lbList);
     lb.appendChild(entry);
 
@@ -293,7 +281,6 @@
     panel.appendChild(overScore);
     panel.appendChild(overBest);
     panel.appendChild(overTier);
-    panel.appendChild(overPct);
     panel.appendChild(overVictim);
     panel.appendChild(newBest);
     panel.appendChild(lb);
@@ -399,15 +386,11 @@
       overScore: overScore,
       overBest: overBest,
       overTier: overTier,
-      overPct: overPct,
       overVictim: overVictim,
       newBest: newBest,
       restart: restart,
       quip: quip,
       lbStatus: lbStatus,
-      lbTabs: lbTabs,
-      lbTabDay: lbTabDay,
-      lbTabAll: lbTabAll,
       boardTabDay: boardTabDay,
       boardTabAll: boardTabAll,
       boardTabRec: boardTabRec,
@@ -639,19 +622,13 @@
     var seq = autoSeq;   /* bumped by every death (applyOver) and by NOT YOU? */
     var row = { name: name, score: score };
     state.postedRow = row;
-    /* Scope at death time: a tab tapped during the save must not decide which
-       rows this run's roast is computed from. Same for the death generation:
-       this callback can land after the next run has already died, and that
-       screen's victim line must never be computed from this run's score. */
-    var scope = deathScope;
-    var dseq = deathSeq;
     setAutoRow('SAVING AS ' + lrm(name), false);
     submitScore(name, score, function (ok) {
       if (!ok) { addLocalScore(name, score); } /* record even mid-restart */
       if (seq !== autoSeq || state.mode !== 'over') { return; }
       if (ok) {
         setAutoRow('SAVED AS ' + lrm(name), true);
-        refreshBoard(scope, row, true, dseq === deathSeq ? score : null);
+        refreshBoard(row, true);
       } else {
         setAutoRow('SAVED HERE AS ' + lrm(name), true);
         renderBoard(readLocalBoard(), row, 'THIS DEVICE ONLY');
@@ -708,7 +685,7 @@
     return rows;
   }
 
-  function fetchTop(scope, cb) {
+  function fetchTop(scope, cb, full) {
     if (!window.fetch) { cb(null); return; }
     var done = false;
     var finish = function (rows) { if (!done) { done = true; cb(rows); } };
@@ -718,7 +695,8 @@
         .then(function (r) { if (!r.ok) { throw new Error('http ' + r.status); } return r.json(); })
         .then(function (rows) {
           clearTimeout(timer);
-          finish(Array.isArray(rows) ? dedupeBest(rows).slice(0, 10) : null);
+          /* full: the sandwich needs the whole deduped ranking, not the top 10 */
+          finish(Array.isArray(rows) ? (full ? dedupeBest(rows) : dedupeBest(rows).slice(0, 10)) : null);
         })
         .catch(function () { clearTimeout(timer); finish(null); });
     } catch (err) { clearTimeout(timer); finish(null); }
@@ -784,9 +762,9 @@
   }
 
   function renderBoard(rows, mine, label) {
-    /* Death screen shows a 5-row context window, not the hall of fame; the
-       trophy overlay keeps the full 10 (phone-density fix, 2026-07-31). */
-    renderRows(els.lbList, els.lbStatus, rows, mine, label, 5);
+    /* Death-screen fallback list matches the sandwich scale: 3 rows; the
+       trophy overlay keeps the full 10 (density revision, 2026-07-31). */
+    renderRows(els.lbList, els.lbStatus, rows, mine, label, 3);
   }
 
   function markTab(onBtn, offBtn) {
@@ -794,33 +772,65 @@
     offBtn.classList.remove('is-on');
   }
 
-  /* "N MORE PASSES <name>": the daily row just above me; fallback: my best. */
-  function showVictim(rows, myScore) {
-    if (!(myScore > 0)) { return; }
-    var myName = readName();   /* hoisted: one storage read, not one per row */
-    var above = null, i, r;
-    if (rows && rows.length) {
-      for (i = rows.length - 1; i >= 0; i--) {
-        r = rows[i];
-        if (r && typeof r.score === 'number' && r.score >= myScore &&
-            r.name !== myName) { above = r; break; }
+  /* Rank sandwich: the deduped all-time list windowed around my best row.
+     Anchor by stored name; the row's score is that player's best. */
+  function buildSandwich(rows) {
+    var out = { rows: [], above: null };
+    if (!rows || !rows.length) { return out; }
+    var myName = readName();
+    var i, at = -1;
+    if (myName) {
+      for (i = 0; i < rows.length; i++) {
+        if (rows[i] && rows[i].name === myName) { at = i; break; }
       }
     }
-    if (above) {
-      els.overVictim.textContent =
-        (above.score - myScore + 1) + ' MORE PASSES ' +
-        lrm(String(above.name).slice(0, 16));
-      els.overVictim.hidden = false;
+    var start;
+    if (at < 0) { start = 0; }              /* unranked or nameless: top 3 */
+    else if (at === 0) { start = 0; }       /* king: me + two below */
+    else { start = at - 1; }                /* ranked: above / me / below */
+    for (i = start; i < rows.length && out.rows.length < 3; i++) {
+      out.rows.push({
+        rank: i + 1,
+        name: rows[i].name,
+        score: rows[i].score,
+        mine: i === at
+      });
+    }
+    if (at > 0) { out.above = rows[at - 1]; }
+    return out;
+  }
+
+  function renderSandwich(sw) {
+    els.lbStatus.textContent = '';
+    while (els.lbList.firstChild) { els.lbList.removeChild(els.lbList.firstChild); }
+    if (!sw.rows.length) {
+      els.lbList.appendChild(el('li', 'hud-lb-empty', 'NO SCORES YET'));
       return;
     }
-    var best = readBest();
-    if (best > myScore) {
-      els.overVictim.textContent = (best - myScore) + ' FROM YOUR BEST';
-      els.overVictim.hidden = false;
+    for (var i = 0; i < sw.rows.length; i++) {
+      var r = sw.rows[i];
+      var li = el('li', r.mine ? 'hud-lb-mine' : null);
+      li.appendChild(el('span', 'hud-lb-rank', String(r.rank)));
+      li.appendChild(el('span', 'hud-lb-name', String(r.name == null ? '?' : r.name).slice(0, 16)));
+      li.appendChild(el('span', 'hud-lb-pts', String(r.score == null ? 0 : r.score)));
+      els.lbList.appendChild(li);
     }
   }
 
-  /* "TOP N% TODAY" from two window counts; hidden when thin (<10) or offline. */
+  /* Victim anchors the BEST, not the current run (spec 2026-07-31):
+     beat the neighbor above your best row. Hidden for kings and the unranked. */
+  function showVictim(above) {
+    if (!above || typeof above.score !== 'number') { return; }
+    var myBest = readBest();
+    if (!(myBest > 0)) { return; }
+    els.overVictim.textContent =
+      (above.score - myBest + 1) + ' MORE PASSES ' +
+      lrm(String(above.name).slice(0, 16));
+    els.overVictim.hidden = false;
+  }
+
+  /* Relocated to the overlay TODAY header in the density revision (2026-07-31):
+     unreferenced until the next task rewires it there. */
   function showPercentile(score) {
     var seq = deathSeq;
     var windowF = scopeFilter('day');
@@ -850,54 +860,35 @@
      not) but are dropped the moment the next run dies. */
   var deathSeq = 0;
 
-  function refreshBoard(scope, mine, wantRoast, myScore, isRetry) {
-    /* A call for a scope the player already left (a late auto-post callback)
-       is roast-only: it must neither paint nor take the token, or the tab
-       they did pick would never get its own rows. */
-    var showing = scope === deathScope;
-    var seq = showing ? ++deathBoardSeq : deathBoardSeq;
-    var dseq = deathSeq;   /* which death asked: guards the victim line */
-    if (showing) { els.lbStatus.textContent = 'LOADING'; }
-    fetchTop(scope, function (rows) {
-      var paint = showing && seq === deathBoardSeq;
-      if (!rows) {
-        if (paint) { renderBoard(readLocalBoard(), mine, 'THIS DEVICE ONLY'); }
-        /* Offline still owes the death screen a victim line: with no rows the
-           helper falls back to the personal-best delta. Same guards as the
-           rows branch, keyed to the same death. */
-        if (myScore != null && state.mode === 'over' && dseq === deathSeq) {
-          showVictim([], myScore);
-        }
+  /* Death screen data: one full all-time fetch for the rank sandwich, one
+     daily fetch for the roast. Tokens keep their jobs: deathBoardSeq drops a
+     stale paint, deathSeq drops everything from a previous death. */
+  function refreshBoard(mine, wantRoast) {
+    var dseq = ++deathBoardSeq;
+    var dgen = deathSeq;
+    els.lbStatus.textContent = 'LOADING';
+    fetchTop('all', function (rows) {
+      if (dseq !== deathBoardSeq || state.mode !== 'over' || dgen !== deathSeq) { return; }
+      if (rows) {
+        var sw = buildSandwich(rows);
+        renderSandwich(sw);
+        els.overVictim.hidden = true;
+        els.overVictim.textContent = '';
+        showVictim(sw.above);
       } else {
-        if (paint) { renderBoard(rows, mine, ''); }
-        /* The roast belongs to this run's rows, not to whatever tab is showing,
-           and not to a late response from the previous death either. */
-        if (wantRoast && state.mode === 'over' && dseq === deathSeq) { applyRoast(rows); }
-        /* Same for the victim line, but keyed to the death it was asked for:
-           a response from the previous run must never write it. */
-        if (myScore != null && state.mode === 'over' && dseq === deathSeq) {
-          showVictim(rows, myScore);
-        }
-        /* Only the daily board says who holds the crown; remembering an all-time
-           leader here would fake a crown change on the next death's roast. Same
-           death key: a stale response must not regress the crown either. */
-        if (scope === 'day' && dseq === deathSeq) { rememberTop(rows); }
+        renderRows(els.lbList, els.lbStatus, readLocalBoard(), mine, 'THIS DEVICE ONLY', 3);
       }
-      /* This request's scope was already stale when issued (roast-only, above:
-         no paint, no token), so the tab the player is actually on never got
-         painted from it. If a POST that only just completed saved a row the
-         tab's own earlier fetch predates, re-enter for the CURRENT scope so a
-         real, token-taking fetch picks it up. One hop only: a retry (isRetry)
-         never schedules another, so this can never loop. */
-      if (!showing && !isRetry && scope !== deathScope && state.mode === 'over') {
-        refreshBoard(deathScope, mine, false, null, true);
-      }
-    });
+    }, true);
+    if (wantRoast) {
+      fetchTop('day', function (rows) {
+        if (state.mode !== 'over' || dgen !== deathSeq) { return; }
+        if (rows) { applyRoast(rows); rememberTop(rows); }
+      });
+    }
   }
 
   /* Standalone board view: opens from the corner trophy, refreshes itself
      every 15s while open so nobody has to reload anything. */
-  var deathScope = 'day';
   var overlayScope = 'all';
   var boardOpen = false;
   var boardTimer = null;
@@ -983,7 +974,6 @@
     state.submitted = true;
     var row = { name: name, score: score };
     state.postedRow = row;
-    var scope = deathScope;   /* as above: not whatever tab wins the race */
     writeName(name);
     els.nameInput.disabled = true;
     els.saveBtn.disabled = true;
@@ -992,7 +982,7 @@
       els.entry.classList.add('is-done');
       if (ok) {
         els.saveBtn.textContent = 'SAVED';
-        refreshBoard(scope, row, false, null);
+        refreshBoard(row, false);
       } else {
         addLocalScore(name, score);
         els.saveBtn.textContent = 'SAVED HERE';
@@ -1058,20 +1048,17 @@
     if (best > storedBest) { writeBest(best); }
     var today = readToday();
     if (finalScore > today.best) { today.best = finalScore; writeToday(today); }
-    /* Tier folds into the BEST line on death (phone-density fix, 2026-07-31);
-       the full ladder lives in the trophy overlay's RECORDS tab. */
-    var overCur = tierFor(best).cur;
+    /* Density revision 2026-07-31: no tier vocabulary on the death screen.
+       The ladder lives in the trophy overlay's RECORDS tab; the toast owns
+       the tier-up moment. */
     els.overTier.hidden = true;
     els.overTier.textContent = '';
 
     els.overScore.textContent = String(finalScore);
-    els.overBest.textContent = 'BEST ' + best + (overCur ? ' · ' + overCur.name : '');
+    els.overBest.textContent = 'BEST ' + best;
     els.newBest.hidden = !isNewBest;
-    els.overPct.hidden = true;
-    els.overPct.textContent = '';
     els.overVictim.hidden = true;
     els.overVictim.textContent = '';
-    if (finalScore > 0) { showPercentile(finalScore); }
 
     els.quip.textContent = nextQuip();
     state.submitted = false;
@@ -1083,18 +1070,15 @@
     els.saveBtn.textContent = 'SAVE';
     els.entry.classList.remove('is-done');
     hideAutoRow();
-    /* Every death screen opens on TODAY, whatever the last tap chose. */
-    deathScope = 'day';
     deathBoardSeq++;   /* a request from the last death screen must not paint here */
     els.lbStatus.textContent = '';   /* and must not leave its LOADING label stuck either */
-    markTab(els.lbTabDay, els.lbTabAll);
     if (finalScore > 0 && autoName) {
       /* Known player: the run posts itself; the keyboard stays away. */
       els.entry.hidden = true;
       autoSubmit(autoName, finalScore);
     } else {
       els.entry.hidden = !(finalScore > 0);
-      refreshBoard(deathScope, null, true, finalScore);
+      refreshBoard(null, true);
     }
 
     state.overAt = Date.now();
@@ -1142,7 +1126,7 @@
 
   function tryRestart(ev) {
     /* Taps on the name entry are for typing/saving, never restarts. */
-    if (ev && ev.target && ev.target.closest && ev.target.closest('.hud-lb-entry, .hud-lb-auto, .hud-lb-tabs')) { return; }
+    if (ev && ev.target && ev.target.closest && ev.target.closest('.hud-lb-entry, .hud-lb-auto')) { return; }
     if (state.mode !== 'over') { return; }
     var now = Date.now();
     if (now - state.overAt < RESTART_LOCKOUT_MS) { return; }
@@ -1169,14 +1153,6 @@
     els.boardClose.addEventListener('click', closeBoard);
     /* state.postedRow, not readName(): after a NOT YOU? rename the row on the
        board still carries the old name, and that is the row to highlight. */
-    els.lbTabDay.addEventListener('click', function () {
-      deathScope = 'day'; markTab(els.lbTabDay, els.lbTabAll);
-      refreshBoard(deathScope, state.postedRow, false, null);
-    });
-    els.lbTabAll.addEventListener('click', function () {
-      deathScope = 'all'; markTab(els.lbTabAll, els.lbTabDay);
-      refreshBoard(deathScope, state.postedRow, false, null);
-    });
     els.boardTabDay.addEventListener('click', function () {
       overlayScope = 'day'; markTab(els.boardTabDay, els.boardTabAll);
       els.boardRecords.hidden = true;
@@ -1202,8 +1178,6 @@
       els.boardStatus.textContent = '';
       renderRecordsPane();
     });
-    keepKeysLocal(els.lbTabDay);
-    keepKeysLocal(els.lbTabAll);
     keepKeysLocal(els.boardTabDay);
     keepKeysLocal(els.boardTabAll);
     keepKeysLocal(els.boardTabRec);
