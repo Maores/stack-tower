@@ -1192,6 +1192,7 @@
       refreshOverlayBoard(true);
     });
     els.boardTabRec.addEventListener('click', function () {
+      overlayBoardSeq++;  /* take the token: an in-flight fetch from the list tabs must not repaint over this pane */
       overlayScope = 'records';
       els.boardTabRec.classList.add('is-on');
       els.boardTabDay.classList.remove('is-on');

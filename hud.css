@@ -787,6 +787,9 @@
 .hud-board-records[hidden] {
   display: none;
 }
+.hud-board-list[hidden] {
+  display: none;
+}
 .hud-ladder {
   margin-top: 2vh;
 }
