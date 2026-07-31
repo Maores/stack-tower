@@ -47,6 +47,30 @@
   var TODAY_KEY = 'stack-today';
   var PTS_KEY = 'stack-points';    /* spendable balance; earn-only, forever */
   var DAILY_KEY = 'stack-daily';   /* local date of the last doubled run */
+  var WORLD_KEY = 'stack-world';    /* equipped World id */
+  var OWNED_KEY = 'stack-worlds';   /* owned ids beyond classic (JSON array) */
+
+  /* Worlds catalog — hud-owned presentation data (names, prices, card art,
+     quip packs). visuals.js and audio.js keep their own per-World tables
+     under the same ids; the only coupling is the hud:world event. */
+  var WORLDS = [
+    { id: 'classic',  name: 'CLASSIC',  price: 0,    giftAt: 0,
+      sky: 'linear-gradient(180deg,#232c3d,#141a26)', block: '#7ec8e3' },
+    { id: 'sunset',   name: 'SUNSET',   price: 600,  giftAt: 0,
+      sky: 'linear-gradient(180deg,#4a2440,#2a1830)', block: '#ff9a76' },
+    { id: 'neon',     name: 'NEON',     price: 1000, giftAt: 0,
+      sky: 'linear-gradient(180deg,#12101e,#0a0912)', block: '#22e0d4' },
+    { id: 'deepsea',  name: 'DEEP SEA', price: 1500, giftAt: 0,
+      sky: 'linear-gradient(180deg,#0e2436,#081521)', block: '#2e9cc4' },
+    { id: 'marble',   name: 'MARBLE',   price: 0,    giftAt: 70,
+      sky: 'linear-gradient(180deg,#3a3830,#211f1a)', block: '#f0ece4' },
+    { id: 'obsidian', name: 'OBSIDIAN', price: 0,    giftAt: 250,
+      sky: 'linear-gradient(180deg,#241c1a,#120e0d)', block: '#33303c' }
+  ];
+  var WORLD_BY_ID = {};
+  (function () {
+    for (var i = 0; i < WORLDS.length; i++) { WORLD_BY_ID[WORLDS[i].id] = WORLDS[i]; }
+  })();
   var RESTART_LOCKOUT_MS = 500;  /* ignore taps right after game over */
   var RESTART_DEDUPE_MS = 400;   /* pointerdown + click on button = one restart */
 
@@ -156,6 +180,56 @@
 
   function writeDaily(v) {
     try { window.localStorage.setItem(DAILY_KEY, v); } catch (err) { /* ignore */ }
+  }
+
+  function readWorld() {
+    try {
+      var v = String(window.localStorage.getItem(WORLD_KEY) || '');
+      return WORLD_BY_ID[v] ? v : 'classic';
+    } catch (err) { return 'classic'; }
+  }
+
+  function writeWorld(v) {
+    try { window.localStorage.setItem(WORLD_KEY, v); } catch (err) { /* ignore */ }
+  }
+
+  function readOwned() {
+    try {
+      var v = JSON.parse(window.localStorage.getItem(OWNED_KEY) || '[]');
+      return Array.isArray(v) ? v : [];
+    } catch (err) { return []; }
+  }
+
+  function writeOwned(arr) {
+    try { window.localStorage.setItem(OWNED_KEY, JSON.stringify(arr)); } catch (err) { /* ignore */ }
+  }
+
+  function ownsWorld(id) {
+    if (id === 'classic') { return true; }
+    var owned = readOwned();
+    for (var i = 0; i < owned.length; i++) { if (owned[i] === id) { return true; } }
+    return false;
+  }
+
+  /* True when the grant is new — drives the gift-toast wording. */
+  function grantWorld(id) {
+    if (ownsWorld(id)) { return false; }
+    var owned = readOwned();
+    owned.push(id);
+    writeOwned(owned);
+    return true;
+  }
+
+  function fireWorld(id) {
+    try { window.dispatchEvent(new CustomEvent('hud:world', { detail: { id: id } })); }
+    catch (err) { /* ignore */ }
+  }
+
+  function equipWorld(id) {
+    if (!WORLD_BY_ID[id]) { return; }
+    writeWorld(id);
+    quipBag = [];   /* the next death draws from the new World's pack */
+    fireWorld(id);
   }
 
   function pickNumber(detail, keys) {
@@ -574,12 +648,73 @@
     'Structural integrity: optional, apparently.',
     'Your tower is now modern art.'
   ];
+
+  /* Per-World death quips: a World's pack replaces the generic pool while
+     it is equipped (classic keeps QUIPS). Static lines only — the
+     name-interpolating roasts below stay universal, LRM guard and all. */
+  var WORLD_QUIPS = {
+    sunset: [
+      'The sun set on that one.',
+      'Golden hour, leaden hands.',
+      'Dusk claims another architect.',
+      'That tower rode into the sunset. Sideways.',
+      'Even the horizon looked away.',
+      'Warm colors, cold result.',
+      'The evening forgives; the ledge does not.',
+      'Painted skies, unpainted landing.'
+    ],
+    neon: [
+      'Flatline in neon.',
+      'The grid rejects your geometry.',
+      'Insert coin to pretend that did not happen.',
+      'Your tower just rage-quit reality.',
+      'Signal lost. Tower too.',
+      'That drop lagged. The blame does not.',
+      'The synthwave stops for no one.',
+      'Game over, glow on.'
+    ],
+    deepsea: [
+      'The tower sleeps with the fishes.',
+      'Pressure: 1, you: 0.',
+      'That block just joined the wreck.',
+      'Somewhere below, a crab applauds.',
+      'The abyss reviewed your tower: one star.',
+      'Sunk without a bubble.',
+      'The tide keeps what you drop.',
+      'Depth achieved. Height, less so.'
+    ],
+    marble: [
+      'The museum declines your donation.',
+      'Carved in marble: "almost".',
+      'The sculptors union has questions.',
+      'A classical collapse, technically.',
+      'Ruins are just towers with history.',
+      'The gallery lights dim in respect.',
+      'Polished start, gravel finish.',
+      'Antiquity called. It wants distance.'
+    ],
+    obsidian: [
+      'The volcano accepts your offering.',
+      'Forged in fire, dropped in shame.',
+      'The lava is not even impressed.',
+      'Obsidian: sharp. That drop: not.',
+      'Ash to ash, block to floor.',
+      'The mountain keeps the pieces.',
+      'Dark glass, darker landing.',
+      'Cooled, hardened, toppled.'
+    ]
+  };
+
+  function activeQuips() {
+    return WORLD_QUIPS[readWorld()] || QUIPS;
+  }
+
   var quipBag = [];
   var autoSeq = 0;
 
   function nextQuip() {
     if (!quipBag.length) {
-      quipBag = QUIPS.slice();
+      quipBag = activeQuips().slice();
       for (var i = quipBag.length - 1; i > 0; i--) {
         var j = Math.floor(Math.random() * (i + 1));
         var tmp = quipBag[i]; quipBag[i] = quipBag[j]; quipBag[j] = tmp;
@@ -1108,7 +1243,13 @@
       var base = state.runStartBest != null ? state.runStartBest : readBest();
       for (var ti = 0; ti < TIERS.length; ti++) {
         if (n >= TIERS[ti][1] && prev < TIERS[ti][1] && base < TIERS[ti][1]) {
-          showToast('▲ ' + TIERS[ti][0]);
+          var tn = TIERS[ti][0];
+          /* Tier-gift Worlds ride the crossing toast (spec: Marble and
+             Obsidian each carry a World). grantWorld is false if some
+             corrupt store already owned it — then the plain toast shows. */
+          if (tn === 'MARBLE' && grantWorld('marble')) { showToast('▲ MARBLE · WORLD UNLOCKED'); }
+          else if (tn === 'OBSIDIAN' && grantWorld('obsidian')) { showToast('▲ OBSIDIAN · WORLD UNLOCKED'); }
+          else { showToast('▲ ' + tn); }
           break;
         }
       }
@@ -1374,6 +1515,18 @@
     muteOn = readMuted();
     applyMuteUi(muteOn);
     applyReady(); /* boot into title state */
+    /* Boot World broadcast, deferred one task: script order is core,
+       visuals, hud, audio — a synchronous fire here would beat audio.js's
+       listener registration. All four scripts parse before any queued task
+       runs, so a 0ms timer is deterministic, not a race. Gifts earned
+       before this feature shipped arrive silently here, never equipped. */
+    setTimeout(function () {
+      var b = readBest();
+      for (var i = 0; i < WORLDS.length; i++) {
+        if (WORLDS[i].giftAt > 0 && b >= WORLDS[i].giftAt) { grantWorld(WORLDS[i].id); }
+      }
+      fireWorld(readWorld());
+    }, 0);
     window.HUD = window.HUD || api;
   }
 

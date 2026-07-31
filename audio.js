@@ -7,18 +7,20 @@
      'game:start'                 streak reset
      'game:over'                  streak reset only (game over is silent)
      'hud:mute'    { muted }      mute state pushed by the HUD button
+     'hud:world'   { id }         chime voice follows the active World
 
    Shared constant with hud.js: localStorage 'stack-muted' ('1' | '0',
    absent = sound on). hud.js owns the button and persistence; this file
    reads the key once at boot and then follows 'hud:mute' events.
 
    Public API (window.StackAudio):
-     version                   '1.0.0'
+     version                   '1.1.0'
      isReady()                 AudioContext exists (created on first gesture)
      muted                     live boolean
      setMuted(m)               runtime mute; persistence stays with the HUD
-     debug: { played, last, state() }   scheduled-voice counter, last voice
-                               name, and context state, for tests
+     debug: { played, last, world, state() }   scheduled-voice counter, last
+                               voice name, resolved World id, and context
+                               state, for tests
    ========================================================================== */
 (function () {
   'use strict';
@@ -27,17 +29,26 @@
 
   var MUTE_KEY = 'stack-muted';   /* shared with hud.js */
   var MASTER_GAIN = 0.5;
-  /* Major pentatonic from C5: the base note plus 10 steps up (11 entries,
-     two octaves of semitone offsets); the streak indexes in, and past the cap
-     it rotates the three highest notes. */
-  var LADDER = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24];
-  var BASE_HZ = 523.25;
+  /* Per-World chime voices: base note + scale per World, same synthesis.
+     Major pentatonic for the bright Worlds, minor pentatonic for the deep
+     and dark ones; tap is the sliced-placement thunk center. Keyed by the
+     ids the HUD broadcasts on hud:world; unknown ids fall back to classic. */
+  var WORLD_SOUND = {
+    classic:  { base: 523.25, tap: 440, ladder: [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24] },
+    sunset:   { base: 440.00, tap: 392, ladder: [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24] },
+    neon:     { base: 587.33, tap: 494, ladder: [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24] },
+    deepsea:  { base: 392.00, tap: 349, ladder: [0, 3, 5, 7, 10, 12, 15, 17, 19, 22, 24] },
+    marble:   { base: 466.16, tap: 415, ladder: [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24] },
+    obsidian: { base: 349.23, tap: 311, ladder: [0, 3, 5, 7, 10, 12, 15, 17, 19, 22, 24] }
+  };
+  var sound = WORLD_SOUND.classic;
 
   var ctx = null, master = null, noiseBuf = null;
   var streak = 0;
   var muted = false;
   var dbg = { played: 0, last: '' };
   dbg.state = function () { return ctx ? ctx.state : 'none'; };
+  dbg.world = 'classic';
 
   try { muted = window.localStorage.getItem(MUTE_KEY) === '1'; }
   catch (err) { muted = false; }
@@ -125,7 +136,7 @@
 
   /* Sliced placement: glass tap + the shaved piece's band-swept swish. */
   function playSliced(t) {
-    tone(t, 'triangle', 440 + (Math.random() * 30 - 15), 0.35, 0.14);
+    tone(t, 'triangle', sound.tap + (Math.random() * 30 - 15), 0.35, 0.14);
     var src = ctx.createBufferSource();
     src.buffer = noise();
     var bp = ctx.createBiquadFilter();
@@ -144,7 +155,7 @@
      the peak shimmers instead of repeating one chime. */
   function playPerfect(t, step) {
     var idx = step <= 10 ? step : 8 + ((step - 11) % 3);
-    var f = BASE_HZ * Math.pow(2, LADDER[idx] / 12);
+    var f = sound.base * Math.pow(2, sound.ladder[idx] / 12);
     tone(t, 'sine', f, 0.45, 0.35);
     tone(t, 'sine', f * 2 * 1.003, 0.18, 0.35);   /* shimmer partial */
   }
@@ -197,10 +208,17 @@
     setMuted(!!(e && e.detail && e.detail.muted));
   });
 
+  window.addEventListener('hud:world', function (e) {
+    var id = e && e.detail ? String(e.detail.id) : '';
+    var key = WORLD_SOUND[id] ? id : 'classic';
+    sound = WORLD_SOUND[key];
+    dbg.world = key;
+  });
+
   /* -------------------------------------------------------------- api */
 
   var api = {
-    version: '1.0.0',
+    version: '1.1.0',
     isReady: function () { return !!ctx; },
     muted: muted,
     setMuted: setMuted,

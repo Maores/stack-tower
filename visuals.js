@@ -31,6 +31,7 @@
  *   'stack:level'    { level }
  *   'stack:gameover' {}
  *   'stack:reset'    {}
+ *   'hud:world'   { id }  active World changed (palette + sky swap)
  *
  * Extras for the HUD layer:
  *   StackVisuals.getBlockColor(level, depth) -> '#rrggbb'
@@ -56,8 +57,6 @@
     hueStep: 3.8,       // hue advance per level (sign randomized per run)
     depthSpan: 14,      // levels over which glass deepens below the top
     meltFrom: 16,       // depth where the tower starts melting into the sky
-    bgBase: 202,        // background hue center
-    bgSwing: 11,        // background hue swing amplitude (stays blue-cyan)
     particleCount: 150,
     maxDebris: 40,
     maxFlashes: 8,
@@ -69,8 +68,50 @@
     debrisFadeAt: 0.34  // seconds before the fade begins
   };
 
-  // Palette families that sit well on the blue sky, like the reference art.
-  var HUE_FAMILIES = [148, 164, 180, 198, 214, 232, 256, 284, 312];
+  // Per-World palette + sky (marketplace Wave A), keyed by the ids the HUD
+  // broadcasts on hud:world; unknown ids fall back to classic. classic
+  // reproduces the pre-Worlds look exactly. All numbers tunable.
+  var WORLD_STYLES = {
+    classic: {
+      families: [148, 164, 180, 198, 214, 232, 256, 284, 312],
+      satBias: 0, lightBias: 0,
+      sky: { base: 202, swing: 11, innerS: 0.66, innerLBias: -0.03,
+             outerS: 0.74, outerL: 0.205, beamS: 0.55, beamL: 0.82 }
+    },
+    sunset: {
+      families: [352, 8, 18, 26, 336],
+      satBias: 0.06, lightBias: 0.01,
+      sky: { base: 322, swing: 9, innerS: 0.52, innerLBias: -0.10,
+             outerS: 0.58, outerL: 0.14, beamS: 0.50, beamL: 0.78 }
+    },
+    neon: {
+      families: [168, 190, 258, 286, 310],
+      satBias: 0.24, lightBias: -0.02,
+      sky: { base: 252, swing: 8, innerS: 0.45, innerLBias: -0.28,
+             outerS: 0.55, outerL: 0.05, beamS: 0.60, beamL: 0.70 }
+    },
+    deepsea: {
+      families: [172, 188, 202, 216, 230],
+      satBias: 0.04, lightBias: -0.06,
+      sky: { base: 210, swing: 8, innerS: 0.62, innerLBias: -0.16,
+             outerS: 0.72, outerL: 0.10, beamS: 0.55, beamL: 0.75 }
+    },
+    marble: {
+      families: [42, 48, 54],
+      satBias: -0.38, lightBias: 0.16,
+      sky: { base: 46, swing: 6, innerS: 0.22, innerLBias: -0.02,
+             outerS: 0.30, outerL: 0.16, beamS: 0.35, beamL: 0.88 }
+    },
+    obsidian: {
+      families: [12, 22, 355],
+      satBias: -0.10, lightBias: -0.26,
+      sky: { base: 8, swing: 6, innerS: 0.35, innerLBias: -0.22,
+             outerS: 0.45, outerL: 0.055, beamS: 0.55, beamL: 0.62 }
+    }
+  };
+  var worldStyle = WORLD_STYLES.classic;
+
+  function clampRange(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
 
   var S = {
     inited: false,
@@ -159,19 +200,20 @@
     f = f * (2 - f); // ease-out: the first few levels below the top deepen fast
     return {
       h: S.hueStart + level * S.hueStep,
-      s: 0.60 + 0.24 * f,
-      l: 0.575 - 0.16 * f + 0.012 * Math.sin(level * 1.7),
+      s: clampRange(0.60 + 0.24 * f + worldStyle.satBias, 0.04, 1),
+      l: clampRange(0.575 - 0.16 * f + 0.012 * Math.sin(level * 1.7) + worldStyle.lightBias, 0.08, 0.92),
       op: 0.88 + 0.06 * f
     };
   }
 
   function computeBgTargets() {
-    var h = CFG.bgBase + CFG.bgSwing * Math.sin(S.level * 0.05 + 0.4);
+    var sky = worldStyle.sky;
+    var h = sky.base + sky.swing * Math.sin(S.level * 0.05 + 0.4);
     var l = 0.585 + 0.03 * Math.sin(S.level * 0.03 + 1.7);
     S.bgTarget = {
-      inner: hsl(h - 6, 0.66, l - 0.03),
-      outer: hsl(h + 10, 0.74, 0.205),
-      beam: hsl(h - 16, 0.55, 0.82)
+      inner: hsl(h - 6, sky.innerS, l + sky.innerLBias),
+      outer: hsl(h + 10, sky.outerS, sky.outerL),
+      beam: hsl(h - 16, sky.beamS, sky.beamL)
     };
     if (!S.bgCur) {
       S.bgCur = {
@@ -183,7 +225,8 @@
   }
 
   function pickRunPalette() {
-    S.hueStart = HUE_FAMILIES[Math.floor(Math.random() * HUE_FAMILIES.length)];
+    var fam = worldStyle.families;
+    S.hueStart = fam[Math.floor(Math.random() * fam.length)];
     S.hueStep = (Math.random() < 0.5 ? -1 : 1) * (CFG.hueStep * (0.85 + Math.random() * 0.5));
   }
 
@@ -1121,7 +1164,7 @@
   }
 
   var api = {
-    version: '2.0.0',
+    version: '2.1.0',
     init: init,
     isReady: function () { return S.inited; },
     styleBlock: styleBlock,
@@ -1164,6 +1207,17 @@
   });
   window.addEventListener('stack:gameover', function () { onGameOver(); });
   window.addEventListener('stack:reset', function () { reset(); ghostSync(); });
+  window.addEventListener('hud:world', function (e) {
+    var id = e && e.detail ? String(e.detail.id) : '';
+    worldStyle = WORLD_STYLES[id] || WORLD_STYLES.classic;
+    if (!S.inited) return;   // init's own pickRunPalette/computeBgTargets read worldStyle
+    // Equip preview is immediate: the sky retargets (per-frame lerp) and
+    // standing blocks recolor into the new families. Runs never see a
+    // mid-run change; the shop is unreachable while playing.
+    pickRunPalette();
+    computeBgTargets();
+    recolorAll();
+  });
   /* stack:reset only fires on restarts. game:start is still needed as a
      fallback because core.js fires stack:init before it reads `best` from
      localStorage (fireDom('stack:init', ...) runs ahead of the
