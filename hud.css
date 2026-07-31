@@ -780,6 +780,44 @@
 }
 
 /* Records pane inside the trophy overlay (third tab) */
+/* Tier-up toast */
+.hud-toast {
+  position: fixed;
+  top: calc(max(2.2vh, env(safe-area-inset-top, 0px)) + clamp(40px, 6.5vmin, 52px) + 1.2vh);
+  left: 50%;
+  transform: translateX(-50%) translateY(-8px);
+  z-index: 115;
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 0.55em 1.4em 0.55em 1.62em; /* extra left pad balances letter-spacing */
+  font-size: clamp(11px, 1.7vmin, 14px);
+  font-weight: 300;
+  letter-spacing: 0.3em;
+  box-shadow: 0 0 16px rgba(255, 255, 255, 0.3);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.2, 0.7, 0.25, 1);
+}
+.hud-toast.is-on {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* Overlay TODAY percentile header */
+.hud-board-pct {
+  margin-top: 1.2vh;
+  text-align: center;
+  font-size: clamp(11px, 1.7vmin, 14px);
+  font-weight: 300;
+  letter-spacing: 0.24em;
+  margin-right: -0.24em;
+  text-shadow: 0 0 12px rgba(255, 255, 255, 0.4);
+}
+.hud-board-pct[hidden] {
+  display: none;
+}
+
 .hud-board-records {
   margin-top: 1.6vh;
   overflow-y: auto;
@@ -839,6 +877,9 @@
   #hud-root .hud-over-newbest {
     animation: none;
     opacity: 0.8;
+  }
+  #hud-root .hud-toast {
+    transition-duration: 0.01s;
   }
   #hud-root .hud-score.is-flare {
     animation: none;

@@ -187,6 +187,20 @@
     node.classList.add(cls);
   }
 
+  /* Tier-up toast: the tier system's only in-game voice (density revision).
+     CSS owns the fade; reduced-motion gets a near-instant transition there. */
+  var toastTimer = null;
+
+  function showToast(text) {
+    els.toast.textContent = text;
+    els.toast.classList.add('is-on');
+    if (toastTimer) { clearTimeout(toastTimer); }
+    toastTimer = setTimeout(function () {
+      els.toast.classList.remove('is-on');
+      toastTimer = null;
+    }, 2500);
+  }
+
   function ensureCss() {
     if (document.querySelector('link[data-stack-hud], link[href*="hud.css"]')) { return; }
     var link = document.createElement('link');
@@ -362,13 +376,21 @@
     boardRecords.appendChild(ladderNote);
 
     var boardList = el('ol', 'hud-lb-list hud-board-list');
+    /* TODAY-tab percentile header (density revision: relocated from death) */
+    var boardPct = el('div', 'hud-board-pct', '');
+    boardPct.hidden = true;
     boardPanel.appendChild(boardClose);
     boardPanel.appendChild(boardTitle);
     boardPanel.appendChild(boardStatus);
     boardPanel.appendChild(boardTabs);
+    boardPanel.appendChild(boardPct);
     boardPanel.appendChild(boardRecords);   /* between boardTabs row and boardList */
     boardPanel.appendChild(boardList);
     board.appendChild(boardPanel);
+
+    /* Tier-up toast: fixed top-center, above everything, never interactive. */
+    var toast = el('div', 'hud-toast', '');
+    toast.setAttribute('aria-live', 'polite');
 
     root.appendChild(scoreWrap);
     root.appendChild(title);
@@ -376,6 +398,7 @@
     root.appendChild(boardBtn);
     root.appendChild(muteBtn);
     root.appendChild(board);
+    root.appendChild(toast);
 
     return {
       root: root,
@@ -394,6 +417,8 @@
       boardTabDay: boardTabDay,
       boardTabAll: boardTabAll,
       boardTabRec: boardTabRec,
+      boardPct: boardPct,
+      toast: toast,
       lbList: lbList,
       entry: entry,
       nameInput: nameInput,
@@ -829,23 +854,24 @@
     els.overVictim.hidden = false;
   }
 
-  /* Relocated to the overlay TODAY header in the density revision (2026-07-31):
-     unreferenced until the next task rewires it there. */
-  function showPercentile(score) {
-    var seq = deathSeq;
+  /* Overlay TODAY header: "YOU: TOP n% TODAY" for today's device best.
+     Same hiding rules as the old death-screen line: window >= 10, both
+     counts healthy, never 100%. Relocated here by the density revision. */
+  function showPercentile() {
+    var myToday = readToday().best;
+    els.boardPct.hidden = true;
+    els.boardPct.textContent = '';
+    if (!(myToday > 0)) { return; }
     var windowF = scopeFilter('day');
     countRows(windowF, function (total) {
-      if (seq !== deathSeq || state.mode !== 'over' ||
-          total == null || total < 10) { return; }
-      countRows(windowF + '&score=gt.' + score, function (above) {
-        if (seq !== deathSeq || state.mode !== 'over' || above == null) { return; }
+      if (overlayScope !== 'day' || total == null || total < 10) { return; }
+      countRows(windowF + '&score=gt.' + myToday, function (above) {
+        if (overlayScope !== 'day' || above == null) { return; }
         var pct = Math.max(1, Math.round(((above + 1) / total) * 100));
-        /* Dead last reads as "TOP 100%", and the two counts are taken a moment
-           apart, so a run whose own row is not in the window yet can even round
-           past 100. Neither is a brag worth printing: stay silent instead. */
+        /* Dead last reads as "TOP 100%"; not a brag worth printing. */
         if (pct >= 100) { return; }
-        els.overPct.textContent = 'TOP ' + pct + '% TODAY';
-        els.overPct.hidden = false;
+        els.boardPct.textContent = 'YOU: TOP ' + pct + '% TODAY';
+        els.boardPct.hidden = false;
       });
     });
   }
@@ -918,7 +944,9 @@
       els.boardRecords.hidden = true;
       els.boardList.hidden = false;
     }
+    els.boardPct.hidden = true;
     refreshOverlayBoard(true);
+    if (overlayScope === 'day') { showPercentile(); }
     boardTimer = setInterval(function () { refreshOverlayBoard(false); }, BOARD_REFRESH_MS);
   }
 
@@ -1005,6 +1033,16 @@
       /* Count in memory only: this runs on the frame a block lands, and a
          synchronous storage write per block costs frames. Flushed at death. */
       state.runBlocks += (n - prev);
+      /* Tier-up: first time this run's score crosses a threshold the stored
+         best had not reached. Fires at most once per tier by construction
+         (the next run's baseline already includes this best). */
+      var base = state.runStartBest != null ? state.runStartBest : readBest();
+      for (var ti = 0; ti < TIERS.length; ti++) {
+        if (n >= TIERS[ti][1] && prev < TIERS[ti][1] && base < TIERS[ti][1]) {
+          showToast('▲ ' + TIERS[ti][0]);
+          break;
+        }
+      }
     }
   }
 
@@ -1159,12 +1197,14 @@
       els.boardList.hidden = false;
       els.boardTabRec.classList.remove('is-on');
       refreshOverlayBoard(true);
+      showPercentile();
     });
     els.boardTabAll.addEventListener('click', function () {
       overlayScope = 'all'; markTab(els.boardTabAll, els.boardTabDay);
       els.boardRecords.hidden = true;
       els.boardList.hidden = false;
       els.boardTabRec.classList.remove('is-on');
+      els.boardPct.hidden = true;
       refreshOverlayBoard(true);
     });
     els.boardTabRec.addEventListener('click', function () {
@@ -1176,6 +1216,7 @@
       els.boardRecords.hidden = false;
       els.boardList.hidden = true;
       els.boardStatus.textContent = '';
+      els.boardPct.hidden = true;
       renderRecordsPane();
     });
     keepKeysLocal(els.boardTabDay);
