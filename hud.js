@@ -45,6 +45,8 @@
   var STREAK_KEY = 'stack-best-streak';
   var BLOCKS_KEY = 'stack-blocks-ever';
   var TODAY_KEY = 'stack-today';
+  var PTS_KEY = 'stack-points';    /* spendable balance; earn-only, forever */
+  var DAILY_KEY = 'stack-daily';   /* local date of the last doubled run */
   var RESTART_LOCKOUT_MS = 500;  /* ignore taps right after game over */
   var RESTART_DEDUPE_MS = 400;   /* pointerdown + click on button = one restart */
 
@@ -70,6 +72,7 @@
     runBlocks: 0,       /* blocks landed this run; flushed to storage at death
                            so the landing frame never pays a storage write */
     runStreakPeak: 0,   /* highest perfect combo this run, flushed the same way */
+    runPts: 0,          /* points earned this run, committed at death */
     submitted: false,   /* this run's score already sent to the board */
     postedRow: null     /* {name, score} actually posted this run, for the
                            "my row" highlight; the name can differ from the
@@ -159,6 +162,15 @@
 
   function writeToday(v) {
     try { window.localStorage.setItem(TODAY_KEY, JSON.stringify(v)); } catch (err) { /* ignore */ }
+  }
+
+  function readDaily() {
+    try { return String(window.localStorage.getItem(DAILY_KEY) || ''); }
+    catch (err) { return ''; }
+  }
+
+  function writeDaily(v) {
+    try { window.localStorage.setItem(DAILY_KEY, v); } catch (err) { /* ignore */ }
   }
 
   function pickNumber(detail, keys) {
@@ -280,6 +292,13 @@
     autoRow.appendChild(autoText);
     autoRow.appendChild(autoBtn);
     lb.appendChild(autoRow);
+
+    /* Run earnings whisper: same micro scale as the SAVED AS row. The
+       density rule holds — the death screen grows no new layer, only this
+       line in the existing micro cluster. */
+    var overPts = el('div', 'hud-over-pts', '');
+    overPts.hidden = true;
+    lb.appendChild(overPts);
 
     var restart = el('button', 'hud-restart hud-anim d5');
     restart.type = 'button';
@@ -418,6 +437,7 @@
       overTier: overTier,
       overMenu: overMenu,
       overVictim: overVictim,
+      overPts: overPts,
       newBest: newBest,
       restart: restart,
       quip: quip,
@@ -460,6 +480,7 @@
       state.runStartBest = readBest();
       state.runBlocks = 0;      /* fresh in-memory accumulators for this run */
       state.runStreakPeak = 0;
+      state.runPts = 0;
     }
     state.mode = mode;
     els.root.setAttribute('data-state', mode);
@@ -1041,6 +1062,7 @@
       /* Count in memory only: this runs on the frame a block lands, and a
          synchronous storage write per block costs frames. Flushed at death. */
       state.runBlocks += (n - prev);
+      state.runPts += (n - prev);
       /* Tier-up: first time this run's score crosses a threshold the stored
          best had not reached. Fires at most once per tier by construction
          (the next run's baseline already includes this best). */
@@ -1066,6 +1088,7 @@
     var combo = pickNumber(detail, ['combo']);
     /* Track the run's peak in memory; compared to storage once, at death. */
     if (combo != null && combo > state.runStreakPeak) { state.runStreakPeak = combo; }
+    state.runPts += 2;   /* perfect placement: 1 (score) + 2 = 3 points */
     retrigger(els.score, 'is-flare');
   }
 
@@ -1083,6 +1106,25 @@
     }
     if (state.runStreakPeak > readInt(STREAK_KEY)) { writeInt(STREAK_KEY, state.runStreakPeak); }
     state.runStreakPeak = 0;
+    /* Commit the run's points: counted in memory during play (same frame
+       argument as runBlocks), doubled once per local calendar day, written
+       at death. A zero-point run never consumes the daily double; an
+       abandoned run loses its points like it loses its score. */
+    var runPts = state.runPts;
+    state.runPts = 0;
+    var ptsDoubled = false;
+    if (runPts > 0) {
+      if (readDaily() !== localDateStr()) {
+        runPts *= 2;
+        ptsDoubled = true;
+        writeDaily(localDateStr());
+      }
+      writeInt(PTS_KEY, readInt(PTS_KEY) + runPts);
+    }
+    els.overPts.textContent = runPts > 0
+      ? '+' + runPts + ' PTS' + (ptsDoubled ? ' · FIRST RUN ×2' : '')
+      : '';
+    els.overPts.hidden = !(runPts > 0);
     var s = pickNumber(detail, ['score', 'value', 'points']);
     if (s != null) { state.score = Math.max(0, Math.round(s)); renderScore(); }
     var finalScore = state.score;

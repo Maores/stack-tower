@@ -580,6 +580,22 @@
   outline-offset: 2px;
 }
 
+/* Run earnings whisper (marketplace Wave A): micro scale, hue-neutral like
+   the rest of the HUD so it reads on any World's sky. */
+.hud-over-pts {
+  margin-top: 1vh;
+  text-align: center;
+  font-size: clamp(10px, 1.5vmin, 12px);
+  font-weight: 300;
+  letter-spacing: 0.18em;
+  margin-right: -0.18em;
+  opacity: 0.6;
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+}
+.hud-over-pts[hidden] {
+  display: none;
+}
+
 /* --------------------------------------------------------------------------
    Corner trophy button + standalone board view
    -------------------------------------------------------------------------- */
