@@ -218,15 +218,6 @@
     title.appendChild(titleWord);
     title.appendChild(titleHint);
     title.appendChild(titleBest);
-    var titleTier = el('div', 'hud-title-tier', '');
-    var titleBar = el('div', 'hud-title-bar');
-    var titleBarFill = el('i', null);
-    titleBar.appendChild(titleBarFill);
-    var recordsBtn = el('button', 'hud-title-records', 'RECORDS');
-    recordsBtn.type = 'button';
-    title.appendChild(titleTier);
-    title.appendChild(titleBar);
-    title.appendChild(recordsBtn);
 
     /* game over */
     var over = el('div', 'hud-over');
@@ -331,11 +322,10 @@
       '<path class="hud-mute-wave" d="M15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12"/>' +
       '<path class="hud-mute-slash" d="M4 4l16 16"/></svg>';
 
-    /* data-ui is core.js's documented opt-out (see the records view below).
-       Without it every tap inside this subtree that is not one of the three
-       buttons (panel body, heading, status line, every leaderboard row)
-       reaches core's global pointerdown handler and starts or restarts a run
-       behind the open board. */
+    /* data-ui is core.js's documented opt-out. Without it every tap inside
+       this subtree that is not one of the buttons (panel body, heading,
+       status line, every leaderboard row) reaches core's global pointerdown
+       handler and starts or restarts a run behind the open board. */
     var board = el('div', 'hud-board');
     board.setAttribute('data-ui', '1');
     var boardPanel = el('div', 'hud-board-panel');
@@ -356,28 +346,14 @@
     boardTabAll.setAttribute('data-scope', 'all');
     boardTabs.appendChild(boardTabDay);
     boardTabs.appendChild(boardTabAll);
-    var boardList = el('ol', 'hud-lb-list hud-board-list');
-    boardPanel.appendChild(boardClose);
-    boardPanel.appendChild(boardTitle);
-    boardPanel.appendChild(boardStatus);
-    boardPanel.appendChild(boardTabs);
-    boardPanel.appendChild(boardList);
-    board.appendChild(boardPanel);
+    var boardTabRec = el('button', 'hud-lb-tab', 'RECORDS');
+    boardTabRec.type = 'button';
+    boardTabRec.setAttribute('data-scope', 'records');
+    boardTabs.appendChild(boardTabRec);
 
-    /* Records view: local lifetime stats, same overlay shell as the board.
-       data-ui is core.js's documented opt-out: without it, a tap on the
-       backdrop reaches core's global pointerdown handler and starts a run
-       behind the panel the tap was only meant to dismiss. */
-    var records = el('div', 'hud-board hud-records');
-    records.setAttribute('data-ui', '1');
-    var recPanel = el('div', 'hud-board-panel');
-    var recClose = el('button', 'hud-board-close');
-    recClose.type = 'button';
-    recClose.setAttribute('aria-label', 'Close records');
-    recClose.innerHTML =
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" ' +
-      'stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
-    var recTitle = el('div', 'hud-lb-title', 'RECORDS');
+    /* Records pane: stats + tier ladder, shown in place of the list. */
+    var boardRecords = el('div', 'hud-board-records');
+    boardRecords.hidden = true;
     function recRow(label, cls) {
       var row = el('div', 'hud-rec-row');
       row.appendChild(el('span', 'hud-rec-label', label));
@@ -389,19 +365,23 @@
     var recStreak = recRow('BEST STREAK', 'hud-rec-streak');
     var recToday = recRow('TODAY', 'hud-rec-today');
     var recBlocks = recRow('BLOCKS EVER', 'hud-rec-blocks');
-    var recBar = el('div', 'hud-title-bar hud-rec-bar');
-    var recBarFill = el('i', null);
-    recBar.appendChild(recBarFill);
-    var recTier = el('div', 'hud-rec-tier', '');
-    recPanel.appendChild(recClose);
-    recPanel.appendChild(recTitle);
-    recPanel.appendChild(recBest.row);
-    recPanel.appendChild(recStreak.row);
-    recPanel.appendChild(recToday.row);
-    recPanel.appendChild(recBlocks.row);
-    recPanel.appendChild(recBar);
-    recPanel.appendChild(recTier);
-    records.appendChild(recPanel);
+    boardRecords.appendChild(recBest.row);
+    boardRecords.appendChild(recStreak.row);
+    boardRecords.appendChild(recToday.row);
+    boardRecords.appendChild(recBlocks.row);
+    var ladder = el('div', 'hud-ladder');
+    boardRecords.appendChild(ladder);
+    var ladderNote = el('div', 'hud-ladder-note', 'TOWER TIERS · FROM YOUR BEST · NEVER DROP');
+    boardRecords.appendChild(ladderNote);
+
+    var boardList = el('ol', 'hud-lb-list hud-board-list');
+    boardPanel.appendChild(boardClose);
+    boardPanel.appendChild(boardTitle);
+    boardPanel.appendChild(boardStatus);
+    boardPanel.appendChild(boardTabs);
+    boardPanel.appendChild(boardRecords);   /* between boardTabs row and boardList */
+    boardPanel.appendChild(boardList);
+    board.appendChild(boardPanel);
 
     root.appendChild(scoreWrap);
     root.appendChild(title);
@@ -409,16 +389,12 @@
     root.appendChild(boardBtn);
     root.appendChild(muteBtn);
     root.appendChild(board);
-    root.appendChild(records);
 
     return {
       root: root,
       score: score,
       title: title,
       titleBest: titleBest,
-      titleTier: titleTier,
-      titleBarFill: titleBarFill,
-      recordsBtn: recordsBtn,
       over: over,
       overScore: overScore,
       overBest: overBest,
@@ -434,6 +410,7 @@
       lbTabAll: lbTabAll,
       boardTabDay: boardTabDay,
       boardTabAll: boardTabAll,
+      boardTabRec: boardTabRec,
       lbList: lbList,
       entry: entry,
       nameInput: nameInput,
@@ -447,14 +424,12 @@
       boardStatus: boardStatus,
       boardList: boardList,
       boardClose: boardClose,
-      records: records,
-      recClose: recClose,
+      boardRecords: boardRecords,
+      ladder: ladder,
       recBest: recBest.val,
       recStreak: recStreak.val,
       recToday: recToday.val,
-      recBlocks: recBlocks.val,
-      recBarFill: recBarFill,
-      recTier: recTier
+      recBlocks: recBlocks.val
     };
   }
 
@@ -478,8 +453,6 @@
   function renderTitleBest() {
     var best = readBest();
     els.titleBest.textContent = best > 0 ? 'BEST ' + best : '';
-    els.titleTier.textContent = tierLine(best);
-    els.titleBarFill.style.width = Math.round(tierProgress(best) * 100) + '%';
   }
 
   function renderScore() {
@@ -931,6 +904,7 @@
   var BOARD_REFRESH_MS = 15000;
 
   function refreshOverlayBoard(showLoading) {
+    if (overlayScope === 'records') { return; }  /* records pane is local: the 15s tick must not fetch */
     var seq = ++overlayBoardSeq;
     if (showLoading) { els.boardStatus.textContent = 'LOADING'; }
     fetchTop(overlayScope, function (rows) {
@@ -942,9 +916,17 @@
 
   function openBoard() {
     if (boardOpen) { return; }
-    closeRecords();   /* one overlay at a time: both openers are keyboard-reachable */
     boardOpen = true;
     els.root.setAttribute('data-board', 'open');
+    /* Always open on a board tab: closing on RECORDS must not leave the next
+       open showing local stats with the fetch short-circuited above. */
+    if (overlayScope === 'records') {
+      overlayScope = 'all';
+      markTab(els.boardTabAll, els.boardTabDay);
+      els.boardTabRec.classList.remove('is-on');
+      els.boardRecords.hidden = true;
+      els.boardList.hidden = false;
+    }
     refreshOverlayBoard(true);
     boardTimer = setInterval(function () { refreshOverlayBoard(false); }, BOARD_REFRESH_MS);
   }
@@ -956,37 +938,27 @@
     if (boardTimer) { clearInterval(boardTimer); boardTimer = null; }
   }
 
-  /* Records view: purely local, so it renders once on open and never polls.
-     Every stat counts upward only; nothing here can shame a player for a
-     day off, which is why days-played is deliberately absent. */
-  var recordsOpen = false;
-
-  function renderRecords() {
+  /* Records pane (third overlay tab): purely local, so it renders on tab
+     entry and never polls. Every stat counts upward only; nothing here can
+     shame a player for a day off, which is why days-played is deliberately
+     absent. */
+  function renderRecordsPane() {
     var b = readBest();
     els.recBest.textContent = String(b);
-    els.recStreak.textContent = String(readInt(STREAK_KEY));
+    els.recStreak.textContent = readInt(STREAK_KEY) > 0 ? readInt(STREAK_KEY) + ' PERFECT' : '0';
     els.recToday.textContent = String(readToday().best);
     els.recBlocks.textContent = String(readInt(BLOCKS_KEY));
-    els.recBarFill.style.width = Math.round(tierProgress(b) * 100) + '%';
-    els.recTier.textContent = tierLine(b);
-  }
-
-  function openRecords() {
-    if (recordsOpen) { return; }
-    /* Title screen only. The pill spends 400ms fading out after a run starts
-       and stays clickable for all of it, so the tap meant to drop the first
-       block could otherwise open this panel over a live tower. */
-    if (state.mode !== 'title') { return; }
-    closeBoard();   /* one overlay at a time: both openers are keyboard-reachable */
-    recordsOpen = true;
-    renderRecords();
-    els.root.setAttribute('data-records', 'open');
-  }
-
-  function closeRecords() {
-    if (!recordsOpen) { return; }
-    recordsOpen = false;
-    els.root.removeAttribute('data-records');
+    while (els.ladder.firstChild) { els.ladder.removeChild(els.ladder.firstChild); }
+    var t = tierFor(b), i, row, reached, cur;
+    for (i = 0; i < TIERS.length; i++) {
+      reached = b >= TIERS[i][1];
+      cur = t.cur && t.cur.idx === i;
+      row = el('div', 'hud-ladder-row' + (cur ? ' is-cur' : reached ? ' is-done' : ''));
+      row.appendChild(el('span', 'hud-ladder-mark', cur ? '◈' : reached ? '✓' : '·'));
+      row.appendChild(el('span', 'hud-ladder-name', TIERS[i][0]));
+      row.appendChild(el('span', 'hud-ladder-th', String(TIERS[i][1])));
+      els.ladder.appendChild(row);
+    }
   }
 
   function trySave() {
@@ -1087,7 +1059,7 @@
     var today = readToday();
     if (finalScore > today.best) { today.best = finalScore; writeToday(today); }
     /* Tier folds into the BEST line on death (phone-density fix, 2026-07-31);
-       progress-to-next stays on the title chip and records panel. */
+       the full ladder lives in the trophy overlay's RECORDS tab. */
     var overCur = tierFor(best).cur;
     els.overTier.hidden = true;
     els.overTier.textContent = '';
@@ -1160,8 +1132,7 @@
   }
 
   function tryStart(ev) {
-    /* The title screen is tap-anywhere-to-start; RECORDS is the one exception. */
-    if (ev && ev.target && ev.target.closest && ev.target.closest('.hud-title-records')) { return; }
+    /* The title screen is tap-anywhere-to-start. */
     if (state.mode !== 'title') { return; }
     emit('hud:start');
     state.score = 0;
@@ -1196,12 +1167,6 @@
     });
     els.boardBtn.addEventListener('click', openBoard);
     els.boardClose.addEventListener('click', closeBoard);
-    els.recordsBtn.addEventListener('click', openRecords);
-    els.recClose.addEventListener('click', closeRecords);
-    els.records.addEventListener('pointerdown', function (ev) {
-      if (ev.target === els.records) { closeRecords(); } /* tap outside the panel */
-    });
-    keepKeysLocal(els.recordsBtn);
     /* state.postedRow, not readName(): after a NOT YOU? rename the row on the
        board still carries the old name, and that is the row to highlight. */
     els.lbTabDay.addEventListener('click', function () {
@@ -1214,16 +1179,33 @@
     });
     els.boardTabDay.addEventListener('click', function () {
       overlayScope = 'day'; markTab(els.boardTabDay, els.boardTabAll);
+      els.boardRecords.hidden = true;
+      els.boardList.hidden = false;
+      els.boardTabRec.classList.remove('is-on');
       refreshOverlayBoard(true);
     });
     els.boardTabAll.addEventListener('click', function () {
       overlayScope = 'all'; markTab(els.boardTabAll, els.boardTabDay);
+      els.boardRecords.hidden = true;
+      els.boardList.hidden = false;
+      els.boardTabRec.classList.remove('is-on');
       refreshOverlayBoard(true);
+    });
+    els.boardTabRec.addEventListener('click', function () {
+      overlayScope = 'records';
+      els.boardTabRec.classList.add('is-on');
+      els.boardTabDay.classList.remove('is-on');
+      els.boardTabAll.classList.remove('is-on');
+      els.boardRecords.hidden = false;
+      els.boardList.hidden = true;
+      els.boardStatus.textContent = '';
+      renderRecordsPane();
     });
     keepKeysLocal(els.lbTabDay);
     keepKeysLocal(els.lbTabAll);
     keepKeysLocal(els.boardTabDay);
     keepKeysLocal(els.boardTabAll);
+    keepKeysLocal(els.boardTabRec);
     els.muteBtn.addEventListener('click', toggleMute);
     els.board.addEventListener('pointerdown', function (ev) {
       if (ev.target === els.board) { closeBoard(); } /* tap outside the panel */
@@ -1243,16 +1225,14 @@
     keepKeysLocal(els.boardBtn);
     keepKeysLocal(els.autoBtn);
     keepKeysLocal(els.boardClose);
-    keepKeysLocal(els.recClose);
 
     window.addEventListener('keydown', function (ev) {
       if (ev.repeat) { return; }
       if (els && ev.target === els.nameInput) { return; } /* typing, not restarting */
-      if (boardOpen || recordsOpen) {
+      if (boardOpen) {
         if (ev.key === 'Escape') {
           ev.preventDefault();
-          if (boardOpen) { closeBoard(); }
-          if (recordsOpen) { closeRecords(); }
+          closeBoard();
         }
         /* This handler stops here, but core.js has its own window keydown
            listener that no return of ours can reach, which is why the
