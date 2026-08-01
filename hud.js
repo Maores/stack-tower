@@ -1253,7 +1253,7 @@
     els.recStreak.textContent = readInt(STREAK_KEY) > 0 ? readInt(STREAK_KEY) + ' PERFECT' : '0';
     els.recToday.textContent = String(readToday().best);
     els.recBlocks.textContent = String(readInt(BLOCKS_KEY));
-    els.recPts.textContent = String(readInt(PTS_KEY));
+    els.recPts.textContent = fmtPts(readInt(PTS_KEY));
     while (els.ladder.firstChild) { els.ladder.removeChild(els.ladder.firstChild); }
     var t = tierFor(b), i, row, reached, cur;
     for (i = 0; i < TIERS.length; i++) {
@@ -1637,18 +1637,24 @@
     muteOn = readMuted();
     applyMuteUi(muteOn);
     applyReady(); /* boot into title state */
-    /* Boot World broadcast, deferred one task: script order is core,
-       visuals, hud, audio — a synchronous fire here would beat audio.js's
-       listener registration. All four scripts parse before any queued task
-       runs, so a 0ms timer is deterministic, not a race. Gifts earned
-       before this feature shipped arrive silently here, never equipped. */
-    setTimeout(function () {
+    /* Boot World broadcast. DOMContentLoaded is the deterministic "all
+       classic scripts have executed" line: on network loads a 0ms timer
+       can fire BETWEEN script downloads (audio.js not yet parsed, its
+       listener missing), which is exactly the live flake this replaces.
+       Past DCL a 0ms timer is safe. Gifts earned before this feature
+       shipped arrive silently here, never equipped. */
+    var fireBoot = function () {
       var b = readBest();
       for (var i = 0; i < WORLDS.length; i++) {
         if (WORLDS[i].giftAt > 0 && b >= WORLDS[i].giftAt) { grantWorld(WORLDS[i].id); }
       }
       fireWorld(readWorld());
-    }, 0);
+    };
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', fireBoot);
+    } else {
+      setTimeout(fireBoot, 0);
+    }
     window.HUD = window.HUD || api;
   }
 

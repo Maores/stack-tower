@@ -1036,6 +1036,8 @@
   font-size: clamp(11px, 1.7vmin, 14px);
   font-weight: 300;
   letter-spacing: 0.3em;
+  max-width: 80vw;
+  line-height: 1.6;
   box-shadow: 0 0 16px rgba(255, 255, 255, 0.3);
   opacity: 0;
   pointer-events: none;
