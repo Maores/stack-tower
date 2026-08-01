@@ -73,6 +73,7 @@
   })();
   var RESTART_LOCKOUT_MS = 500;  /* ignore taps right after game over */
   var RESTART_DEDUPE_MS = 400;   /* pointerdown + click on button = one restart */
+  var SHOP_ARM_MS = 3000;        /* armed BUY confirm window */
 
   var scriptBase = (function () {
     var cs = document.currentScript;
@@ -484,6 +485,41 @@
     shopBal.appendChild(shopBalVal);
     boardShop.appendChild(shopBal);
 
+    /* One card per World + the machine tease. Card art is inline style from
+       the catalog (sky gradient + three block bars) — decorative CSS values,
+       not user data; every text node stays textContent. */
+    var shopGrid = el('div', 'hud-shop-grid');
+    var shopCards = [];
+    for (var wi = 0; wi < WORLDS.length; wi++) {
+      var w = WORLDS[wi];
+      var card = el('button', 'hud-shop-card');
+      card.type = 'button';
+      card.setAttribute('data-world', w.id);
+      card.setAttribute('aria-label', w.name);
+      var prev = el('div', 'hud-shop-prev');
+      prev.style.background = w.sky;
+      var stack = el('div', 'hud-shop-blocks');
+      for (var bi = 0; bi < 3; bi++) {
+        var bk = el('span', 'hud-shop-bk');
+        bk.style.background = w.block;
+        bk.style.width = (22 + bi * 6) + 'px';
+        bk.style.opacity = String(1 - (2 - bi) * 0.15);
+        stack.appendChild(bk);
+      }
+      prev.appendChild(stack);
+      card.appendChild(prev);
+      var meta = el('div', 'hud-shop-meta');
+      meta.appendChild(el('span', 'hud-shop-name', w.name));
+      var chip = el('span', 'hud-shop-chip', '');
+      meta.appendChild(chip);
+      card.appendChild(meta);
+      shopGrid.appendChild(card);
+      shopCards.push({ card: card, chip: chip, world: w });
+    }
+    var shopMachine = el('div', 'hud-shop-machine', 'PRIZE MACHINE · COMING SOON');
+    shopGrid.appendChild(shopMachine);
+    boardShop.appendChild(shopGrid);
+
     var boardList = el('ol', 'hud-lb-list hud-board-list');
     /* TODAY-tab percentile header (density revision: relocated from death) */
     var boardPct = el('div', 'hud-board-pct', '');
@@ -535,6 +571,8 @@
       boardSeg: boardSeg,
       boardShop: boardShop,
       shopBalVal: shopBalVal,
+      shopGrid: shopGrid,
+      shopCards: shopCards,
       boardPct: boardPct,
       toast: toast,
       lbList: lbList,
@@ -1112,9 +1150,39 @@
     return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   }
 
-  /* Balance-only for now; the shop task adds the cards. */
+  /* Two-tap purchase state: first tap arms one card, second inside the
+     window confirms. No modal — a stray tap can cost at most an armed chip. */
+  var shopArm = { id: null, timer: null };
+
+  function disarmShop(rerender) {
+    if (shopArm.timer) { clearTimeout(shopArm.timer); }
+    var had = shopArm.id != null;
+    shopArm.id = null;
+    shopArm.timer = null;
+    if (had && rerender) { renderShopPane(); }
+  }
+
+  /* Card states: ON (equipped) / OWNED (tap equips) / price (tap-tap buys)
+     / gift lock / dimmed when unaffordable. Purchases auto-equip (spec);
+     gifts never do. */
   function renderShopPane() {
-    els.shopBalVal.textContent = fmtPts(readInt(PTS_KEY));
+    var bal = readInt(PTS_KEY);
+    els.shopBalVal.textContent = fmtPts(bal);
+    var equipped = readWorld();
+    for (var i = 0; i < els.shopCards.length; i++) {
+      var c = els.shopCards[i];
+      var w = c.world;
+      var cls = 'hud-shop-card';
+      var chip = '';
+      if (w.id === equipped) { cls += ' is-eq'; chip = 'ON'; }
+      else if (ownsWorld(w.id)) { chip = 'OWNED'; }
+      else if (w.giftAt > 0) { cls += ' is-locked'; chip = w.name + ' GIFT'; }
+      else if (shopArm.id === w.id) { cls += ' is-armed'; chip = 'BUY · ' + w.price + '?'; }
+      else if (bal >= w.price) { chip = String(w.price); }
+      else { cls += ' is-dim'; chip = String(w.price); }
+      c.card.className = cls;
+      c.chip.textContent = chip;
+    }
   }
 
   function setPane(pane) {
@@ -1450,6 +1518,38 @@
     keepKeysLocal(els.boardTabShop);
     keepKeysLocal(els.segDay);
     keepKeysLocal(els.segAll);
+    els.shopGrid.addEventListener('click', function (ev) {
+      var btn = ev.target && ev.target.closest ? ev.target.closest('.hud-shop-card') : null;
+      if (!btn) { disarmShop(true); return; }        /* machine or gap: just disarm */
+      var id = btn.getAttribute('data-world');
+      var w = WORLD_BY_ID[id];
+      if (!w) { return; }
+      if (id === readWorld()) { return; }            /* already on */
+      if (ownsWorld(id)) {                            /* owned: equip */
+        disarmShop(false);
+        equipWorld(id);
+        renderShopPane();
+        return;
+      }
+      if (w.giftAt > 0) { disarmShop(true); return; } /* locked gift */
+      var bal = readInt(PTS_KEY);
+      if (bal < w.price) { disarmShop(true); return; }
+      if (shopArm.id === id) {                        /* second tap: buy */
+        disarmShop(false);
+        writeInt(PTS_KEY, bal - w.price);
+        grantWorld(id);
+        equipWorld(id);   /* buying means wanting it on (spec) */
+        renderShopPane();
+        return;
+      }
+      disarmShop(false);                              /* first tap: arm */
+      shopArm.id = id;
+      shopArm.timer = setTimeout(function () { disarmShop(true); }, SHOP_ARM_MS);
+      renderShopPane();
+    });
+    for (var ci = 0; ci < els.shopCards.length; ci++) {
+      keepKeysLocal(els.shopCards[ci].card);
+    }
     els.muteBtn.addEventListener('click', toggleMute);
     els.board.addEventListener('pointerdown', function (ev) {
       if (ev.target === els.board) { closeBoard(); } /* tap outside the panel */

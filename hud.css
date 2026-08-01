@@ -829,6 +829,100 @@
   font-variant-numeric: lining-nums tabular-nums;
   text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
 }
+.hud-shop-grid {
+  margin-top: 1.2vh;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.hud-shop-card {
+  pointer-events: auto;
+  cursor: pointer;
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+  text-align: left;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease, transform 0.18s ease;
+}
+.hud-shop-card:active {
+  transform: scale(0.97);
+}
+.hud-shop-card:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+.hud-shop-card.is-eq {
+  border-color: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 0 14px rgba(255, 255, 255, 0.25), inset 0 0 8px rgba(255, 255, 255, 0.08);
+}
+.hud-shop-card.is-armed {
+  border-color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.14);
+}
+.hud-shop-card.is-locked,
+.hud-shop-card.is-dim {
+  opacity: 0.5;
+}
+.hud-shop-prev {
+  height: clamp(44px, 7vh, 62px);
+  position: relative;
+}
+.hud-shop-blocks {
+  position: absolute;
+  left: 50%;
+  bottom: 5px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.hud-shop-bk {
+  display: block;
+  height: 6px;
+  border-radius: 2px;
+}
+.hud-shop-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px 7px;
+}
+.hud-shop-name {
+  font-size: clamp(9px, 1.4vmin, 11px);
+  font-weight: 300;
+  letter-spacing: 0.14em;
+  white-space: nowrap;
+}
+.hud-shop-chip {
+  font-size: clamp(8px, 1.3vmin, 10px);
+  font-weight: 300;
+  letter-spacing: 0.1em;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 999px;
+  padding: 0.2em 0.6em;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.hud-shop-card.is-eq .hud-shop-chip {
+  border-color: rgba(255, 255, 255, 0.8);
+}
+.hud-shop-machine {
+  grid-column: 1 / -1;
+  border: 1px dashed rgba(255, 255, 255, 0.3);
+  border-radius: 12px;
+  padding: 1.4vh 8px;
+  text-align: center;
+  font-size: clamp(9px, 1.4vmin, 11px);
+  font-weight: 300;
+  letter-spacing: 0.2em;
+  opacity: 0.5;
+}
 
 /* Death-screen tier line */
 .hud-over-tier {
