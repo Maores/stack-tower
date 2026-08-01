@@ -747,9 +747,14 @@
   pointer-events: auto;
   transition: opacity 0.3s ease;
 }
+/* Height floor so the panel opens at the size it will settle at. Without
+   it the panel opened at the height of its tabs, grew when the LOADING
+   line entered the flow, then jumped again when the rows landed — and
+   since the overlay centres it, every one of those moved both edges. */
 .hud-board-panel {
   position: relative;
   width: min(84vw, 380px);
+  min-height: min(46vh, 420px);
   max-height: 82vh;
   display: flex;
   flex-direction: column;
@@ -797,6 +802,13 @@
 .hud-board-list {
   max-height: 58vh;
   margin-top: 1.6vh;
+}
+
+/* The death sandwich arrives from the network a beat after the screen
+   does. Holding three rows' worth of space means it fills a slot instead
+   of growing the panel under whoever is already reading it. */
+.hud-over .hud-lb-list {
+  min-height: 4.6em;
 }
 
 /* Board-pane scope segment: TODAY | ALL TIME */

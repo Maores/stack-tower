@@ -1011,7 +1011,11 @@
       var li = el('li', null);
       li.appendChild(el('span', 'hud-lb-name', String(r.name == null ? '?' : r.name).slice(0, 16)));
       li.appendChild(el('span', 'hud-lb-pts', String(r.score == null ? 0 : r.score)));
-      if (!mineMarked && mine && r.name === mine.name && r.score === mine.score) {
+      /* A score-less `mine` matches on name alone: the trophy board knows
+         who I am but not which of my runs the board kept, while the death
+         screen passes the exact row it just posted. */
+      if (!mineMarked && mine && r.name === mine.name &&
+          (mine.score == null || r.score === mine.score)) {
         li.className = 'hud-lb-mine';
         mineMarked = true;
       }
@@ -1028,7 +1032,7 @@
   /* Rank sandwich: the deduped all-time list windowed around my best row.
      Anchor by stored name; the row's score is that player's best. */
   function buildSandwich(rows) {
-    var out = { rows: [], above: null };
+    var out = { rows: [], above: null, mineScore: null };
     if (!rows || !rows.length) { return out; }
     var myName = readName();
     var i, at = -1;
@@ -1050,6 +1054,11 @@
       });
     }
     if (at > 0) { out.above = rows[at - 1]; }
+    /* The board's opinion of me, which is what the ranking above is built
+       from. The local best can be higher (a run that never posted, e.g.
+       played offline), and mixing the two produces a gap that counts from
+       the wrong place. */
+    if (at >= 0 && typeof rows[at].score === 'number') { out.mineScore = rows[at].score; }
     return out;
   }
 
@@ -1071,13 +1080,20 @@
   }
 
   /* Victim anchors the BEST, not the current run (spec 2026-07-31):
-     beat the neighbor above your best row. Hidden for kings and the unranked. */
-  function showVictim(above) {
+     beat the neighbor above your best row. Hidden for kings and the unranked.
+     The gap must be measured from the same number the ranking used — my row
+     on the board — or it counts from a place the board does not agree with:
+     a best set offline never reached the board, and subtracting it from the
+     neighbour's score printed lines like "-21 MORE PASSES". Falls back to
+     the local best only when the board has no row for me. */
+  function showVictim(above, mineScore) {
     if (!above || typeof above.score !== 'number') { return; }
-    var myBest = readBest();
-    if (!(myBest > 0)) { return; }
+    var anchor = typeof mineScore === 'number' ? mineScore : readBest();
+    if (!(anchor > 0)) { return; }
+    var gap = above.score - anchor + 1;
+    if (gap < 1) { return; }   /* already past them: nothing left to chase */
     els.overVictim.textContent =
-      (above.score - myBest + 1) + ' MORE PASSES ' +
+      gap + ' MORE PASSES ' +
       lrm(String(above.name).slice(0, 16));
     els.overVictim.hidden = false;
   }
@@ -1120,7 +1136,10 @@
   function refreshBoard(mine, wantRoast) {
     var dseq = ++deathBoardSeq;
     var dgen = deathSeq;
-    els.lbStatus.textContent = 'LOADING';
+    /* No LOADING word here: the sandwich's space is reserved in CSS, so the
+       rows fade into a slot that already exists. Announcing the wait only
+       added a line that pushed the panel around for half a second. */
+    els.lbStatus.textContent = '';
     fetchTop('all', function (rows) {
       if (dseq !== deathBoardSeq || state.mode !== 'over' || dgen !== deathSeq) { return; }
       if (rows) {
@@ -1128,7 +1147,7 @@
         renderSandwich(sw);
         els.overVictim.hidden = true;
         els.overVictim.textContent = '';
-        showVictim(sw.above);
+        showVictim(sw.above, sw.mineScore);
       } else {
         renderRows(els.lbList, els.lbStatus, readLocalBoard(), mine, 'THIS DEVICE ONLY', 3);
       }
@@ -1152,11 +1171,19 @@
   function refreshOverlayBoard(showLoading) {
     if (overlayPane !== 'board') { return; }  /* records/shop panes are local: the 15s tick must not fetch */
     var seq = ++overlayBoardSeq;
-    if (showLoading) { els.boardStatus.textContent = 'LOADING'; }
+    /* Only worth saying on a cold list. With rows already on screen the
+       refresh is invisible work, and the word just made the panel twitch. */
+    if (showLoading && !els.boardList.children.length) { els.boardStatus.textContent = 'LOADING'; }
+    /* Find myself on the shared board: the whole point of opening it is
+       seeing where I sit, and scanning a list of friends for my own name
+       is work the highlight can do. Name only — the board keeps my best
+       run, whichever one that was. */
+    var myName = readName();
+    var me = myName ? { name: myName } : null;
     fetchTop(overlayScope, function (rows) {
       if (!boardOpen || seq !== overlayBoardSeq) { return; }
-      if (rows) { renderRows(els.boardList, els.boardStatus, rows, null, ''); }
-      else { renderRows(els.boardList, els.boardStatus, readLocalBoard(), null, 'THIS DEVICE ONLY'); }
+      if (rows) { renderRows(els.boardList, els.boardStatus, rows, me, ''); }
+      else { renderRows(els.boardList, els.boardStatus, readLocalBoard(), me, 'THIS DEVICE ONLY'); }
     });
   }
 
