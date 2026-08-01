@@ -681,6 +681,43 @@
   display: none;
 }
 
+/* Title shop pill: bottom-center chrome, title state only */
+.hud-shop-pill {
+  position: fixed;
+  left: 50%;
+  bottom: calc(max(2.6vh, env(safe-area-inset-bottom, 0px)) + 1vh);
+  transform: translateX(-50%);
+  z-index: 110;
+  pointer-events: none;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.07);
+  border-radius: 999px;
+  padding: 0.5em 1.35em 0.5em 1.57em; /* extra left pad balances letter-spacing */
+  font-size: clamp(11px, 1.7vmin, 14px);
+  font-weight: 300;
+  letter-spacing: 0.22em;
+  font-variant-numeric: lining-nums tabular-nums;
+  opacity: 0;
+  box-shadow: 0 0 14px rgba(255, 255, 255, 0.18);
+  transition: opacity 0.3s ease, background-color 0.18s ease, transform 0.18s ease;
+}
+#hud-root[data-state="title"] .hud-shop-pill {
+  opacity: 0.85;
+  pointer-events: auto;
+}
+.hud-shop-pill:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.15);
+}
+.hud-shop-pill:active {
+  transform: translateX(-50%) scale(0.95);
+}
+.hud-shop-pill:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
+}
+
 /* Trophy leaves the stage during play (a tap would cover the game with the board); mute stays reachable. */
 #hud-root[data-state="playing"] .hud-board-btn,
 #hud-root[data-state="boot"] .hud-board-btn,
@@ -1098,7 +1135,8 @@
   #hud-root .hud-over,
   #hud-root .hud-board,
   #hud-root .hud-board-btn,
-  #hud-root .hud-mute-btn {
+  #hud-root .hud-mute-btn,
+  #hud-root .hud-shop-pill {
     transition-duration: 0.01s;
   }
 }

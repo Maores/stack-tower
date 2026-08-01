@@ -409,6 +409,13 @@
       '<path class="hud-mute-wave" d="M15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12"/>' +
       '<path class="hud-mute-slash" d="M4 4l16 16"/></svg>';
 
+    /* Title shop pill (Wave A round-2 pick: bottom-center + live balance).
+       Edge chrome like the corner buttons — never part of the center
+       composition. A <button>, so core's global tap handler ignores it. */
+    var shopPill = el('button', 'hud-shop-pill', 'SHOP');
+    shopPill.type = 'button';
+    shopPill.setAttribute('aria-label', 'Open the shop');
+
     /* data-ui is core.js's documented opt-out. Without it every tap inside
        this subtree that is not one of the buttons (panel body, heading,
        status line, every leaderboard row) reaches core's global pointerdown
@@ -544,6 +551,7 @@
     root.appendChild(over);
     root.appendChild(boardBtn);
     root.appendChild(muteBtn);
+    root.appendChild(shopPill);
     root.appendChild(board);
     root.appendChild(toast);
 
@@ -584,6 +592,7 @@
       autoBtn: autoBtn,
       boardBtn: boardBtn,
       muteBtn: muteBtn,
+      shopPill: shopPill,
       board: board,
       boardStatus: boardStatus,
       boardList: boardList,
@@ -619,6 +628,11 @@
   function renderTitleBest() {
     var best = readBest();
     els.titleBest.textContent = best > 0 ? 'BEST ' + best : '';
+    renderShopPill();
+  }
+
+  function renderShopPill() {
+    els.shopPill.textContent = 'SHOP · ' + fmtPts(readInt(PTS_KEY));
   }
 
   function renderScore() {
@@ -1493,6 +1507,10 @@
       if (ev.key === 'Enter') { ev.preventDefault(); trySave(); }
     });
     els.boardBtn.addEventListener('click', openBoard);
+    els.shopPill.addEventListener('click', function () {
+      if (state.mode !== 'title') { return; }
+      openBoardTo('shop');
+    });
     els.boardClose.addEventListener('click', closeBoard);
     /* state.postedRow, not readName(): after a NOT YOU? rename the row on the
        board still carries the old name, and that is the row to highlight. */
@@ -1542,6 +1560,7 @@
         grantWorld(id);
         equipWorld(id);   /* buying means wanting it on (spec) */
         renderShopPane();
+        renderShopPill();   /* the title pill must not show a stale balance */
         return;
       }
       disarmShop(false);                              /* first tap: arm */
@@ -1572,6 +1591,7 @@
     keepKeysLocal(els.autoBtn);
     keepKeysLocal(els.boardClose);
     keepKeysLocal(els.overMenu);
+    keepKeysLocal(els.shopPill);
 
     window.addEventListener('keydown', function (ev) {
       if (ev.repeat) { return; }
