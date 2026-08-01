@@ -1186,6 +1186,7 @@
   }
 
   function setPane(pane) {
+    disarmShop(false);   /* an armed BUY never survives a pane switch */
     overlayPane = pane;
     els.boardTabBoard.classList.toggle('is-on', pane === 'board');
     els.boardTabRec.classList.toggle('is-on', pane === 'records');
@@ -1221,6 +1222,7 @@
   }
 
   function closeBoard() {
+    disarmShop(false);   /* an armed BUY never survives closing the overlay */
     if (!boardOpen) { return; }
     boardOpen = false;
     els.root.removeAttribute('data-board');
@@ -1524,7 +1526,7 @@
       var id = btn.getAttribute('data-world');
       var w = WORLD_BY_ID[id];
       if (!w) { return; }
-      if (id === readWorld()) { return; }            /* already on */
+      if (id === readWorld()) { disarmShop(true); return; } /* already on */
       if (ownsWorld(id)) {                            /* owned: equip */
         disarmShop(false);
         equipWorld(id);
