@@ -346,14 +346,6 @@
   flex-direction: column;
   align-items: stretch;
 }
-.hud-lb-title {
-  text-align: center;
-  font-size: clamp(11px, 1.7vmin, 14px);
-  font-weight: 300;
-  letter-spacing: 0.3em;
-  margin-right: -0.3em;
-  opacity: 0.66;
-}
 .hud-lb-status {
   margin-top: 0.6vh;
   text-align: center;
@@ -758,18 +750,25 @@
   max-height: 82vh;
   display: flex;
   flex-direction: column;
-  padding: 3.2vh 6vw 3.2vh;
+  /* Top padding clears the close button rather than guessing at it: the
+     button is a fixed 34px at a fixed 10px inset, so a vh-based gap would
+     clear it on a tall phone and let the tabs slide under it on a short
+     one. The heading used to occupy this band and was narrow enough to
+     miss the button; the tabs row spans the full width and does not. */
+  padding: calc(10px + 34px + 8px) 6vw 3.2vh;
   border: 1px solid rgba(255, 255, 255, 0.35);
   border-radius: 18px;
   background: rgba(10, 18, 38, 0.35);
   box-shadow: 0 0 30px rgba(255, 255, 255, 0.12), inset 0 0 18px rgba(255, 255, 255, 0.05);
 }
-.hud-board-panel .hud-lb-title {
-  margin-top: 6px; /* clear of the close button row */
+/* The tabs are the panel's first row now; the padding above already
+   carries the gap, so no extra margin. */
+.hud-board-panel .hud-lb-tabs {
+  margin-top: 0;
 }
 .hud-board-close {
   position: absolute;
-  z-index: 2; /* stays tappable above the title text */
+  z-index: 2; /* stays tappable above the tabs row */
   top: 10px;
   right: 10px;
   width: 34px;

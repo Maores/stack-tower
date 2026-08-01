@@ -52,20 +52,33 @@
 
   /* Worlds catalog — hud-owned presentation data (names, prices, card art,
      quip packs). visuals.js and audio.js keep their own per-World tables
-     under the same ids; the only coupling is the hud:world event. */
+     under the same ids; the only coupling is the hud:world event.
+
+     Card art is sampled from the running game (StackVisuals.getPalette and
+     getBlockColor per World), not invented: sky is the real inner-to-outer
+     falloff, blocks are three rungs of that World's hue ladder, narrow
+     rung on top. Earlier art was authored as dark thumbnails and sold the
+     wrong thing — classic looked like a night sky when it is bright blue,
+     neon looked teal when it is magenta. Re-sample if a palette changes. */
   var WORLDS = [
     { id: 'classic',  name: 'CLASSIC',  price: 0,    giftAt: 0,
-      sky: 'linear-gradient(180deg,#232c3d,#141a26)', block: '#7ec8e3' },
+      sky: 'radial-gradient(120% 100% at 50% 26%,#4fabda 0%,#0d2c5a 78%)',
+      blocks: ['#4ec2d2', '#5695d4', '#7451d3'] },
     { id: 'sunset',   name: 'SUNSET',   price: 600,  giftAt: 0,
-      sky: 'linear-gradient(180deg,#4a2440,#2a1830)', block: '#ff9a76' },
+      sky: 'radial-gradient(120% 100% at 50% 26%,#c2459a 0%,#380f21 78%)',
+      blocks: ['#d154dc', '#da4ba2', '#db4f61'] },
     { id: 'neon',     name: 'NEON',     price: 1000, giftAt: 0,
-      sky: 'linear-gradient(180deg,#12101e,#0a0912)', block: '#22e0d4' },
+      sky: 'radial-gradient(120% 100% at 50% 26%,#3e2f7c 0%,#0c0513 78%)',
+      blocks: ['#ed338f', '#ec2ad1', '#c02eec'] },
     { id: 'deepsea',  name: 'DEEP SEA', price: 1500, giftAt: 0,
-      sky: 'linear-gradient(180deg,#0e2436,#081521)', block: '#2e9cc4' },
+      sky: 'radial-gradient(120% 100% at 50% 26%,#2c7abb 0%,#07112b 78%)',
+      blocks: ['#39d34a', '#30d17f', '#34d2bd'] },
     { id: 'marble',   name: 'MARBLE',   price: 0,    giftAt: 70,
-      sky: 'linear-gradient(180deg,#3a3830,#211f1a)', block: '#f0ece4' },
+      sky: 'radial-gradient(120% 100% at 50% 26%,#ada081 0%,#34341c 78%)',
+      blocks: ['#c2ccb0', '#c7c8a9', '#cac1ac'] },
     { id: 'obsidian', name: 'OBSIDIAN', price: 0,    giftAt: 250,
-      sky: 'linear-gradient(180deg,#241c1a,#120e0d)', block: '#33303c' }
+      sky: 'radial-gradient(120% 100% at 50% 26%,#884842 0%,#150d08 78%)',
+      blocks: ['#5d7d29', '#756b27', '#784528'] }
   ];
   var WORLD_BY_ID = {};
   (function () {
@@ -320,8 +333,10 @@
     overTier.hidden = true;
     var newBest = el('div', 'hud-over-newbest hud-anim d4', 'NEW BEST');
     newBest.hidden = true;
+    /* No heading over the sandwich: once you are ranked these are the three
+       rows around you, so calling them the top towers was a lie, and the
+       ranks plus the box on your own row already say what the list is. */
     var lb = el('div', 'hud-lb hud-anim d5');
-    var lbTitle = el('div', 'hud-lb-title', 'TOP TOWERS');
     var lbStatus = el('div', 'hud-lb-status', '');
     var lbList = el('ol', 'hud-lb-list');
     var entry = el('div', 'hud-lb-entry');
@@ -337,7 +352,6 @@
     saveBtn.type = 'button';
     entry.appendChild(nameInput);
     entry.appendChild(saveBtn);
-    lb.appendChild(lbTitle);
     lb.appendChild(lbStatus);
     lb.appendChild(lbList);
     lb.appendChild(entry);
@@ -429,7 +443,9 @@
     boardClose.innerHTML =
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" ' +
       'stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
-    var boardTitle = el('div', 'hud-lb-title', 'TOP TOWERS');
+    /* The tabs below name the destination, so a fixed heading above them
+       could only ever be redundant or wrong: it read TOP TOWERS over the
+       shop and over the records. */
     var boardStatus = el('div', 'hud-lb-status', '');
     var boardTabs = el('div', 'hud-lb-tabs');
     var boardTabBoard = el('button', 'hud-lb-tab is-on', 'BOARD');
@@ -508,9 +524,10 @@
       var stack = el('div', 'hud-shop-blocks');
       for (var bi = 0; bi < 3; bi++) {
         var bk = el('span', 'hud-shop-bk');
-        bk.style.background = w.block;
+        /* Full strength: these are the World's own hues, and fading them
+           was what made six different places look like one dark one. */
+        bk.style.background = w.blocks[bi];
         bk.style.width = (22 + bi * 6) + 'px';
-        bk.style.opacity = String(1 - (2 - bi) * 0.15);
         stack.appendChild(bk);
       }
       prev.appendChild(stack);
@@ -532,7 +549,6 @@
     var boardPct = el('div', 'hud-board-pct', '');
     boardPct.hidden = true;
     boardPanel.appendChild(boardClose);
-    boardPanel.appendChild(boardTitle);
     boardPanel.appendChild(boardStatus);
     boardPanel.appendChild(boardTabs);
     boardPanel.appendChild(boardSeg);
