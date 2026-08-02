@@ -79,9 +79,13 @@
                           // reads as sunk into the stack (round-1 defect)
     baseHeight: 5.4,      // pedestal column under the first block
     travelBound: 3.55,    // slider travel half-range around the tower top
-    speedStart: 2.7,
-    speedGain: 0.055,     // per block index
-    speedMax: 6.8,
+    // Slider speed (speedStart/speedGain/speedMax) is not tuned here: it is
+    // per-mode, in the MODES table below (spawnNext reads M.speedStart /
+    // M.speedGain / M.speedMax from whichever mode is active). A
+    // speedStart/speedGain/speedMax trio used to live in this object; it
+    // was removed rather than kept as a documented-but-dead alias, because
+    // api.config is public (see the header doc above) and a caller tweaking
+    // StackCore.config.speedMax here would silently do nothing.
     perfectEps: 0.14,     // |offset| below this snaps as a perfect drop
     almostEps: 0.10,      // sliced drops within perfectEps+this of center flash
                           // a near-miss cue (retention spec, tunable)

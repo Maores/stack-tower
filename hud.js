@@ -1459,6 +1459,14 @@
   function refreshOverlayBoard(showLoading) {
     if (overlayPane !== 'board') { return; }  /* records/shop panes are local: the 15s tick must not fetch */
     var seq = ++overlayBoardSeq;
+    /* Captured once, at issue time (Review Finding 2): overlayMode and
+       overlayScope are live pickers, not the mode/scope this particular
+       read was issued for. The fetchTop callback below is async, so a tap
+       on the picker before it resolves must not relabel the answer that
+       is already in flight — the same reasoning refreshBoard already
+       applies via its own captured `m`. */
+    var mode = overlayMode;
+    var scope = overlayScope;
     /* Find myself on the shared board: the whole point of opening it is
        seeing where I sit, and scanning a list of friends for my own name
        is work the highlight can do. Name only — the board keeps my best
@@ -1469,7 +1477,7 @@
        will stay at before the read even leaves. Opening used to show an
        empty list that grew, and flipping scope used to leave the other
        scope's rows up until the answer came back and resized everything. */
-    var warm = warmRowsFor(overlayScope, overlayMode);
+    var warm = warmRowsFor(scope, mode);
     /* Nothing cached and nothing on screen yet — the one case where the
        size of what is coming is genuinely unknown. Hold the panel at the
        height a full board occupies so the rows land in a space that is
@@ -1478,17 +1486,17 @@
     setColdFloor(!warm && !els.boardList.children.length);
     if (warm) { renderRows(els.boardList, els.boardStatus, warm, me, ''); setColdFloor(false); }
     else if (showLoading && !els.boardList.children.length) { els.boardStatus.textContent = 'LOADING'; }
-    fetchTop(overlayScope, function (rows) {
+    fetchTop(scope, function (rows) {
       if (rows) {
-        var w = warmSlot(overlayMode);
-        if (overlayScope === 'day') { w.day = rows; }
+        var w = warmSlot(mode);
+        if (scope === 'day') { w.day = rows; }
         else { w.all = rows; w.at = Date.now(); }
       }
       if (!boardOpen || seq !== overlayBoardSeq) { return; }
       if (rows) { renderRows(els.boardList, els.boardStatus, rows, me, ''); }
       else if (!warm) { renderRows(els.boardList, els.boardStatus, readLocalBoard(), me, 'THIS DEVICE ONLY'); }
       setColdFloor(false);
-    }, false, overlayMode);
+    }, false, mode);
   }
 
   function fmtPts(n) {

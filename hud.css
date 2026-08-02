@@ -693,7 +693,10 @@
   pointer-events: auto;
 }
 .hud-shop-pill {
-  pointer-events: auto;
+  /* No pointer-events: auto here (Review Finding 1): a pointer-events:auto
+     descendant stays a hit target even under a pointer-events:none
+     ancestor, so this must inherit from .hud-title-chrome instead of
+     re-opening itself in every non-title state. */
   cursor: pointer;
   border: 1px solid rgba(255, 255, 255, 0.5);
   background: rgba(255, 255, 255, 0.07);
@@ -718,10 +721,13 @@
   border-radius: 999px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.32);
-  pointer-events: auto;
+  /* No pointer-events: auto (Review Finding 1) — see .hud-shop-pill above;
+     same reasoning applies to this and .hud-mode-btn below. The board's
+     own .hud-board-mode .hud-mode-btn copy is unaffected: it inherits
+     auto from .hud-board-mode, gated separately by .hud-board's own
+     opacity/visibility/pointer-events triad. */
 }
 .hud-mode-btn {
-  pointer-events: auto;
   cursor: pointer;
   border: 0;
   background: transparent;
