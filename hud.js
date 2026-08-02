@@ -1145,33 +1145,84 @@
      run that just ended, so they survive a tab switch (the board tokens do
      not) but are dropped the moment the next run dies. */
   var deathSeq = 0;
+  /* Which death already chose its quip. The roast may reach us twice (warm
+     rows first, live rows after); swapping the line a second time can
+     reflow it from one line to two under someone mid-read, and the second
+     roast is no truer than the first. */
+  var roastedGen = -1;
 
-  /* Death screen data: one full all-time fetch for the rank sandwich, one
-     daily fetch for the roast. Tokens keep their jobs: deathBoardSeq drops a
-     stale paint, deathSeq drops everything from a previous death. */
+  function applyRoastOnce(rows) {
+    if (roastedGen === deathSeq) { return; }
+    applyRoast(rows);
+    roastedGen = deathSeq;
+  }
+
+  /* Board rows kept from the last successful read, so a death screen can be
+     drawn in one pass instead of assembling itself while it is being read.
+     Warmed when a run starts: by the time anyone dies the rows are in hand,
+     and the fill arrives with the screen rather than a beat behind it. */
+  var warmBoard = { all: null, day: null, at: 0 };
+  var WARM_MS = 120000;
+
+  function warmIsFresh() {
+    return warmBoard.all && (Date.now() - warmBoard.at) < WARM_MS;
+  }
+
+  function warmUp() {
+    fetchTop('all', function (rows) {
+      if (rows) { warmBoard.all = rows; warmBoard.at = Date.now(); }
+    }, true);
+    fetchTop('day', function (rows) { if (rows) { warmBoard.day = rows; } });
+  }
+
+  function paintSandwich(rows, mine) {
+    if (!rows) {
+      renderRows(els.lbList, els.lbStatus, readLocalBoard(), mine, 'THIS DEVICE ONLY', 3);
+      return;
+    }
+    var sw = buildSandwich(rows);
+    renderSandwich(sw);
+    els.overVictim.hidden = true;
+    els.overVictim.textContent = '';
+    showVictim(sw.above, sw.mineScore);
+  }
+
+  /* Death screen data: the rank sandwich from the all-time list, the roast
+     from the daily one. Tokens keep their jobs: deathBoardSeq drops a stale
+     paint, deathSeq drops everything from a previous death.
+
+     Warm rows paint immediately so the screen has its final shape from the
+     first frame; the live fetch still runs and still repaints (your own row
+     may have just moved), but three rows of names and scores occupy the
+     same space either way, so that repaint costs no movement. The roast is
+     applied once per death — swapping the quip twice could reflow it from
+     one line to two under the reader. */
   function refreshBoard(mine, wantRoast) {
     var dseq = ++deathBoardSeq;
     var dgen = deathSeq;
-    /* No LOADING word here: the sandwich's space is reserved in CSS, so the
-       rows fade into a slot that already exists. Announcing the wait only
-       added a line that pushed the panel around for half a second. */
     els.lbStatus.textContent = '';
+    var paintedWarm = false;
+    if (warmIsFresh()) {
+      paintSandwich(warmBoard.all, mine);
+      paintedWarm = true;
+      if (wantRoast && warmBoard.day) { applyRoastOnce(warmBoard.day); }
+    }
     fetchTop('all', function (rows) {
+      if (rows) { warmBoard.all = rows; warmBoard.at = Date.now(); }
       if (dseq !== deathBoardSeq || state.mode !== 'over' || dgen !== deathSeq) { return; }
-      if (rows) {
-        var sw = buildSandwich(rows);
-        renderSandwich(sw);
-        els.overVictim.hidden = true;
-        els.overVictim.textContent = '';
-        showVictim(sw.above, sw.mineScore);
-      } else {
-        renderRows(els.lbList, els.lbStatus, readLocalBoard(), mine, 'THIS DEVICE ONLY', 3);
-      }
+      /* A read that failed after warm rows are already up is not worth
+         trading real board rows for a one-line device list. */
+      if (!rows && paintedWarm) { return; }
+      paintSandwich(rows, mine);
     }, true);
     if (wantRoast) {
       fetchTop('day', function (rows) {
+        if (rows) { warmBoard.day = rows; }
         if (state.mode !== 'over' || dgen !== deathSeq) { return; }
-        if (rows) { applyRoast(rows); rememberTop(rows); }
+        if (rows) {
+          applyRoastOnce(rows);
+          rememberTop(rows);
+        }
       });
     }
   }
@@ -1388,6 +1439,10 @@
     state.score = n != null ? Math.max(0, Math.round(n)) : 0;
     renderScore();
     setMode('playing');
+    /* Fetch the board now, while there is a run to play, so the death
+       screen it feeds can be drawn complete instead of filling in after
+       the player is already looking at it. */
+    if (!warmIsFresh()) { warmUp(); }
   }
 
   function applyPerfect(detail) {
@@ -1467,6 +1522,14 @@
     hideAutoRow();
     deathBoardSeq++;   /* a request from the last death screen must not paint here */
     els.lbStatus.textContent = '';   /* and must not leave its LOADING label stuck either */
+    /* Fill the board-fed parts now, from the rows warmed at run start. A
+       known player's screen used to wait for the score post to answer
+       before any of this appeared, so the quip grew a second line and the
+       chase line arrived while the screen was being read. */
+    if (warmIsFresh()) {
+      paintSandwich(warmBoard.all, null);
+      if (warmBoard.day) { applyRoastOnce(warmBoard.day); }
+    }
     if (finalScore > 0 && autoName) {
       /* Known player: the run posts itself; the keyboard stays away. */
       els.entry.hidden = true;

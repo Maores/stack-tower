@@ -739,15 +739,18 @@
   pointer-events: auto;
   transition: opacity 0.3s ease;
 }
-/* Height floor so the panel opens at the size it will settle at. Without
-   it the panel opened at the height of its tabs, grew when the LOADING
-   line entered the flow, then jumped again when the rows landed — and
-   since the overlay centres it, every one of those moved both edges. */
+/* A fixed window, not a box that grows to its contents. The panel used to
+   size itself to whatever had arrived so far, so it resized on open (rows
+   landing), on a scope flip (ten rows becoming two) and on a pane switch,
+   and because the overlay centres it every change moved both edges.
+   A floor was not enough: a floor only holds while the content is shorter
+   than it, and the real board is taller than any floor worth setting.
+   Fixed height plus panes that scroll inside means nothing the data does
+   can change the shape of this panel. */
 .hud-board-panel {
   position: relative;
   width: min(84vw, 380px);
-  min-height: min(46vh, 420px);
-  max-height: 82vh;
+  height: min(65vh, 520px);
   display: flex;
   flex-direction: column;
   /* Top padding clears the close button rather than guessing at it: the
@@ -798,8 +801,18 @@
   height: 55%;
   display: block;
 }
+/* The three panes each fill the panel's fixed window and scroll inside it,
+   so a pane's own content length never reaches the panel's outline.
+   min-height: 0 is what lets a flex child actually shrink and scroll
+   instead of pushing its parent taller. */
+.hud-board-list,
+.hud-board-records,
+.hud-board-shop {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+}
 .hud-board-list {
-  max-height: 58vh;
   margin-top: 1.6vh;
 }
 
@@ -849,11 +862,11 @@
   outline-offset: 2px;
 }
 
-/* Shop pane (trophy overlay third destination) */
+/* Shop pane (trophy overlay third destination). Height comes from the
+   panel's fixed window above, not from this pane's own contents. */
 .hud-board-shop {
   margin-top: 1.6vh;
   overflow-y: auto;
-  max-height: 58vh;
 }
 .hud-board-shop[hidden] {
   display: none;
@@ -1076,7 +1089,6 @@
 .hud-board-records {
   margin-top: 1.6vh;
   overflow-y: auto;
-  max-height: 58vh;
 }
 .hud-board-records[hidden] {
   display: none;

@@ -768,15 +768,18 @@
   pointer-events: auto;
   transition: opacity 0.3s ease;
 }
-/* Height floor so the panel opens at the size it will settle at. Without
-   it the panel opened at the height of its tabs, grew when the LOADING
-   line entered the flow, then jumped again when the rows landed — and
-   since the overlay centres it, every one of those moved both edges. */
+/* A fixed window, not a box that grows to its contents. The panel used to
+   size itself to whatever had arrived so far, so it resized on open (rows
+   landing), on a scope flip (ten rows becoming two) and on a pane switch,
+   and because the overlay centres it every change moved both edges.
+   A floor was not enough: a floor only holds while the content is shorter
+   than it, and the real board is taller than any floor worth setting.
+   Fixed height plus panes that scroll inside means nothing the data does
+   can change the shape of this panel. */
 .hud-board-panel {
   position: relative;
   width: min(84vw, 380px);
-  min-height: min(46vh, 420px);
-  max-height: 82vh;
+  height: min(65vh, 520px);
   display: flex;
   flex-direction: column;
   /* Top padding clears the close button rather than guessing at it: the
@@ -827,8 +830,18 @@
   height: 55%;
   display: block;
 }
+/* The three panes each fill the panel's fixed window and scroll inside it,
+   so a pane's own content length never reaches the panel's outline.
+   min-height: 0 is what lets a flex child actually shrink and scroll
+   instead of pushing its parent taller. */
+.hud-board-list,
+.hud-board-records,
+.hud-board-shop {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+}
 .hud-board-list {
-  max-height: 58vh;
   margin-top: 1.6vh;
 }
 
@@ -878,11 +891,11 @@
   outline-offset: 2px;
 }
 
-/* Shop pane (trophy overlay third destination) */
+/* Shop pane (trophy overlay third destination). Height comes from the
+   panel's fixed window above, not from this pane's own contents. */
 .hud-board-shop {
   margin-top: 1.6vh;
   overflow-y: auto;
-  max-height: 58vh;
 }
 .hud-board-shop[hidden] {
   display: none;
@@ -1105,7 +1118,6 @@
 .hud-board-records {
   margin-top: 1.6vh;
   overflow-y: auto;
-  max-height: 58vh;
 }
 .hud-board-records[hidden] {
   display: none;
@@ -4374,33 +4386,84 @@
      run that just ended, so they survive a tab switch (the board tokens do
      not) but are dropped the moment the next run dies. */
   var deathSeq = 0;
+  /* Which death already chose its quip. The roast may reach us twice (warm
+     rows first, live rows after); swapping the line a second time can
+     reflow it from one line to two under someone mid-read, and the second
+     roast is no truer than the first. */
+  var roastedGen = -1;
 
-  /* Death screen data: one full all-time fetch for the rank sandwich, one
-     daily fetch for the roast. Tokens keep their jobs: deathBoardSeq drops a
-     stale paint, deathSeq drops everything from a previous death. */
+  function applyRoastOnce(rows) {
+    if (roastedGen === deathSeq) { return; }
+    applyRoast(rows);
+    roastedGen = deathSeq;
+  }
+
+  /* Board rows kept from the last successful read, so a death screen can be
+     drawn in one pass instead of assembling itself while it is being read.
+     Warmed when a run starts: by the time anyone dies the rows are in hand,
+     and the fill arrives with the screen rather than a beat behind it. */
+  var warmBoard = { all: null, day: null, at: 0 };
+  var WARM_MS = 120000;
+
+  function warmIsFresh() {
+    return warmBoard.all && (Date.now() - warmBoard.at) < WARM_MS;
+  }
+
+  function warmUp() {
+    fetchTop('all', function (rows) {
+      if (rows) { warmBoard.all = rows; warmBoard.at = Date.now(); }
+    }, true);
+    fetchTop('day', function (rows) { if (rows) { warmBoard.day = rows; } });
+  }
+
+  function paintSandwich(rows, mine) {
+    if (!rows) {
+      renderRows(els.lbList, els.lbStatus, readLocalBoard(), mine, 'THIS DEVICE ONLY', 3);
+      return;
+    }
+    var sw = buildSandwich(rows);
+    renderSandwich(sw);
+    els.overVictim.hidden = true;
+    els.overVictim.textContent = '';
+    showVictim(sw.above, sw.mineScore);
+  }
+
+  /* Death screen data: the rank sandwich from the all-time list, the roast
+     from the daily one. Tokens keep their jobs: deathBoardSeq drops a stale
+     paint, deathSeq drops everything from a previous death.
+
+     Warm rows paint immediately so the screen has its final shape from the
+     first frame; the live fetch still runs and still repaints (your own row
+     may have just moved), but three rows of names and scores occupy the
+     same space either way, so that repaint costs no movement. The roast is
+     applied once per death — swapping the quip twice could reflow it from
+     one line to two under the reader. */
   function refreshBoard(mine, wantRoast) {
     var dseq = ++deathBoardSeq;
     var dgen = deathSeq;
-    /* No LOADING word here: the sandwich's space is reserved in CSS, so the
-       rows fade into a slot that already exists. Announcing the wait only
-       added a line that pushed the panel around for half a second. */
     els.lbStatus.textContent = '';
+    var paintedWarm = false;
+    if (warmIsFresh()) {
+      paintSandwich(warmBoard.all, mine);
+      paintedWarm = true;
+      if (wantRoast && warmBoard.day) { applyRoastOnce(warmBoard.day); }
+    }
     fetchTop('all', function (rows) {
+      if (rows) { warmBoard.all = rows; warmBoard.at = Date.now(); }
       if (dseq !== deathBoardSeq || state.mode !== 'over' || dgen !== deathSeq) { return; }
-      if (rows) {
-        var sw = buildSandwich(rows);
-        renderSandwich(sw);
-        els.overVictim.hidden = true;
-        els.overVictim.textContent = '';
-        showVictim(sw.above, sw.mineScore);
-      } else {
-        renderRows(els.lbList, els.lbStatus, readLocalBoard(), mine, 'THIS DEVICE ONLY', 3);
-      }
+      /* A read that failed after warm rows are already up is not worth
+         trading real board rows for a one-line device list. */
+      if (!rows && paintedWarm) { return; }
+      paintSandwich(rows, mine);
     }, true);
     if (wantRoast) {
       fetchTop('day', function (rows) {
+        if (rows) { warmBoard.day = rows; }
         if (state.mode !== 'over' || dgen !== deathSeq) { return; }
-        if (rows) { applyRoast(rows); rememberTop(rows); }
+        if (rows) {
+          applyRoastOnce(rows);
+          rememberTop(rows);
+        }
       });
     }
   }
@@ -4617,6 +4680,10 @@
     state.score = n != null ? Math.max(0, Math.round(n)) : 0;
     renderScore();
     setMode('playing');
+    /* Fetch the board now, while there is a run to play, so the death
+       screen it feeds can be drawn complete instead of filling in after
+       the player is already looking at it. */
+    if (!warmIsFresh()) { warmUp(); }
   }
 
   function applyPerfect(detail) {
@@ -4696,6 +4763,14 @@
     hideAutoRow();
     deathBoardSeq++;   /* a request from the last death screen must not paint here */
     els.lbStatus.textContent = '';   /* and must not leave its LOADING label stuck either */
+    /* Fill the board-fed parts now, from the rows warmed at run start. A
+       known player's screen used to wait for the score post to answer
+       before any of this appeared, so the quip grew a second line and the
+       chase line arrived while the screen was being read. */
+    if (warmIsFresh()) {
+      paintSandwich(warmBoard.all, null);
+      if (warmBoard.day) { applyRoastOnce(warmBoard.day); }
+    }
     if (finalScore > 0 && autoName) {
       /* Known player: the run posts itself; the keyboard stays away. */
       els.entry.hidden = true;
