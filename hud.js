@@ -80,7 +80,17 @@
       blocks: ['#c2ccb0', '#c7c8a9', '#cac1ac'] },
     { id: 'obsidian', name: 'OBSIDIAN', price: 0,    giftAt: 250,
       sky: 'radial-gradient(120% 100% at 50% 26%,#884842 0%,#150d08 78%)',
-      blocks: ['#5d7d29', '#756b27', '#784528'] }
+      blocks: ['#5d7d29', '#756b27', '#784528'] },
+    /* Bobo is neither bought nor a tier gift: it is a booby prize for dying
+       at 0, so it carries `secret` and stays off the shelf until earned.
+       price 0 is NOT what makes it unbuyable — the buy path tests
+       bal < price, which is false at zero. The guard is `secret`; price 0
+       only keeps a price string from ever rendering.
+       Card art is sampled at depths 0/6/13 rather than three hue rungs:
+       hueStep 0.4 means a hue sample returns the same brown three times. */
+    { id: 'bobo',     name: 'BOBO',     price: 0,    giftAt: 0, secret: true,
+      sky: 'radial-gradient(120% 100% at 50% 26%,#885737 0%,#1f180a 78%)',
+      blocks: ['#a7704b', '#90542b', '#82471f'] }
   ];
   var WORLD_BY_ID = {};
   (function () {
@@ -926,6 +936,16 @@
       'The mountain keeps the pieces.',
       'Dark glass, darker landing.',
       'Cooled, hardened, toppled.'
+    ],
+    bobo: [
+      'Well. That happened.',
+      'Down the drain, as ever.',
+      'Nothing about that was solid.',
+      'A brown day for architecture.',
+      'It went the way these things go.',
+      'The tower had one job.',
+      'Gravity remains undefeated.',
+      'Back to the bottom with you.'
     ]
   };
 
@@ -1570,6 +1590,10 @@
       else if (bal >= w.price) { chip = String(w.price); }
       else { cls += ' is-dim'; chip = String(w.price); }
       c.card.className = cls;
+      /* Secret Worlds are absent from the shelf until earned. Set on every
+         card, not only the secret one, so a card can never stay hidden
+         after its grant. */
+      c.card.hidden = !!(w.secret && !ownsWorld(w.id));
       c.chip.textContent = chip;
       /* The visible chip carries the state; the label must say the same. */
       c.card.setAttribute('aria-label', c.world.name + ' — ' + c.chip.textContent);

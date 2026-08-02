@@ -984,6 +984,9 @@
   text-align: left;
   transition: border-color 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease, transform 0.18s ease;
 }
+/* .hud-shop-card sets its own display, and an author display beats the UA
+   [hidden] rule, so the property alone would do nothing. */
+.hud-shop-card[hidden] { display: none; }
 .hud-shop-card:active {
   transform: scale(0.97);
 }
