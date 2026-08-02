@@ -610,6 +610,7 @@
       muteBtn: muteBtn,
       shopPill: shopPill,
       board: board,
+      boardPanel: boardPanel,
       boardStatus: boardStatus,
       boardList: boardList,
       boardClose: boardClose,
@@ -1175,6 +1176,11 @@
     fetchTop('day', function (rows) { if (rows) { warmBoard.day = rows; } });
   }
 
+  function warmRowsFor(scope) {
+    if (!warmIsFresh()) { return null; }
+    return scope === 'day' ? warmBoard.day : warmBoard.all;
+  }
+
   function paintSandwich(rows, mine) {
     if (!rows) {
       renderRows(els.lbList, els.lbStatus, readLocalBoard(), mine, 'THIS DEVICE ONLY', 3);
@@ -1235,22 +1241,41 @@
   var boardTimer = null;
   var BOARD_REFRESH_MS = 15000;
 
+  function setColdFloor(on) {
+    els.boardPanel.classList.toggle('is-cold', !!on);
+  }
+
   function refreshOverlayBoard(showLoading) {
     if (overlayPane !== 'board') { return; }  /* records/shop panes are local: the 15s tick must not fetch */
     var seq = ++overlayBoardSeq;
-    /* Only worth saying on a cold list. With rows already on screen the
-       refresh is invisible work, and the word just made the panel twitch. */
-    if (showLoading && !els.boardList.children.length) { els.boardStatus.textContent = 'LOADING'; }
     /* Find myself on the shared board: the whole point of opening it is
        seeing where I sit, and scanning a list of friends for my own name
        is work the highlight can do. Name only — the board keeps my best
        run, whichever one that was. */
     var myName = readName();
     var me = myName ? { name: myName } : null;
+    /* Paint this scope's warmed rows first, so the panel is the size it
+       will stay at before the read even leaves. Opening used to show an
+       empty list that grew, and flipping scope used to leave the other
+       scope's rows up until the answer came back and resized everything. */
+    var warm = warmRowsFor(overlayScope);
+    /* Nothing cached and nothing on screen yet — the one case where the
+       size of what is coming is genuinely unknown. Hold the panel at the
+       height a full board occupies so the rows land in a space that is
+       already the right shape, and let content take over the moment they
+       do. Any other time this floor would pad a short board into a void. */
+    setColdFloor(!warm && !els.boardList.children.length);
+    if (warm) { renderRows(els.boardList, els.boardStatus, warm, me, ''); setColdFloor(false); }
+    else if (showLoading && !els.boardList.children.length) { els.boardStatus.textContent = 'LOADING'; }
     fetchTop(overlayScope, function (rows) {
+      if (rows) {
+        if (overlayScope === 'day') { warmBoard.day = rows; }
+        else { warmBoard.all = rows; warmBoard.at = Date.now(); }
+      }
       if (!boardOpen || seq !== overlayBoardSeq) { return; }
       if (rows) { renderRows(els.boardList, els.boardStatus, rows, me, ''); }
-      else { renderRows(els.boardList, els.boardStatus, readLocalBoard(), me, 'THIS DEVICE ONLY'); }
+      else if (!warm) { renderRows(els.boardList, els.boardStatus, readLocalBoard(), me, 'THIS DEVICE ONLY'); }
+      setColdFloor(false);
     });
   }
 
@@ -1305,6 +1330,7 @@
     els.boardShop.hidden = pane !== 'shop';
     els.boardPct.hidden = true;
     els.boardStatus.textContent = '';
+    setColdFloor(false);   /* records and shop bring their own content */
     if (pane === 'board') {
       refreshOverlayBoard(true);
       if (overlayScope === 'day') { showPercentile(); }
@@ -1743,6 +1769,10 @@
     muteOn = readMuted();
     applyMuteUi(muteOn);
     applyReady(); /* boot into title state */
+    /* Read the board once at boot as well as at run start: the trophy is
+       reachable from the title before anyone has played, and that first
+       open is the one most likely to catch an empty list. */
+    warmUp();
     /* Boot World broadcast. DOMContentLoaded is the deterministic "all
        classic scripts have executed" line: on network loads a 0ms timer
        can fire BETWEEN script downloads (audio.js not yet parsed, its

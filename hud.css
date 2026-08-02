@@ -739,18 +739,17 @@
   pointer-events: auto;
   transition: opacity 0.3s ease;
 }
-/* A fixed window, not a box that grows to its contents. The panel used to
-   size itself to whatever had arrived so far, so it resized on open (rows
-   landing), on a scope flip (ten rows becoming two) and on a pane switch,
-   and because the overlay centres it every change moved both edges.
-   A floor was not enough: a floor only holds while the content is shorter
-   than it, and the real board is taller than any floor worth setting.
-   Fixed height plus panes that scroll inside means nothing the data does
-   can change the shape of this panel. */
+/* Sized by its contents, but the contents are there from the first frame:
+   the rows are painted from the board read that was warmed earlier, so the
+   panel opens at its settled size instead of growing as data lands. A
+   fixed height was tried and rejected — it held the shape but left two
+   rows floating in a half-empty pane whenever the day's board was quiet.
+   The floor here only catches the cold case where nothing is cached yet. */
 .hud-board-panel {
   position: relative;
   width: min(84vw, 380px);
-  height: min(65vh, 520px);
+  min-height: min(30vh, 240px);
+  max-height: 82vh;
   display: flex;
   flex-direction: column;
   /* Top padding clears the close button rather than guessing at it: the
@@ -768,6 +767,13 @@
    carries the gap, so no extra margin. */
 .hud-board-panel .hud-lb-tabs {
   margin-top: 0;
+}
+/* Only while the list is empty and nothing is cached: hold roughly a full
+   board's height so the first rows land in a space already their size.
+   Dropped as soon as anything renders, so a quiet day's two rows are not
+   padded out into an empty pane. */
+.hud-board-panel.is-cold {
+  min-height: min(57vh, 420px);
 }
 .hud-board-close {
   position: absolute;
