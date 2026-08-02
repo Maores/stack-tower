@@ -719,7 +719,7 @@
       /* Snapshot the pre-run best now: by game-over time the game layer may
          already have persisted the new best under the same storage key, so a
          read at that point can never detect "beat my old best". */
-      state.runStartBest = readBest();
+      state.runStartBest = bestFor(readPlayMode());
       state.runBlocks = 0;      /* fresh in-memory accumulators for this run */
       state.runStreakPeak = 0;
       state.runPts = 0;
@@ -1238,7 +1238,7 @@
      the local best only when the board has no row for me. */
   function showVictim(above, mineScore) {
     if (!above || typeof above.score !== 'number') { return; }
-    var anchor = typeof mineScore === 'number' ? mineScore : readBest();
+    var anchor = typeof mineScore === 'number' ? mineScore : bestFor(deathMode());
     if (!(anchor > 0)) { return; }
     var gap = above.score - anchor + 1;
     if (gap < 1) { return; }   /* already past them: nothing left to chase */
@@ -1385,30 +1385,32 @@
   function refreshBoard(mine, wantRoast) {
     var dseq = ++deathBoardSeq;
     var dgen = deathSeq;
+    var m = deathMode();
     els.lbStatus.textContent = '';
     var paintedWarm = false;
-    if (warmIsFresh()) {
-      paintSandwich(warmBoard.all, mine);
+    if (warmIsFresh(m)) {
+      paintSandwich(warmRowsFor('all', m), mine);
       paintedWarm = true;
-      if (wantRoast && warmBoard.day) { applyRoastOnce(warmBoard.day); }
+      var wday = warmRowsFor('day', m);
+      if (wantRoast && wday) { applyRoastOnce(wday); }
     }
     fetchTop('all', function (rows) {
-      if (rows) { warmBoard.all = rows; warmBoard.at = Date.now(); }
+      if (rows) { var w = warmSlot(m); w.all = rows; w.at = Date.now(); }
       if (dseq !== deathBoardSeq || state.mode !== 'over' || dgen !== deathSeq) { return; }
       /* A read that failed after warm rows are already up is not worth
          trading real board rows for a one-line device list. */
       if (!rows && paintedWarm) { return; }
       paintSandwich(rows, mine);
-    }, true);
+    }, true, m);
     if (wantRoast) {
       fetchTop('day', function (rows) {
-        if (rows) { warmBoard.day = rows; }
+        if (rows) { warmSlot(m).day = rows; }
         if (state.mode !== 'over' || dgen !== deathSeq) { return; }
         if (rows) {
           applyRoastOnce(rows);
           rememberTop(rows);
         }
-      });
+      }, false, m);
     }
   }
 
@@ -1701,8 +1703,13 @@
        abandoned run loses its points like it loses its score. */
     var runPts = state.runPts;
     state.runPts = 0;
+    /* Core echoes the mode the run actually used; trust it over the
+       equipped setting, so there is one source of truth per finished run. */
+    runMode = (detail && detail.mode === 'hard') ? 'hard' : 'normal';
     var ptsDoubled = false;
+    var ptsHard = runMode === 'hard';
     if (runPts > 0) {
+      if (ptsHard) { runPts *= 2; }
       if (readDaily() !== localDateStr()) {
         runPts *= 2;
         ptsDoubled = true;
@@ -1710,21 +1717,32 @@
       }
       writeInt(PTS_KEY, readInt(PTS_KEY) + runPts);
     }
-    els.overPts.textContent = runPts > 0
-      ? '+' + runPts + ' PTS' + (ptsDoubled ? ' · FIRST RUN ×2' : '')
-      : '';
+    /* Both markers verbatim would wrap on a narrow phone, so the combined
+       case collapses to one multiplier. */
+    var ptsMark = '';
+    if (ptsHard && ptsDoubled) { ptsMark = ' · ×4'; }
+    else if (ptsHard) { ptsMark = ' · HARD ×2'; }
+    else if (ptsDoubled) { ptsMark = ' · FIRST RUN ×2'; }
+    els.overPts.textContent = runPts > 0 ? '+' + runPts + ' PTS' + ptsMark : '';
     els.overPts.hidden = !(runPts > 0);
     var s = pickNumber(detail, ['score', 'value', 'points']);
     if (s != null) { state.score = Math.max(0, Math.round(s)); renderScore(); }
     var finalScore = state.score;
     var gameBest = pickNumber(detail, ['best', 'highscore', 'hiScore']) || 0;
-    var storedBest = readBest();
+    var storedBest = bestFor(runMode);
     var baseline = state.runStartBest != null ? state.runStartBest : storedBest;
     var isNewBest = finalScore > 0 && finalScore > baseline && finalScore >= gameBest;
     var best = Math.max(storedBest, gameBest, finalScore);
-    if (best > storedBest) { writeBest(best); }
+    /* core.js owns the write for both modes; hud only mirrors Normal's key
+       for the tier ladder, which must never see a Hard score. */
+    if (runMode === 'normal' && best > storedBest) { writeBest(best); }
+    /* TODAY stays a Normal statistic. It sits directly under BEST in the
+       records panel, which is Normal's by spec, and a shared TODAY could
+       render "TODAY 41" above "BEST 30" for anyone whose Hard run beat
+       their Normal best — visibly broken. Blocks-ever and best-streak stay
+       shared per the spec table; this one row does not. */
     var today = readToday();
-    if (finalScore > today.best) { today.best = finalScore; writeToday(today); }
+    if (runMode === 'normal' && finalScore > today.best) { today.best = finalScore; writeToday(today); }
     /* Density revision 2026-07-31: no tier vocabulary on the death screen.
        The ladder lives in the trophy overlay's RECORDS tab; the toast owns
        the tier-up moment. */
@@ -1732,7 +1750,7 @@
     els.overTier.textContent = '';
 
     els.overScore.textContent = String(finalScore);
-    els.overBest.textContent = 'BEST ' + best;
+    els.overBest.textContent = (runMode === 'hard' ? 'HARD BEST ' : 'BEST ') + best;
     els.newBest.hidden = !isNewBest;
     els.overVictim.hidden = true;
     els.overVictim.textContent = '';
@@ -1753,9 +1771,10 @@
        known player's screen used to wait for the score post to answer
        before any of this appeared, so the quip grew a second line and the
        chase line arrived while the screen was being read. */
-    if (warmIsFresh()) {
-      paintSandwich(warmBoard.all, null);
-      if (warmBoard.day) { applyRoastOnce(warmBoard.day); }
+    if (warmIsFresh(runMode)) {
+      paintSandwich(warmRowsFor('all', runMode), null);
+      var wday = warmRowsFor('day', runMode);
+      if (wday) { applyRoastOnce(wday); }
     }
     if (finalScore > 0 && autoName) {
       /* Known player: the run posts itself; the keyboard stays away. */
