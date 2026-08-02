@@ -1253,14 +1253,17 @@
   /* One percentile attempt over a given scope. Calls done(true) when it has
      either painted a line or definitively cannot, and done(false) only when
      the window was too thin to mean anything — which is the one case the
-     caller retries against a wider pool. */
-  function tryPercentile(scope, mine, label, done) {
+     caller retries against a wider pool. seq is the epoch from showPercentile
+     (see overlayPctSeq above); the day attempt and its all-time fallback
+     share one seq, so either both belong to the current mode or neither
+     paints. */
+  function tryPercentile(scope, mine, label, seq, done) {
     var f = scopeFilter(scope, overlayMode);
     countRows(f, function (total) {
-      if (overlayPane !== 'board' || overlayScope !== 'day') { done(true); return; }
+      if (overlayPane !== 'board' || overlayScope !== 'day' || seq !== overlayPctSeq) { done(true); return; }
       if (total == null || total < PCT_MIN_ROWS) { done(false); return; }
       countRows(f + '&score=gt.' + mine, function (above) {
-        if (overlayPane !== 'board' || overlayScope !== 'day' || above == null) { done(true); return; }
+        if (overlayPane !== 'board' || overlayScope !== 'day' || seq !== overlayPctSeq || above == null) { done(true); return; }
         var pct = Math.max(1, Math.round(((above + 1) / total) * 100));
         /* Dead last reads as "TOP 100%"; not a brag worth printing. */
         if (pct >= 100) { done(true); return; }
@@ -1281,24 +1284,35 @@
   function showPercentile() {
     els.boardPct.hidden = true;
     els.boardPct.textContent = '';
+    /* A fresh epoch every call: invalidates any tryPercentile still in
+       flight from a mode (or scope, or pane-then-back) switch that has
+       since moved on, even though overlayPane/overlayScope alone would
+       still read as unchanged for a same-pane, same-scope mode switch. */
+    var seq = ++overlayPctSeq;
     /* Hard tracks no per-day best, so it ranks its all-time best in both
        windows. Normal keeps today's best for the daily pool. */
     var dayMine = overlayMode === 'hard' ? readHardBest() : readToday().best;
     var allMine = bestFor(overlayMode);
     if (dayMine > 0) {
-      tryPercentile('day', dayMine, '% TODAY', function (shown) {
-        if (!shown && allMine > 0) { tryPercentile('all', allMine, '% ALL TIME', function () {}); }
+      tryPercentile('day', dayMine, '% TODAY', seq, function (shown) {
+        if (!shown && allMine > 0) { tryPercentile('all', allMine, '% ALL TIME', seq, function () {}); }
       });
     } else if (allMine > 0) {
-      tryPercentile('all', allMine, '% ALL TIME', function () {});
+      tryPercentile('all', allMine, '% ALL TIME', seq, function () {});
     }
   }
 
   /* Render tokens, one per board, matching their independent scopes: a slow
      response must never paint under a tab the player has since left. Same
-     idiom as autoSeq. Bumped by every request and by every scope change. */
+     idiom as autoSeq. Bumped by every request and by every scope change.
+     overlayPctSeq covers the mode axis specifically: overlayBoardSeq guards
+     els.boardList, but a mode switch (unlike a scope or pane switch) leaves
+     overlayPane and overlayScope both unchanged, so tryPercentile needed its
+     own token or a stale in-flight count for the outgoing mode could still
+     pass both of those checks and paint under the incoming mode's board. */
   var deathBoardSeq = 0;
   var overlayBoardSeq = 0;
+  var overlayPctSeq = 0;
   /* One generation per death, not per request: the death lines describe the
      run that just ended, so they survive a tab switch (the board tokens do
      not) but are dropped the moment the next run dies. */
