@@ -20,6 +20,10 @@
      debug.build(n, offset)           n scripted drops; offset is a number or
                                       fn(i), returns { placed, score, phase }
      debug.tap()                      one synthetic input through handleInput
+     debug.mode()                     { active, speedAt(n), bests } current
+                                      mode's speed curve, plus both saved bests
+     debug.reset()                    clear the tower and start a fresh run
+                                      from any phase (testing)
      debug.fps()                      { frames, avg, worst } from the live
                                       frame-time ring buffer (raw rAF deltas)
      debug.stats()                    { phase, score, blocks, debris,
@@ -38,9 +42,10 @@
      'frame'    { dt, now }                      every frame, before render
 
    DOM bridge (for the HUD layer, dispatched on window as CustomEvents):
-     out: 'game:ready', 'game:start' {score}, 'game:score' {score},
-          'game:perfect' {combo}, 'game:over' {score, best}
-     in:  'hud:start', 'hud:restart', 'hud:menu' (gameover -> title)
+     out: 'game:ready', 'game:start' {score, mode}, 'game:score' {score},
+          'game:perfect' {combo}, 'game:over' {score, best, mode}
+     in:  'hud:start', 'hud:restart', 'hud:menu' (gameover -> title),
+          'hud:mode' {id: 'normal'|'hard'} (applied at next run start)
 
    Visuals bridge (for visuals.js, dispatched on window as CustomEvents):
      'stack:init' {scene, camera, renderer, THREE}, 'stack:block'
@@ -98,6 +103,19 @@
     debrisCull: 42        // drop debris meshes this far below the camera focus
   };
 
+  // Per-mode difficulty. `normal` restates the shipped CFG values, so Normal
+  // play is unchanged; `hard` is the retention spec's preset B. `regrow`
+  // gates the streak-regrowth branch in spawnNext, which is the only place
+  // the footprint is ever given back — so one flag is the whole rule.
+  var MODES = {
+    normal: { speedStart: 2.7, speedGain: 0.055, speedMax: 6.8, regrow: true },
+    hard:   { speedStart: 3.8, speedGain: 0.100, speedMax: 9.0, regrow: false }
+  };
+  var BEST_KEYS = { normal: 'stack-best', hard: 'stack-best-hard' };
+  var requestedMode = 'normal';   // what the HUD last asked for
+  var activeMode = 'normal';      // latched at run start; never changes mid-run
+  var bests = { normal: 0, hard: 0 };
+
   var listeners = {};
   var scene = null, camera = null, renderer = null, container = null, lights = null;
   var phase = 'boot';           // boot | ready | playing | gameover
@@ -105,7 +123,7 @@
   var debris = [];              // falling cut pieces
   var pulses = [];              // perfect-snap scale pulses
   var current = null;           // sliding block
-  var score = 0, best = 0, combo = 0;
+  var score = 0, best = 0, combo = 0;   // `best` mirrors bests[activeMode]
   var baseHue = 42;
   var camFocusY = 0, camFocusTargetY = 0;
   var camFocusX = 0, camFocusZ = 0, camFocusTargetX = 0, camFocusTargetZ = 0;
@@ -250,7 +268,8 @@
     var index = prev.index + 1;
     var axis = index % 2 === 1 ? 'x' : 'z';
     var w = prev.w, d = prev.d;
-    if (combo >= CFG.growCombo) {          // streak regrowth, Stack-style
+    var M = MODES[activeMode] || MODES.normal;
+    if (M.regrow && combo >= CFG.growCombo) {   // streak regrowth, Stack-style
       w = Math.min(CFG.blockSize, w + CFG.growStep);
       d = Math.min(CFG.blockSize, d + CFG.growStep);
     }
@@ -276,7 +295,7 @@
       mesh: mesh, axis: axis, index: index,
       w: w, d: d, y: y, hue: info.hue,
       center: center, dir: -sideToggle,
-      speed: Math.min(CFG.speedMax, CFG.speedStart + (index - 1) * CFG.speedGain)
+      speed: Math.min(M.speedMax, M.speedStart + (index - 1) * M.speedGain)
     };
     emit('spawn', { block: current, state: getTowerState() });
   }
@@ -428,7 +447,12 @@
     phase = 'playing';
     phaseStartedAt = performance.now();
     camTargetViewH = CFG.viewHeight;
-    fireDom('game:start', { score: 0 });
+    // Latch the mode for the whole run, and point `best` at that mode's
+    // record BEFORE game:start fires: visuals' ghost line syncs on that
+    // event and reads getTowerState().best.
+    activeMode = MODES[requestedMode] ? requestedMode : 'normal';
+    best = bests[activeMode];
+    fireDom('game:start', { score: 0, mode: activeMode });
     emit('start', { state: getTowerState() });
     spawnNext();
   }
@@ -438,13 +462,14 @@
     gameOverAt = performance.now();
     if (score > best) {
       best = score;
-      try { localStorage.setItem('stack-best', String(best)); } catch (err) { /* ignore */ }
+      bests[activeMode] = best;
+      try { localStorage.setItem(BEST_KEYS[activeMode], String(best)); } catch (err) { /* ignore */ }
     }
     var top = towerTopY();
     camFocusTargetY = (top - CFG.baseHeight) / 2;
     camTargetViewH = Math.max(CFG.viewHeight, top + CFG.baseHeight + 4);
     fireDom('stack:gameover');
-    fireDom('game:over', { score: score, best: best });
+    fireDom('game:over', { score: score, best: best, mode: activeMode });
     emit('gameover', { score: score, best: best, state: getTowerState() });
   }
 
@@ -507,6 +532,14 @@
       resetTower();
       phase = 'ready';
       fireDom('game:ready');
+    });
+    /* Mode selection from the HUD, mirroring hud:world. Stored as a request;
+       it only takes effect when the next run starts, so a mode change can
+       never alter a tower already being built. */
+    window.addEventListener('hud:mode', function (e) {
+      var id = e && e.detail ? String(e.detail.id) : '';
+      requestedMode = MODES[id] ? id : 'normal';
+      if (phase !== 'playing') { best = bests[requestedMode]; }
     });
   }
 
@@ -661,8 +694,13 @@
       scene.add(lights.ambient, lights.hemi, lights.dir);
     }
 
-    try { best = parseInt(localStorage.getItem('stack-best') || '0', 10) || 0; }
-    catch (err) { best = 0; }
+    // Both modes' bests load at boot, because hud:mode has not arrived yet.
+    // `best` then simply mirrors whichever mode is active.
+    try {
+      bests.normal = parseInt(localStorage.getItem(BEST_KEYS.normal) || '0', 10) || 0;
+      bests.hard = parseInt(localStorage.getItem(BEST_KEYS.hard) || '0', 10) || 0;
+    } catch (err) { bests.normal = 0; bests.hard = 0; }
+    best = bests[activeMode];
 
     resetTower();
     bindInput();
@@ -710,6 +748,23 @@
     },
     /* One synthetic input through the real handler (spam testing). */
     tap: function () { handleInput(); },
+    /* Active mode plus the speed curve, for the difficulty suites. */
+    mode: function () {
+      var M = MODES[requestedMode] || MODES.normal;
+      return {
+        active: requestedMode,
+        speedAt: function (n) { return Math.min(M.speedMax, M.speedStart + (n - 1) * M.speedGain); },
+        bests: { normal: bests.normal, hard: bests.hard }
+      };
+    },
+    /* Clear the tower and start a fresh run from any phase (testing). */
+    reset: function () {
+      fireDom('stack:reset');
+      resetTower();
+      phase = 'ready';
+      startGame();
+      return true;
+    },
     /* Frame-rate over the last <=240 raw rAF deltas. */
     fps: function () {
       var n = fpsCount, sum = 0, worstDt = 0;
@@ -764,6 +819,8 @@
     drop: decoyCall,
     build: decoyCall,
     tap: decoyCall,
+    mode: decoyCall,
+    reset: decoyCall,
     fps: decoyCall,
     stats: decoyCall
   };
