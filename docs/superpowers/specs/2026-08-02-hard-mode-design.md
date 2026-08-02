@@ -191,6 +191,18 @@ This wave touches the board-open path, so the parked hardening bundle ships with
 
 Hard-specific death quips, a Hard tier ladder, Hard-only Worlds, board badges identifying Hard players, and any change to the revive, identity or multiplayer items. All are additive later and none are needed for the mode to be complete.
 
-## Open, carried forward
+## Percentile fallback
 
-The percentile line requires at least 10 rows in the rolling 24h window before it appears. On the Hard board that threshold will effectively never be met in the friend-group phase, so Hard deaths will show no percentile at launch. The threshold is a one-number change and the decision is Maor's; this spec does not alter it.
+Decided by Maor, 2026-08-02, while this spec was under review.
+
+The percentile line requires at least 10 rows in its window before it appears, because a percentage drawn from two players is an insult rather than a brag. The Hard board will not reach 10 rows in a 24h window for a long time, and the Normal daily board often does not either.
+
+So the rule gains a fallback rather than a lower threshold: if the rolling 24h window holds fewer than 10 rows, rank the player against the **whole board for that mode** and change the label to say so.
+
+| Window | Line |
+|---|---|
+| 24h window has 10+ rows | `YOU: TOP 12% TODAY` |
+| 24h too thin, all-time has 10+ rows | `YOU: TOP 12% ALL TIME` |
+| Neither reaches 10 rows | nothing, as today |
+
+The label naming the pool is what keeps this honest. The threshold itself stays at 10 for both passes. Hard tracks no per-day best, so it ranks its all-time best in both windows; Normal keeps today's best for the daily pool.
