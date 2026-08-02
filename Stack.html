@@ -702,41 +702,104 @@
   display: none;
 }
 
-/* Title shop pill: bottom-center chrome, title state only */
-.hud-shop-pill {
+/* Title bottom chrome: shop pill + difficulty switch, title state only */
+.hud-title-chrome {
   position: fixed;
   left: 50%;
   bottom: calc(max(2.6vh, env(safe-area-inset-bottom, 0px)) + 1vh);
   transform: translateX(-50%);
   z-index: 110;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 96vw;
   pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+#hud-root[data-state="title"] .hud-title-chrome {
+  opacity: 0.85;
+  pointer-events: auto;
+}
+.hud-shop-pill {
+  pointer-events: auto;
   cursor: pointer;
   border: 1px solid rgba(255, 255, 255, 0.5);
   background: rgba(255, 255, 255, 0.07);
   border-radius: 999px;
-  padding: 0.5em 1.35em 0.5em 1.57em; /* extra left pad balances letter-spacing */
-  font-size: clamp(11px, 1.7vmin, 14px);
+  padding: 0.5em 1.05em 0.5em 1.27em; /* extra left pad balances letter-spacing */
+  font-size: clamp(10px, 1.55vmin, 13px);
   font-weight: 300;
-  letter-spacing: 0.22em;
+  letter-spacing: 0.2em;
   font-variant-numeric: lining-nums tabular-nums;
-  opacity: 0;
+  white-space: nowrap;
   box-shadow: 0 0 14px rgba(255, 255, 255, 0.18);
-  transition: opacity 0.3s ease, background-color 0.18s ease, transform 0.18s ease;
+  transition: background-color 0.18s ease, transform 0.18s ease;
 }
-#hud-root[data-state="title"] .hud-shop-pill {
-  opacity: 0.85;
+.hud-shop-pill:hover { background: rgba(255, 255, 255, 0.15); }
+.hud-shop-pill:active { transform: scale(0.95); }
+.hud-shop-pill:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+
+/* Difficulty switch. Same visual object as the board's NORMAL | HARD
+   picker, so the choice is one control learned once. */
+.hud-mode-seg {
+  display: inline-flex;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.32);
   pointer-events: auto;
 }
-.hud-shop-pill:hover {
+.hud-mode-btn {
+  pointer-events: auto;
+  cursor: pointer;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  padding: 0.5em 0.82em 0.5em 1.0em; /* extra left pad balances letter-spacing */
+  font-size: clamp(9px, 1.4vmin, 11px);
+  font-weight: 300;
+  letter-spacing: 0.18em;
+  white-space: nowrap;
+  opacity: 0.5;
+  transition: opacity 0.18s ease, background-color 0.18s ease;
+}
+.hud-mode-btn.is-on {
+  background: rgba(255, 255, 255, 0.2);
   opacity: 1;
-  background: rgba(255, 255, 255, 0.15);
+  font-weight: 400;
 }
-.hud-shop-pill:active {
-  transform: translateX(-50%) scale(0.95);
+.hud-mode-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+/* Locked: visible from the first session on purpose, as advertising for a
+   mode that cannot be played yet. */
+.hud-mode-seg.is-locked { opacity: 0.5; }
+.hud-mode-seg.is-locked .hud-mode-btn[data-mode="hard"] {
+  opacity: 0.3;
+  cursor: default;
 }
-.hud-shop-pill:focus-visible {
-  outline: 2px solid #fff;
-  outline-offset: 3px;
+
+/* Board pane's mode picker: same chips, stacked with the scope segment so
+   the pair reads as a filter rather than a setting. */
+.hud-board-mode {
+  display: flex;
+  justify-content: center;
+  margin-top: 1vh;
+  pointer-events: auto;
+}
+.hud-board-mode[hidden] { display: none; }
+.hud-board-mode .hud-mode-btn {
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 0.22em 0.85em 0.22em 1.01em;
+  font-size: clamp(9px, 1.4vmin, 11px);
+  letter-spacing: 0.16em;
+  opacity: 0.55;
+}
+.hud-board-mode .hud-mode-btn:first-child { border-radius: 999px 0 0 999px; border-right: 0; }
+.hud-board-mode .hud-mode-btn:last-child { border-radius: 0 999px 999px 0; }
+.hud-board-mode .hud-mode-btn.is-on {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.62);
+  opacity: 1;
 }
 
 /* Trophy leaves the stage during play (a tap would cover the game with the board); mute stays reachable. */
@@ -963,6 +1026,10 @@
 .hud-shop-card.is-dim {
   opacity: 0.5;
 }
+.hud-shop-card:disabled,
+.hud-shop-card.is-locked {
+  cursor: default;
+}
 .hud-shop-prev {
   height: clamp(44px, 7vh, 62px);
   position: relative;
@@ -1052,6 +1119,17 @@
   font-variant-numeric: lining-nums tabular-nums;
   text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
 }
+.hud-rec-sep {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.14);
+  margin: 0.9vh 0;
+}
+.hud-rec-sep[hidden] { display: none; }
+/* An author `display` declaration always beats the UA [hidden] rule,
+   regardless of specificity (this has bitten the project twice now).
+   .hud-rec-row sets its own `display: flex`, so every row needs this
+   restated alongside it, or the `hidden` property does nothing visually. */
+.hud-rec-row[hidden] { display: none; }
 
 /* Records pane inside the trophy overlay (third tab) */
 /* Menu pill: the quiet way home from a death */
@@ -1196,7 +1274,8 @@
   #hud-root .hud-board,
   #hud-root .hud-board-btn,
   #hud-root .hud-mute-btn,
-  #hud-root .hud-shop-pill {
+  #hud-root .hud-shop-pill,
+  #hud-root .hud-title-chrome {
     transition-duration: 0.01s;
   }
 }
@@ -1237,6 +1316,10 @@
      debug.build(n, offset)           n scripted drops; offset is a number or
                                       fn(i), returns { placed, score, phase }
      debug.tap()                      one synthetic input through handleInput
+     debug.mode()                     { active, speedAt(n), bests } current
+                                      mode's speed curve, plus both saved bests
+     debug.reset()                    clear the tower and start a fresh run
+                                      from any phase (testing)
      debug.fps()                      { frames, avg, worst } from the live
                                       frame-time ring buffer (raw rAF deltas)
      debug.stats()                    { phase, score, blocks, debris,
@@ -1255,9 +1338,10 @@
      'frame'    { dt, now }                      every frame, before render
 
    DOM bridge (for the HUD layer, dispatched on window as CustomEvents):
-     out: 'game:ready', 'game:start' {score}, 'game:score' {score},
-          'game:perfect' {combo}, 'game:over' {score, best}
-     in:  'hud:start', 'hud:restart', 'hud:menu' (gameover -> title)
+     out: 'game:ready', 'game:start' {score, mode}, 'game:score' {score},
+          'game:perfect' {combo}, 'game:over' {score, best, mode}
+     in:  'hud:start', 'hud:restart', 'hud:menu' (gameover -> title),
+          'hud:mode' {id: 'normal'|'hard'} (applied at next run start)
 
    Visuals bridge (for visuals.js, dispatched on window as CustomEvents):
      'stack:init' {scene, camera, renderer, THREE}, 'stack:block'
@@ -1315,6 +1399,19 @@
     debrisCull: 42        // drop debris meshes this far below the camera focus
   };
 
+  // Per-mode difficulty. `normal` restates the shipped CFG values, so Normal
+  // play is unchanged; `hard` is the retention spec's preset B. `regrow`
+  // gates the streak-regrowth branch in spawnNext, which is the only place
+  // the footprint is ever given back — so one flag is the whole rule.
+  var MODES = {
+    normal: { speedStart: 2.7, speedGain: 0.055, speedMax: 6.8, regrow: true },
+    hard:   { speedStart: 3.8, speedGain: 0.100, speedMax: 9.0, regrow: false }
+  };
+  var BEST_KEYS = { normal: 'stack-best', hard: 'stack-best-hard' };
+  var requestedMode = 'normal';   // what the HUD last asked for
+  var activeMode = 'normal';      // latched at run start; never changes mid-run
+  var bests = { normal: 0, hard: 0 };
+
   var listeners = {};
   var scene = null, camera = null, renderer = null, container = null, lights = null;
   var phase = 'boot';           // boot | ready | playing | gameover
@@ -1322,7 +1419,7 @@
   var debris = [];              // falling cut pieces
   var pulses = [];              // perfect-snap scale pulses
   var current = null;           // sliding block
-  var score = 0, best = 0, combo = 0;
+  var score = 0, best = 0, combo = 0;   // `best` mirrors bests[activeMode]
   var baseHue = 42;
   var camFocusY = 0, camFocusTargetY = 0;
   var camFocusX = 0, camFocusZ = 0, camFocusTargetX = 0, camFocusTargetZ = 0;
@@ -1467,7 +1564,8 @@
     var index = prev.index + 1;
     var axis = index % 2 === 1 ? 'x' : 'z';
     var w = prev.w, d = prev.d;
-    if (combo >= CFG.growCombo) {          // streak regrowth, Stack-style
+    var M = MODES[activeMode] || MODES.normal;
+    if (M.regrow && combo >= CFG.growCombo) {   // streak regrowth, Stack-style
       w = Math.min(CFG.blockSize, w + CFG.growStep);
       d = Math.min(CFG.blockSize, d + CFG.growStep);
     }
@@ -1493,7 +1591,7 @@
       mesh: mesh, axis: axis, index: index,
       w: w, d: d, y: y, hue: info.hue,
       center: center, dir: -sideToggle,
-      speed: Math.min(CFG.speedMax, CFG.speedStart + (index - 1) * CFG.speedGain)
+      speed: Math.min(M.speedMax, M.speedStart + (index - 1) * M.speedGain)
     };
     emit('spawn', { block: current, state: getTowerState() });
   }
@@ -1645,7 +1743,12 @@
     phase = 'playing';
     phaseStartedAt = performance.now();
     camTargetViewH = CFG.viewHeight;
-    fireDom('game:start', { score: 0 });
+    // Latch the mode for the whole run, and point `best` at that mode's
+    // record BEFORE game:start fires: visuals' ghost line syncs on that
+    // event and reads getTowerState().best.
+    activeMode = MODES[requestedMode] ? requestedMode : 'normal';
+    best = bests[activeMode];
+    fireDom('game:start', { score: 0, mode: activeMode });
     emit('start', { state: getTowerState() });
     spawnNext();
   }
@@ -1655,13 +1758,14 @@
     gameOverAt = performance.now();
     if (score > best) {
       best = score;
-      try { localStorage.setItem('stack-best', String(best)); } catch (err) { /* ignore */ }
+      bests[activeMode] = best;
+      try { localStorage.setItem(BEST_KEYS[activeMode], String(best)); } catch (err) { /* ignore */ }
     }
     var top = towerTopY();
     camFocusTargetY = (top - CFG.baseHeight) / 2;
     camTargetViewH = Math.max(CFG.viewHeight, top + CFG.baseHeight + 4);
     fireDom('stack:gameover');
-    fireDom('game:over', { score: score, best: best });
+    fireDom('game:over', { score: score, best: best, mode: activeMode });
     emit('gameover', { score: score, best: best, state: getTowerState() });
   }
 
@@ -1724,6 +1828,14 @@
       resetTower();
       phase = 'ready';
       fireDom('game:ready');
+    });
+    /* Mode selection from the HUD, mirroring hud:world. Stored as a request;
+       it only takes effect when the next run starts, so a mode change can
+       never alter a tower already being built. */
+    window.addEventListener('hud:mode', function (e) {
+      var id = e && e.detail ? String(e.detail.id) : '';
+      requestedMode = MODES[id] ? id : 'normal';
+      if (phase !== 'playing') { best = bests[requestedMode]; }
     });
   }
 
@@ -1878,8 +1990,13 @@
       scene.add(lights.ambient, lights.hemi, lights.dir);
     }
 
-    try { best = parseInt(localStorage.getItem('stack-best') || '0', 10) || 0; }
-    catch (err) { best = 0; }
+    // Both modes' bests load at boot, because hud:mode has not arrived yet.
+    // `best` then simply mirrors whichever mode is active.
+    try {
+      bests.normal = parseInt(localStorage.getItem(BEST_KEYS.normal) || '0', 10) || 0;
+      bests.hard = parseInt(localStorage.getItem(BEST_KEYS.hard) || '0', 10) || 0;
+    } catch (err) { bests.normal = 0; bests.hard = 0; }
+    best = bests[activeMode];
 
     resetTower();
     bindInput();
@@ -1927,6 +2044,23 @@
     },
     /* One synthetic input through the real handler (spam testing). */
     tap: function () { handleInput(); },
+    /* Active mode plus the speed curve, for the difficulty suites. */
+    mode: function () {
+      var M = MODES[requestedMode] || MODES.normal;
+      return {
+        active: requestedMode,
+        speedAt: function (n) { return Math.min(M.speedMax, M.speedStart + (n - 1) * M.speedGain); },
+        bests: { normal: bests.normal, hard: bests.hard }
+      };
+    },
+    /* Clear the tower and start a fresh run from any phase (testing). */
+    reset: function () {
+      fireDom('stack:reset');
+      resetTower();
+      phase = 'ready';
+      startGame();
+      return true;
+    },
     /* Frame-rate over the last <=240 raw rAF deltas. */
     fps: function () {
       var n = fpsCount, sum = 0, worstDt = 0;
@@ -1981,6 +2115,8 @@
     drop: decoyCall,
     build: decoyCall,
     tap: decoyCall,
+    mode: decoyCall,
+    reset: decoyCall,
     fps: decoyCall,
     stats: decoyCall
   };
@@ -3268,11 +3404,11 @@
      ready    "game:ready" | "game:reset" | "game:title"
               -> back to title state
 
-   OUTGOING (HUD -> game): dispatched on window:
-
-     "hud:start"    user tapped the title screen (HUD flips to playing
-                    optimistically; a later game:start is harmless)
-     "hud:restart"  user tapped restart on the game-over screen
+   OUTGOING (dispatched on window):
+     'hud:start', 'hud:restart', 'hud:menu'
+     'hud:mute'  { muted }        mute state for audio.js
+     'hud:world' { id }           equipped World for visuals.js / audio.js
+     'hud:mode'  { id }           difficulty for core.js; applied at run start
 
    The HUD never stops propagation of pointer events, so a game that starts
    or restarts from its own global tap handler keeps working; hud:start /
@@ -3296,6 +3432,8 @@
   var DAILY_KEY = 'stack-daily';   /* local date of the last doubled run */
   var WORLD_KEY = 'stack-world';    /* equipped World id */
   var OWNED_KEY = 'stack-worlds';   /* owned ids beyond classic (JSON array) */
+  var MODE_KEY = 'stack-mode';      /* equipped difficulty: normal | hard */
+  var HARD_BEST_KEY = 'stack-best-hard';   /* core owns the writes; hud reads */
 
   /* Worlds catalog — hud-owned presentation data (names, prices, card art,
      quip packs). visuals.js and audio.js keep their own per-World tables
@@ -3400,6 +3538,66 @@
       else { next = { name: TIERS[i][0], at: TIERS[i][1], idx: i }; break; }
     }
     return { cur: cur, next: next };
+  }
+
+  /* Hard unlocks at Marble. Derived from TIERS by name so the threshold has
+     exactly one source — the tier-gift thresholds in WORLDS are the bug of
+     the opposite shape and get collapsed in a later task. */
+  var HARD_GATE = (function () {
+    for (var i = 0; i < TIERS.length; i++) {
+      if (TIERS[i][0] === 'MARBLE') { return TIERS[i][1]; }
+    }
+    return Infinity;   /* renaming the tier disables Hard rather than opening it */
+  })();
+
+  function hardUnlocked() {
+    return readBest() >= HARD_GATE;
+  }
+
+  /* Gift Worlds are keyed by their tier threshold, so the number lives only
+     in TIERS. Previously the threshold existed twice — in WORLDS[].giftAt
+     and again in tier-name matching — which is the drift this removes. */
+  function giftWorldForTier(tierName) {
+    var at = null, i;
+    for (i = 0; i < TIERS.length; i++) {
+      if (TIERS[i][0] === tierName) { at = TIERS[i][1]; break; }
+    }
+    if (at == null) { return null; }
+    for (i = 0; i < WORLDS.length; i++) {
+      if (WORLDS[i].giftAt === at) { return WORLDS[i].id; }
+    }
+    return null;
+  }
+
+  function readHardBest() {
+    try {
+      var v = parseInt(window.localStorage.getItem(HARD_BEST_KEY), 10);
+      return isFinite(v) && v > 0 ? v : 0;
+    } catch (err) { return 0; }
+  }
+
+  /* The active difficulty. Distinct from state.mode, which is the HUD's
+     screen state (boot|title|playing|over) — do not conflate them. */
+  function readPlayMode() {
+    try {
+      var v = String(window.localStorage.getItem(MODE_KEY) || '');
+      if (v === 'hard' && hardUnlocked()) { return 'hard'; }
+      return 'normal';
+    } catch (err) { return 'normal'; }
+  }
+
+  function writePlayMode(v) {
+    try { window.localStorage.setItem(MODE_KEY, v); } catch (err) { /* ignore */ }
+  }
+
+  function firePlayMode(id) {
+    try { window.dispatchEvent(new CustomEvent('hud:mode', { detail: { id: id } })); }
+    catch (err) { /* ignore */ }
+  }
+
+  /* Best for whichever mode is being described. */
+  function bestFor(mode) {
+    return mode === 'hard' ? readHardBest() : readBest();
   }
 
   function readInt(key) {
@@ -3673,9 +3871,27 @@
     /* Title shop pill (Wave A round-2 pick: bottom-center + live balance).
        Edge chrome like the corner buttons — never part of the center
        composition. A <button>, so core's global tap handler ignores it. */
+    /* Bottom chrome row: shop pill + difficulty switch, side by side. Edge
+       furniture, never part of the centre composition (bare-title rule). */
+    var titleChrome = el('div', 'hud-title-chrome');
+    titleChrome.setAttribute('data-ui', '1');
     var shopPill = el('button', 'hud-shop-pill', 'SHOP');
     shopPill.type = 'button';
     shopPill.setAttribute('aria-label', 'Open the shop');
+
+    /* Both words always on screen: Normal must read as a selected state,
+       never as the absence of Hard. */
+    var modeSeg = el('div', 'hud-mode-seg');
+    var modeNormal = el('button', 'hud-mode-btn is-on', 'NORMAL');
+    modeNormal.type = 'button';
+    modeNormal.setAttribute('data-mode', 'normal');
+    var modeHard = el('button', 'hud-mode-btn', 'HARD');
+    modeHard.type = 'button';
+    modeHard.setAttribute('data-mode', 'hard');
+    modeSeg.appendChild(modeNormal);
+    modeSeg.appendChild(modeHard);
+    titleChrome.appendChild(shopPill);
+    titleChrome.appendChild(modeSeg);
 
     /* data-ui is core.js's documented opt-out. Without it every tap inside
        this subtree that is not one of the buttons (panel body, heading,
@@ -3721,6 +3937,20 @@
     boardSeg.appendChild(segDay);
     boardSeg.appendChild(segAll);
 
+    /* NORMAL | HARD as a sibling of TODAY | ALL TIME, so both read as views
+       of the board. This picker is view-only: it never changes what will be
+       played, because the trophy opens from the death screen too, where the
+       title switch is not visible. */
+    var boardMode = el('div', 'hud-board-mode');
+    var boardModeNormal = el('button', 'hud-mode-btn is-on', 'NORMAL');
+    boardModeNormal.type = 'button';
+    boardModeNormal.setAttribute('data-mode', 'normal');
+    var boardModeHard = el('button', 'hud-mode-btn', 'HARD');
+    boardModeHard.type = 'button';
+    boardModeHard.setAttribute('data-mode', 'hard');
+    boardMode.appendChild(boardModeNormal);
+    boardMode.appendChild(boardModeHard);
+
     /* Records pane: stats + tier ladder, shown in place of the list. */
     var boardRecords = el('div', 'hud-board-records');
     boardRecords.hidden = true;
@@ -3741,6 +3971,16 @@
     boardRecords.appendChild(recBlocks.row);
     var recPts = recRow('POINTS', 'hud-rec-pts');
     boardRecords.appendChild(recPts.row);
+    /* Records describes the whole player rather than a moment, so it shows
+       both modes. Exactly one new row, below a rule, and only once Hard is
+       unlocked — the density line held through every wave so far. */
+    var recHardSep = el('div', 'hud-rec-sep');
+    recHardSep.hidden = true;
+    boardRecords.appendChild(recHardSep);
+    var recHard = recRow('HARD BEST', 'hud-rec-hard');
+    recHard.row.classList.add('hud-rec-hard-row');
+    recHard.row.hidden = true;
+    boardRecords.appendChild(recHard.row);
     var ladder = el('div', 'hud-ladder');
     boardRecords.appendChild(ladder);
     var ladderNote = el('div', 'hud-ladder-note', 'TOWER TIERS · FROM YOUR BEST · NEVER DROP');
@@ -3798,6 +4038,7 @@
     boardPanel.appendChild(boardClose);
     boardPanel.appendChild(boardStatus);
     boardPanel.appendChild(boardTabs);
+    boardPanel.appendChild(boardMode);
     boardPanel.appendChild(boardSeg);
     boardPanel.appendChild(boardPct);
     boardPanel.appendChild(boardRecords);
@@ -3814,7 +4055,7 @@
     root.appendChild(over);
     root.appendChild(boardBtn);
     root.appendChild(muteBtn);
-    root.appendChild(shopPill);
+    root.appendChild(titleChrome);
     root.appendChild(board);
     root.appendChild(toast);
 
@@ -3840,6 +4081,9 @@
       segDay: segDay,
       segAll: segAll,
       boardSeg: boardSeg,
+      boardMode: boardMode,
+      boardModeNormal: boardModeNormal,
+      boardModeHard: boardModeHard,
       boardShop: boardShop,
       shopBalVal: shopBalVal,
       shopGrid: shopGrid,
@@ -3856,6 +4100,10 @@
       boardBtn: boardBtn,
       muteBtn: muteBtn,
       shopPill: shopPill,
+      titleChrome: titleChrome,
+      modeSeg: modeSeg,
+      modeNormal: modeNormal,
+      modeHard: modeHard,
       board: board,
       boardPanel: boardPanel,
       boardStatus: boardStatus,
@@ -3867,7 +4115,10 @@
       recStreak: recStreak.val,
       recToday: recToday.val,
       recBlocks: recBlocks.val,
-      recPts: recPts.val
+      recPts: recPts.val,
+      recHardBest: recHard.val,
+      recHardRow: recHard.row,
+      recHardSep: recHardSep
     };
   }
 
@@ -3879,7 +4130,7 @@
       /* Snapshot the pre-run best now: by game-over time the game layer may
          already have persisted the new best under the same storage key, so a
          read at that point can never detect "beat my old best". */
-      state.runStartBest = readBest();
+      state.runStartBest = bestFor(readPlayMode());
       state.runBlocks = 0;      /* fresh in-memory accumulators for this run */
       state.runStreakPeak = 0;
       state.runPts = 0;
@@ -3890,9 +4141,49 @@
   }
 
   function renderTitleBest() {
-    var best = readBest();
-    els.titleBest.textContent = best > 0 ? 'BEST ' + best : '';
+    var mode = readPlayMode();
+    var best = bestFor(mode);
+    var label = best > 0 ? 'BEST ' + best : '';
+    /* Only Hard names itself here: the lit NORMAL chip already says Normal,
+       and repeating it in the best line would be redundant. Hard still names
+       itself with no best yet (a fresh unlock): dropping to a blank line on
+       the very first switch would read as the tap having failed
+       (brief deviation — see task-2-report.md). */
+    if (mode === 'hard') { label = label ? 'HARD · ' + label : 'HARD'; }
+    els.titleBest.textContent = label;
     renderShopPill();
+    renderModeSwitch();
+  }
+
+  function renderModeSwitch() {
+    var mode = readPlayMode();
+    var unlocked = hardUnlocked();
+    els.modeNormal.classList.toggle('is-on', mode !== 'hard');
+    els.modeHard.classList.toggle('is-on', mode === 'hard');
+    els.modeSeg.classList.toggle('is-locked', !unlocked);
+    /* Not a native disabled: the setPlayMode() gate below already blocks the
+       state change, and staying focusable keeps the "unlocks at N" label
+       reachable by keyboard/AT instead of dropping the control from the tab
+       order entirely (brief deviation — see task-2-report.md). aria-disabled
+       is the real unavailable signal for assistive tech in its place. Note
+       for the next test written against this control: Playwright's own
+       actionability wait DOES treat [aria-disabled=true] as not-enabled
+       (playwright.dev/docs/actionability), same as a native disabled — a
+       plain .click() on this button while locked needs { force: true }. */
+    els.modeHard.setAttribute('aria-disabled', unlocked ? 'false' : 'true');
+    els.modeHard.setAttribute('aria-label', unlocked
+      ? 'Play Hard mode'
+      : 'Hard mode unlocks at ' + HARD_GATE);
+    els.modeNormal.setAttribute('aria-pressed', mode !== 'hard' ? 'true' : 'false');
+    els.modeHard.setAttribute('aria-pressed', mode === 'hard' ? 'true' : 'false');
+  }
+
+  function setPlayMode(id) {
+    if (id === 'hard' && !hardUnlocked()) { return; }
+    var next = id === 'hard' ? 'hard' : 'normal';
+    writePlayMode(next);
+    firePlayMode(next);
+    renderTitleBest();
   }
 
   function renderShopPill() {
@@ -3922,9 +4213,9 @@
     return new Date(Date.now() - 86400000).toISOString();
   }
 
-  /* Every read is Normal-mode only; Hard gets its own board when modes ship. */
-  function scopeFilter(scope) {
-    var f = '&mode=eq.normal';
+  /* Every read names its mode explicitly; there is no implicit default. */
+  function scopeFilter(scope, mode) {
+    var f = '&mode=eq.' + (mode === 'hard' ? 'hard' : 'normal');
     if (scope === 'day') { f += '&created_at=gte.' + encodeURIComponent(dayFloorIso()); }
     return f;
   }
@@ -4145,7 +4436,7 @@
     var row = { name: name, score: score };
     state.postedRow = row;
     setAutoRow('SAVING AS ' + lrm(name), false);
-    submitScore(name, score, function (ok) {
+    submitScore(name, score, deathMode(), function (ok) {
       if (!ok) { addLocalScore(name, score); } /* record even mid-restart */
       if (seq !== autoSeq || state.mode !== 'over') { return; }
       if (ok) {
@@ -4207,13 +4498,13 @@
     return rows;
   }
 
-  function fetchTop(scope, cb, full) {
+  function fetchTop(scope, cb, full, mode) {
     if (!window.fetch) { cb(null); return; }
     var done = false;
     var finish = function (rows) { if (!done) { done = true; cb(rows); } };
     var timer = setTimeout(function () { finish(null); }, LB_TIMEOUT_MS);
     try {
-      window.fetch(LB_URL + LB_SELECT + scopeFilter(scope), { headers: { apikey: LB_KEY } })
+      window.fetch(LB_URL + LB_SELECT + scopeFilter(scope, mode), { headers: { apikey: LB_KEY } })
         .then(function (r) { if (!r.ok) { throw new Error('http ' + r.status); } return r.json(); })
         .then(function (rows) {
           clearTimeout(timer);
@@ -4245,7 +4536,14 @@
     } catch (err) { clearTimeout(timer); finish(null); }
   }
 
-  function submitScore(name, score, cb) {
+  /* Which mode the run being described belongs to. Set from the mode core
+     echoes on game:start and re-set from what it echoes on game:over, so a
+     finished run is always described in the mode it actually played, not
+     whatever the title switch happens to be equipped to by then. */
+  var runMode = 'normal';
+  function deathMode() { return runMode === 'hard' ? 'hard' : 'normal'; }
+
+  function submitScore(name, score, mode, cb) {
     if (!window.fetch) { cb(false); return; }
     var done = false;
     var finish = function (ok) { if (!done) { done = true; cb(ok); } };
@@ -4254,7 +4552,7 @@
       window.fetch(LB_URL, {
         method: 'POST',
         headers: { apikey: LB_KEY, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name, score: score })
+        body: JSON.stringify({ name: name, score: score, mode: mode === 'hard' ? 'hard' : 'normal' })
       })
         .then(function (r) { clearTimeout(timer); finish(r.ok); })
         .catch(function () { clearTimeout(timer); finish(false); });
@@ -4352,7 +4650,7 @@
      the local best only when the board has no row for me. */
   function showVictim(above, mineScore) {
     if (!above || typeof above.score !== 'number') { return; }
-    var anchor = typeof mineScore === 'number' ? mineScore : readBest();
+    var anchor = typeof mineScore === 'number' ? mineScore : bestFor(deathMode());
     if (!(anchor > 0)) { return; }
     var gap = above.score - anchor + 1;
     if (gap < 1) { return; }   /* already past them: nothing left to chase */
@@ -4362,33 +4660,71 @@
     els.overVictim.hidden = false;
   }
 
-  /* Overlay TODAY header: "YOU: TOP n% TODAY" for today's device best.
-     Same hiding rules as the old death-screen line: window >= 10, both
-     counts healthy, never 100%. Relocated here by the density revision. */
-  function showPercentile() {
-    var myToday = readToday().best;
-    els.boardPct.hidden = true;
-    els.boardPct.textContent = '';
-    if (!(myToday > 0)) { return; }
-    var windowF = scopeFilter('day');
-    countRows(windowF, function (total) {
-      if (overlayPane !== 'board' || overlayScope !== 'day' || total == null || total < 10) { return; }
-      countRows(windowF + '&score=gt.' + myToday, function (above) {
-        if (overlayPane !== 'board' || overlayScope !== 'day' || above == null) { return; }
+  var PCT_MIN_ROWS = 10;
+
+  /* One percentile attempt over a given scope. Calls done(true) when it has
+     either painted a line or definitively cannot, and done(false) only when
+     the window was too thin to mean anything — which is the one case the
+     caller retries against a wider pool. seq is the epoch from showPercentile
+     (see overlayPctSeq above); the day attempt and its all-time fallback
+     share one seq, so either both belong to the current mode or neither
+     paints. */
+  function tryPercentile(scope, mine, label, seq, done) {
+    var f = scopeFilter(scope, overlayMode);
+    countRows(f, function (total) {
+      if (overlayPane !== 'board' || overlayScope !== 'day' || seq !== overlayPctSeq) { done(true); return; }
+      if (total == null || total < PCT_MIN_ROWS) { done(false); return; }
+      countRows(f + '&score=gt.' + mine, function (above) {
+        if (overlayPane !== 'board' || overlayScope !== 'day' || seq !== overlayPctSeq || above == null) { done(true); return; }
         var pct = Math.max(1, Math.round(((above + 1) / total) * 100));
         /* Dead last reads as "TOP 100%"; not a brag worth printing. */
-        if (pct >= 100) { return; }
-        els.boardPct.textContent = 'YOU: TOP ' + pct + '% TODAY';
+        if (pct >= 100) { done(true); return; }
+        els.boardPct.textContent = 'YOU: TOP ' + pct + label;
         els.boardPct.hidden = false;
+        done(true);
       });
     });
   }
 
+  /* Overlay TODAY header: "YOU: TOP n% TODAY" for today's device best.
+     Same hiding rules as the old death-screen line: window >= 10, both
+     counts healthy, never 100%. Relocated here by the density revision.
+     Mode-aware (this task) and gains an all-time fallback: the 24h window
+     needs PCT_MIN_ROWS rows before a percentage means anything, and the
+     Hard board will not reach that for a long time, so rather than showing
+     nothing it ranks against the whole board and says so in the label. */
+  function showPercentile() {
+    els.boardPct.hidden = true;
+    els.boardPct.textContent = '';
+    /* A fresh epoch every call: invalidates any tryPercentile still in
+       flight from a mode (or scope, or pane-then-back) switch that has
+       since moved on, even though overlayPane/overlayScope alone would
+       still read as unchanged for a same-pane, same-scope mode switch. */
+    var seq = ++overlayPctSeq;
+    /* Hard tracks no per-day best, so it ranks its all-time best in both
+       windows. Normal keeps today's best for the daily pool. */
+    var dayMine = overlayMode === 'hard' ? readHardBest() : readToday().best;
+    var allMine = bestFor(overlayMode);
+    if (dayMine > 0) {
+      tryPercentile('day', dayMine, '% TODAY', seq, function (shown) {
+        if (!shown && allMine > 0) { tryPercentile('all', allMine, '% ALL TIME', seq, function () {}); }
+      });
+    } else if (allMine > 0) {
+      tryPercentile('all', allMine, '% ALL TIME', seq, function () {});
+    }
+  }
+
   /* Render tokens, one per board, matching their independent scopes: a slow
      response must never paint under a tab the player has since left. Same
-     idiom as autoSeq. Bumped by every request and by every scope change. */
+     idiom as autoSeq. Bumped by every request and by every scope change.
+     overlayPctSeq covers the mode axis specifically: overlayBoardSeq guards
+     els.boardList, but a mode switch (unlike a scope or pane switch) leaves
+     overlayPane and overlayScope both unchanged, so tryPercentile needed its
+     own token or a stale in-flight count for the outgoing mode could still
+     pass both of those checks and paint under the incoming mode's board. */
   var deathBoardSeq = 0;
   var overlayBoardSeq = 0;
+  var overlayPctSeq = 0;
   /* One generation per death, not per request: the death lines describe the
      run that just ended, so they survive a tab switch (the board tokens do
      not) but are dropped the moment the next run dies. */
@@ -4409,23 +4745,31 @@
      drawn in one pass instead of assembling itself while it is being read.
      Warmed when a run starts: by the time anyone dies the rows are in hand,
      and the fill arrives with the screen rather than a beat behind it. */
-  var warmBoard = { all: null, day: null, at: 0 };
+  /* Warmed rows, per mode: opening the Hard board after playing Normal must
+     not paint Normal's rows while Hard's read is in flight. */
+  var warmBoard = {
+    normal: { all: null, day: null, at: 0 },
+    hard:   { all: null, day: null, at: 0 }
+  };
   var WARM_MS = 120000;
 
-  function warmIsFresh() {
-    return warmBoard.all && (Date.now() - warmBoard.at) < WARM_MS;
+  function warmSlot(mode) {
+    return mode === 'hard' ? warmBoard.hard : warmBoard.normal;
   }
-
-  function warmUp() {
-    fetchTop('all', function (rows) {
-      if (rows) { warmBoard.all = rows; warmBoard.at = Date.now(); }
-    }, true);
-    fetchTop('day', function (rows) { if (rows) { warmBoard.day = rows; } });
+  function warmIsFresh(mode) {
+    var w = warmSlot(mode);
+    return !!w.all && (Date.now() - w.at) < WARM_MS;
   }
-
-  function warmRowsFor(scope) {
-    if (!warmIsFresh()) { return null; }
-    return scope === 'day' ? warmBoard.day : warmBoard.all;
+  function warmUp(mode) {
+    var m = mode === 'hard' ? 'hard' : 'normal';
+    var w = warmSlot(m);
+    fetchTop('all', function (rows) { if (rows) { w.all = rows; w.at = Date.now(); } }, true, m);
+    fetchTop('day', function (rows) { if (rows) { w.day = rows; } }, false, m);
+  }
+  function warmRowsFor(scope, mode) {
+    if (!warmIsFresh(mode)) { return null; }
+    var w = warmSlot(mode);
+    return scope === 'day' ? w.day : w.all;
   }
 
   function paintSandwich(rows, mine) {
@@ -4453,36 +4797,39 @@
   function refreshBoard(mine, wantRoast) {
     var dseq = ++deathBoardSeq;
     var dgen = deathSeq;
+    var m = deathMode();
     els.lbStatus.textContent = '';
     var paintedWarm = false;
-    if (warmIsFresh()) {
-      paintSandwich(warmBoard.all, mine);
+    if (warmIsFresh(m)) {
+      paintSandwich(warmRowsFor('all', m), mine);
       paintedWarm = true;
-      if (wantRoast && warmBoard.day) { applyRoastOnce(warmBoard.day); }
+      var wday = warmRowsFor('day', m);
+      if (wantRoast && wday) { applyRoastOnce(wday); }
     }
     fetchTop('all', function (rows) {
-      if (rows) { warmBoard.all = rows; warmBoard.at = Date.now(); }
+      if (rows) { var w = warmSlot(m); w.all = rows; w.at = Date.now(); }
       if (dseq !== deathBoardSeq || state.mode !== 'over' || dgen !== deathSeq) { return; }
       /* A read that failed after warm rows are already up is not worth
          trading real board rows for a one-line device list. */
       if (!rows && paintedWarm) { return; }
       paintSandwich(rows, mine);
-    }, true);
+    }, true, m);
     if (wantRoast) {
       fetchTop('day', function (rows) {
-        if (rows) { warmBoard.day = rows; }
+        if (rows) { warmSlot(m).day = rows; }
         if (state.mode !== 'over' || dgen !== deathSeq) { return; }
         if (rows) {
           applyRoastOnce(rows);
           rememberTop(rows);
         }
-      });
+      }, false, m);
     }
   }
 
   /* Standalone board view: opens from the corner trophy, refreshes itself
      every 15s while open so nobody has to reload anything. */
   var overlayScope = 'all';
+  var overlayMode = 'normal';   /* which board is being READ, not played */
   var overlayPane = 'board';
   var boardOpen = false;
   var boardTimer = null;
@@ -4505,7 +4852,7 @@
        will stay at before the read even leaves. Opening used to show an
        empty list that grew, and flipping scope used to leave the other
        scope's rows up until the answer came back and resized everything. */
-    var warm = warmRowsFor(overlayScope);
+    var warm = warmRowsFor(overlayScope, overlayMode);
     /* Nothing cached and nothing on screen yet — the one case where the
        size of what is coming is genuinely unknown. Hold the panel at the
        height a full board occupies so the rows land in a space that is
@@ -4516,14 +4863,15 @@
     else if (showLoading && !els.boardList.children.length) { els.boardStatus.textContent = 'LOADING'; }
     fetchTop(overlayScope, function (rows) {
       if (rows) {
-        if (overlayScope === 'day') { warmBoard.day = rows; }
-        else { warmBoard.all = rows; warmBoard.at = Date.now(); }
+        var w = warmSlot(overlayMode);
+        if (overlayScope === 'day') { w.day = rows; }
+        else { w.all = rows; w.at = Date.now(); }
       }
       if (!boardOpen || seq !== overlayBoardSeq) { return; }
       if (rows) { renderRows(els.boardList, els.boardStatus, rows, me, ''); }
       else if (!warm) { renderRows(els.boardList, els.boardStatus, readLocalBoard(), me, 'THIS DEVICE ONLY'); }
       setColdFloor(false);
-    });
+    }, false, overlayMode);
   }
 
   function fmtPts(n) {
@@ -4562,6 +4910,8 @@
       else { cls += ' is-dim'; chip = String(w.price); }
       c.card.className = cls;
       c.chip.textContent = chip;
+      /* The visible chip carries the state; the label must say the same. */
+      c.card.setAttribute('aria-label', c.world.name + ' — ' + c.chip.textContent);
     }
   }
 
@@ -4571,6 +4921,7 @@
     els.boardTabBoard.classList.toggle('is-on', pane === 'board');
     els.boardTabRec.classList.toggle('is-on', pane === 'records');
     els.boardTabShop.classList.toggle('is-on', pane === 'shop');
+    els.boardMode.hidden = pane !== 'board';
     els.boardSeg.hidden = pane !== 'board';
     els.boardList.hidden = pane !== 'board';
     els.boardRecords.hidden = pane !== 'records';
@@ -4588,17 +4939,38 @@
     if (pane === 'shop') { renderShopPane(); }
   }
 
+  /* The overlay's own NORMAL | HARD picker. View-only by construction: it
+     only ever touches overlayMode (what is READ), never stack-mode / the
+     play-mode helpers (what is PLAYED). */
+  function setOverlayMode(mode, refresh) {
+    overlayMode = mode === 'hard' ? 'hard' : 'normal';
+    els.boardModeNormal.classList.toggle('is-on', overlayMode !== 'hard');
+    els.boardModeHard.classList.toggle('is-on', overlayMode === 'hard');
+    els.boardModeNormal.setAttribute('aria-pressed', overlayMode !== 'hard' ? 'true' : 'false');
+    els.boardModeHard.setAttribute('aria-pressed', overlayMode === 'hard' ? 'true' : 'false');
+    if (!refresh) { return; }
+    overlayBoardSeq++;   /* the other board's in-flight read must not paint here */
+    while (els.boardList.firstChild) { els.boardList.removeChild(els.boardList.firstChild); }
+    refreshOverlayBoard(true);
+    if (overlayScope === 'day') { showPercentile(); } else { els.boardPct.hidden = true; }
+  }
+
   function openBoardTo(pane) {
     if (!boardOpen) {
       boardOpen = true;
       els.root.setAttribute('data-board', 'open');
       boardTimer = setInterval(function () { refreshOverlayBoard(false); }, BOARD_REFRESH_MS);
     }
+    /* Open on the mode being played, so the common case needs no tap. */
+    setOverlayMode(readPlayMode(), false);
     setPane(pane);
   }
 
-  /* Opens on the board pane; the scope (TODAY / ALL TIME) persists. */
+  /* Opens on the board pane; the scope (TODAY / ALL TIME) persists.
+     Never during play: the button is visually gone but still focusable, and
+     since the shop arrived the overlay behind it can spend points. */
   function openBoard() {
+    if (state.mode === 'playing') { return; }
     openBoardTo('board');
   }
 
@@ -4621,6 +4993,10 @@
     els.recToday.textContent = String(readToday().best);
     els.recBlocks.textContent = String(readInt(BLOCKS_KEY));
     els.recPts.textContent = fmtPts(readInt(PTS_KEY));
+    var showHard = hardUnlocked();
+    els.recHardSep.hidden = !showHard;
+    els.recHardRow.hidden = !showHard;
+    if (showHard) { els.recHardBest.textContent = String(readHardBest()); }
     while (els.ladder.firstChild) { els.ladder.removeChild(els.ladder.firstChild); }
     var t = tierFor(b), i, row, reached, cur;
     for (i = 0; i < TIERS.length; i++) {
@@ -4660,7 +5036,7 @@
     els.nameInput.disabled = true;
     els.saveBtn.disabled = true;
     els.saveBtn.textContent = 'SAVING';
-    submitScore(name, score, function (ok) {
+    submitScore(name, score, deathMode(), function (ok) {
       els.entry.classList.add('is-done');
       if (ok) {
         els.saveBtn.textContent = 'SAVED';
@@ -4691,17 +5067,35 @@
       /* Tier-up: first time this run's score crosses a threshold the stored
          best had not reached. Fires at most once per tier by construction
          (the next run's baseline already includes this best). */
-      var base = state.runStartBest != null ? state.runStartBest : readBest();
-      for (var ti = 0; ti < TIERS.length; ti++) {
-        if (n >= TIERS[ti][1] && prev < TIERS[ti][1] && base < TIERS[ti][1]) {
-          var tn = TIERS[ti][0];
-          /* Tier-gift Worlds ride the crossing toast (spec: Marble and
-             Obsidian each carry a World). grantWorld is false if some
-             corrupt store already owned it — then the plain toast shows. */
-          if (tn === 'MARBLE' && grantWorld('marble')) { showToast('▲ MARBLE · WORLD UNLOCKED'); }
-          else if (tn === 'OBSIDIAN' && grantWorld('obsidian')) { showToast('▲ OBSIDIAN · WORLD UNLOCKED'); }
-          else { showToast('▲ ' + tn); }
-          break;
+      /* Tiers derive from the Normal best alone (retention spec), so a Hard
+         run can never cross one. Without this guard the check compares this
+         run's score against the HARD best and re-announces tiers the player
+         passed long ago — and at Obsidian would reach grantWorld. */
+      if (state.mode === 'playing' && n > prev && deathMode() !== 'hard') {
+        var base = state.runStartBest != null ? state.runStartBest : readBest();
+        for (var ti = 0; ti < TIERS.length; ti++) {
+          if (n >= TIERS[ti][1] && prev < TIERS[ti][1] && base < TIERS[ti][1]) {
+            var tn = TIERS[ti][0];
+            /* Marble grants a World and unlocks Hard; one toast carries both
+               rather than firing twice into the same 2.5s window. */
+            var gift = giftWorldForTier(tn);
+            var got = gift ? grantWorld(gift) : false;
+            if (tn === 'MARBLE') {
+              showToast(got ? '▲ MARBLE · WORLD + HARD MODE' : '▲ MARBLE · HARD MODE UNLOCKED');
+              /* No renderModeSwitch() here: the switch is opacity:0 /
+                 pointer-events:none outside the title state, and readBest()
+                 can't see this run's new peak until core's gameOver() writes
+                 it, so a call at this instant is provably a no-op. It
+                 un-dims correctly later, on the existing, unconditional
+                 renderTitleBest() -> renderModeSwitch() at the next return
+                 to title (the only time the control is visible anyway). */
+            } else if (got) {
+              showToast('▲ ' + tn + ' · WORLD UNLOCKED');
+            } else {
+              showToast('▲ ' + tn);
+            }
+            break;
+          }
         }
       }
     }
@@ -4715,7 +5109,8 @@
     /* Fetch the board now, while there is a run to play, so the death
        screen it feeds can be drawn complete instead of filling in after
        the player is already looking at it. */
-    if (!warmIsFresh()) { warmUp(); }
+    runMode = (detail && detail.mode === 'hard') ? 'hard' : 'normal';
+    if (!warmIsFresh(runMode)) { warmUp(runMode); }
   }
 
   function applyPerfect(detail) {
@@ -4747,8 +5142,13 @@
        abandoned run loses its points like it loses its score. */
     var runPts = state.runPts;
     state.runPts = 0;
+    /* Core echoes the mode the run actually used; trust it over the
+       equipped setting, so there is one source of truth per finished run. */
+    runMode = (detail && detail.mode === 'hard') ? 'hard' : 'normal';
     var ptsDoubled = false;
+    var ptsHard = runMode === 'hard';
     if (runPts > 0) {
+      if (ptsHard) { runPts *= 2; }
       if (readDaily() !== localDateStr()) {
         runPts *= 2;
         ptsDoubled = true;
@@ -4756,21 +5156,32 @@
       }
       writeInt(PTS_KEY, readInt(PTS_KEY) + runPts);
     }
-    els.overPts.textContent = runPts > 0
-      ? '+' + runPts + ' PTS' + (ptsDoubled ? ' · FIRST RUN ×2' : '')
-      : '';
+    /* Both markers verbatim would wrap on a narrow phone, so the combined
+       case collapses to one multiplier. */
+    var ptsMark = '';
+    if (ptsHard && ptsDoubled) { ptsMark = ' · ×4'; }
+    else if (ptsHard) { ptsMark = ' · HARD ×2'; }
+    else if (ptsDoubled) { ptsMark = ' · FIRST RUN ×2'; }
+    els.overPts.textContent = runPts > 0 ? '+' + runPts + ' PTS' + ptsMark : '';
     els.overPts.hidden = !(runPts > 0);
     var s = pickNumber(detail, ['score', 'value', 'points']);
     if (s != null) { state.score = Math.max(0, Math.round(s)); renderScore(); }
     var finalScore = state.score;
     var gameBest = pickNumber(detail, ['best', 'highscore', 'hiScore']) || 0;
-    var storedBest = readBest();
+    var storedBest = bestFor(runMode);
     var baseline = state.runStartBest != null ? state.runStartBest : storedBest;
     var isNewBest = finalScore > 0 && finalScore > baseline && finalScore >= gameBest;
     var best = Math.max(storedBest, gameBest, finalScore);
-    if (best > storedBest) { writeBest(best); }
+    /* core.js owns the write for both modes; hud only mirrors Normal's key
+       for the tier ladder, which must never see a Hard score. */
+    if (runMode === 'normal' && best > storedBest) { writeBest(best); }
+    /* TODAY stays a Normal statistic. It sits directly under BEST in the
+       records panel, which is Normal's by spec, and a shared TODAY could
+       render "TODAY 41" above "BEST 30" for anyone whose Hard run beat
+       their Normal best — visibly broken. Blocks-ever and best-streak stay
+       shared per the spec table; this one row does not. */
     var today = readToday();
-    if (finalScore > today.best) { today.best = finalScore; writeToday(today); }
+    if (runMode === 'normal' && finalScore > today.best) { today.best = finalScore; writeToday(today); }
     /* Density revision 2026-07-31: no tier vocabulary on the death screen.
        The ladder lives in the trophy overlay's RECORDS tab; the toast owns
        the tier-up moment. */
@@ -4778,7 +5189,7 @@
     els.overTier.textContent = '';
 
     els.overScore.textContent = String(finalScore);
-    els.overBest.textContent = 'BEST ' + best;
+    els.overBest.textContent = (runMode === 'hard' ? 'HARD BEST ' : 'BEST ') + best;
     els.newBest.hidden = !isNewBest;
     els.overVictim.hidden = true;
     els.overVictim.textContent = '';
@@ -4799,9 +5210,10 @@
        known player's screen used to wait for the score post to answer
        before any of this appeared, so the quip grew a second line and the
        chase line arrived while the screen was being read. */
-    if (warmIsFresh()) {
-      paintSandwich(warmBoard.all, null);
-      if (warmBoard.day) { applyRoastOnce(warmBoard.day); }
+    if (warmIsFresh(runMode)) {
+      paintSandwich(warmRowsFor('all', runMode), null);
+      var wday = warmRowsFor('day', runMode);
+      if (wday) { applyRoastOnce(wday); }
     }
     if (finalScore > 0 && autoName) {
       /* Known player: the run posts itself; the keyboard stays away. */
@@ -4890,6 +5302,14 @@
       if (state.mode !== 'title') { return; }
       openBoardTo('shop');
     });
+    els.modeNormal.addEventListener('click', function () {
+      if (state.mode !== 'title') { return; }
+      setPlayMode('normal');
+    });
+    els.modeHard.addEventListener('click', function () {
+      if (state.mode !== 'title') { return; }
+      setPlayMode('hard');
+    });
     els.boardClose.addEventListener('click', closeBoard);
     /* state.postedRow, not readName(): after a NOT YOU? rename the row on the
        board still carries the old name, and that is the row to highlight. */
@@ -4912,11 +5332,20 @@
       els.boardPct.hidden = true;
       refreshOverlayBoard(true);
     });
+    els.boardModeNormal.addEventListener('click', function () { setOverlayMode('normal', true); });
+    els.boardModeHard.addEventListener('click', function () { setOverlayMode('hard', true); });
     keepKeysLocal(els.boardTabBoard);
     keepKeysLocal(els.boardTabRec);
     keepKeysLocal(els.boardTabShop);
     keepKeysLocal(els.segDay);
     keepKeysLocal(els.segAll);
+    /* Same treatment as every other control inside .hud-board: Space/Enter
+       here must not bubble to core.js's own window keydown listener, which
+       knows nothing of boardOpen and would drop a block or start a run
+       behind the open overlay (the exact bug class keepKeysLocal exists
+       for elsewhere in this file — see boardClose). Brief gap, fixed here. */
+    keepKeysLocal(els.boardModeNormal);
+    keepKeysLocal(els.boardModeHard);
     els.shopGrid.addEventListener('click', function (ev) {
       var btn = ev.target && ev.target.closest ? ev.target.closest('.hud-shop-card') : null;
       if (!btn) { disarmShop(true); return; }        /* machine or gap: just disarm */
@@ -5019,7 +5448,7 @@
     /* Read the board once at boot as well as at run start: the trophy is
        reachable from the title before anyone has played, and that first
        open is the one most likely to catch an empty list. */
-    warmUp();
+    warmUp(readPlayMode());
     /* Boot World broadcast. DOMContentLoaded is the deterministic "all
        classic scripts have executed" line: on network loads a 0ms timer
        can fire BETWEEN script downloads (audio.js not yet parsed, its
@@ -5032,6 +5461,11 @@
         if (WORLDS[i].giftAt > 0 && b >= WORLDS[i].giftAt) { grantWorld(WORLDS[i].id); }
       }
       fireWorld(readWorld());
+      /* Same DOMContentLoaded gate as the World broadcast, and for the same
+         reason: core.js may not have executed when a 0ms timer fires. */
+      var m = readPlayMode();
+      writePlayMode(m);   /* rewrite, so a corrupt 'hard' is corrected on disk */
+      firePlayMode(m);
     };
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', fireBoot);
