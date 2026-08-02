@@ -49,6 +49,8 @@
   var DAILY_KEY = 'stack-daily';   /* local date of the last doubled run */
   var WORLD_KEY = 'stack-world';    /* equipped World id */
   var OWNED_KEY = 'stack-worlds';   /* owned ids beyond classic (JSON array) */
+  var MODE_KEY = 'stack-mode';      /* equipped difficulty: normal | hard */
+  var HARD_BEST_KEY = 'stack-best-hard';   /* core owns the writes; hud reads */
 
   /* Worlds catalog — hud-owned presentation data (names, prices, card art,
      quip packs). visuals.js and audio.js keep their own per-World tables
@@ -153,6 +155,51 @@
       else { next = { name: TIERS[i][0], at: TIERS[i][1], idx: i }; break; }
     }
     return { cur: cur, next: next };
+  }
+
+  /* Hard unlocks at Marble. Derived from TIERS by name so the threshold has
+     exactly one source — the tier-gift thresholds in WORLDS are the bug of
+     the opposite shape and get collapsed in a later task. */
+  var HARD_GATE = (function () {
+    for (var i = 0; i < TIERS.length; i++) {
+      if (TIERS[i][0] === 'MARBLE') { return TIERS[i][1]; }
+    }
+    return Infinity;   /* renaming the tier disables Hard rather than opening it */
+  })();
+
+  function hardUnlocked() {
+    return readBest() >= HARD_GATE;
+  }
+
+  function readHardBest() {
+    try {
+      var v = parseInt(window.localStorage.getItem(HARD_BEST_KEY), 10);
+      return isFinite(v) && v > 0 ? v : 0;
+    } catch (err) { return 0; }
+  }
+
+  /* The active difficulty. Distinct from state.mode, which is the HUD's
+     screen state (boot|title|playing|over) — do not conflate them. */
+  function readPlayMode() {
+    try {
+      var v = String(window.localStorage.getItem(MODE_KEY) || '');
+      if (v === 'hard' && hardUnlocked()) { return 'hard'; }
+      return 'normal';
+    } catch (err) { return 'normal'; }
+  }
+
+  function writePlayMode(v) {
+    try { window.localStorage.setItem(MODE_KEY, v); } catch (err) { /* ignore */ }
+  }
+
+  function firePlayMode(id) {
+    try { window.dispatchEvent(new CustomEvent('hud:mode', { detail: { id: id } })); }
+    catch (err) { /* ignore */ }
+  }
+
+  /* Best for whichever mode is being described. */
+  function bestFor(mode) {
+    return mode === 'hard' ? readHardBest() : readBest();
   }
 
   function readInt(key) {
@@ -426,9 +473,27 @@
     /* Title shop pill (Wave A round-2 pick: bottom-center + live balance).
        Edge chrome like the corner buttons — never part of the center
        composition. A <button>, so core's global tap handler ignores it. */
+    /* Bottom chrome row: shop pill + difficulty switch, side by side. Edge
+       furniture, never part of the centre composition (bare-title rule). */
+    var titleChrome = el('div', 'hud-title-chrome');
+    titleChrome.setAttribute('data-ui', '1');
     var shopPill = el('button', 'hud-shop-pill', 'SHOP');
     shopPill.type = 'button';
     shopPill.setAttribute('aria-label', 'Open the shop');
+
+    /* Both words always on screen: Normal must read as a selected state,
+       never as the absence of Hard. */
+    var modeSeg = el('div', 'hud-mode-seg');
+    var modeNormal = el('button', 'hud-mode-btn is-on', 'NORMAL');
+    modeNormal.type = 'button';
+    modeNormal.setAttribute('data-mode', 'normal');
+    var modeHard = el('button', 'hud-mode-btn', 'HARD');
+    modeHard.type = 'button';
+    modeHard.setAttribute('data-mode', 'hard');
+    modeSeg.appendChild(modeNormal);
+    modeSeg.appendChild(modeHard);
+    titleChrome.appendChild(shopPill);
+    titleChrome.appendChild(modeSeg);
 
     /* data-ui is core.js's documented opt-out. Without it every tap inside
        this subtree that is not one of the buttons (panel body, heading,
@@ -567,7 +632,7 @@
     root.appendChild(over);
     root.appendChild(boardBtn);
     root.appendChild(muteBtn);
-    root.appendChild(shopPill);
+    root.appendChild(titleChrome);
     root.appendChild(board);
     root.appendChild(toast);
 
@@ -609,6 +674,10 @@
       boardBtn: boardBtn,
       muteBtn: muteBtn,
       shopPill: shopPill,
+      titleChrome: titleChrome,
+      modeSeg: modeSeg,
+      modeNormal: modeNormal,
+      modeHard: modeHard,
       board: board,
       boardPanel: boardPanel,
       boardStatus: boardStatus,
@@ -643,9 +712,43 @@
   }
 
   function renderTitleBest() {
-    var best = readBest();
-    els.titleBest.textContent = best > 0 ? 'BEST ' + best : '';
+    var mode = readPlayMode();
+    var best = bestFor(mode);
+    var label = best > 0 ? 'BEST ' + best : '';
+    /* Only Hard names itself here: the lit NORMAL chip already says Normal,
+       and repeating it in the best line would be redundant. Hard still names
+       itself with no best yet (a fresh unlock): dropping to a blank line on
+       the very first switch would read as the tap having failed
+       (brief deviation — see task-2-report.md). */
+    if (mode === 'hard') { label = label ? 'HARD · ' + label : 'HARD'; }
+    els.titleBest.textContent = label;
     renderShopPill();
+    renderModeSwitch();
+  }
+
+  function renderModeSwitch() {
+    var mode = readPlayMode();
+    var unlocked = hardUnlocked();
+    els.modeNormal.classList.toggle('is-on', mode !== 'hard');
+    els.modeHard.classList.toggle('is-on', mode === 'hard');
+    els.modeSeg.classList.toggle('is-locked', !unlocked);
+    /* Not a native disabled: the setPlayMode() gate below already blocks the
+       state change, and staying focusable keeps the "unlocks at N" label
+       reachable by keyboard/AT instead of dropping the control from the tab
+       order entirely (brief deviation — see task-2-report.md). */
+    els.modeHard.setAttribute('aria-label', unlocked
+      ? 'Play Hard mode'
+      : 'Hard mode unlocks at ' + HARD_GATE);
+    els.modeNormal.setAttribute('aria-pressed', mode !== 'hard' ? 'true' : 'false');
+    els.modeHard.setAttribute('aria-pressed', mode === 'hard' ? 'true' : 'false');
+  }
+
+  function setPlayMode(id) {
+    if (id === 'hard' && !hardUnlocked()) { return; }
+    var next = id === 'hard' ? 'hard' : 'normal';
+    writePlayMode(next);
+    firePlayMode(next);
+    renderTitleBest();
   }
 
   function renderShopPill() {
@@ -1643,6 +1746,8 @@
       if (state.mode !== 'title') { return; }
       openBoardTo('shop');
     });
+    els.modeNormal.addEventListener('click', function () { setPlayMode('normal'); });
+    els.modeHard.addEventListener('click', function () { setPlayMode('hard'); });
     els.boardClose.addEventListener('click', closeBoard);
     /* state.postedRow, not readName(): after a NOT YOU? rename the row on the
        board still carries the old name, and that is the row to highlight. */
@@ -1785,6 +1890,11 @@
         if (WORLDS[i].giftAt > 0 && b >= WORLDS[i].giftAt) { grantWorld(WORLDS[i].id); }
       }
       fireWorld(readWorld());
+      /* Same DOMContentLoaded gate as the World broadcast, and for the same
+         reason: core.js may not have executed when a 0ms timer fires. */
+      var m = readPlayMode();
+      writePlayMode(m);   /* rewrite, so a corrupt 'hard' is corrected on disk */
+      firePlayMode(m);
     };
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', fireBoot);
