@@ -1206,7 +1206,8 @@
   #hud-root .hud-board,
   #hud-root .hud-board-btn,
   #hud-root .hud-mute-btn,
-  #hud-root .hud-shop-pill {
+  #hud-root .hud-shop-pill,
+  #hud-root .hud-title-chrome {
     transition-duration: 0.01s;
   }
 }

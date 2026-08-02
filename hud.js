@@ -735,7 +735,13 @@
     /* Not a native disabled: the setPlayMode() gate below already blocks the
        state change, and staying focusable keeps the "unlocks at N" label
        reachable by keyboard/AT instead of dropping the control from the tab
-       order entirely (brief deviation — see task-2-report.md). */
+       order entirely (brief deviation — see task-2-report.md). aria-disabled
+       is the real unavailable signal for assistive tech in its place. Note
+       for the next test written against this control: Playwright's own
+       actionability wait DOES treat [aria-disabled=true] as not-enabled
+       (playwright.dev/docs/actionability), same as a native disabled — a
+       plain .click() on this button while locked needs { force: true }. */
+    els.modeHard.setAttribute('aria-disabled', unlocked ? 'false' : 'true');
     els.modeHard.setAttribute('aria-label', unlocked
       ? 'Play Hard mode'
       : 'Hard mode unlocks at ' + HARD_GATE);
@@ -1746,8 +1752,14 @@
       if (state.mode !== 'title') { return; }
       openBoardTo('shop');
     });
-    els.modeNormal.addEventListener('click', function () { setPlayMode('normal'); });
-    els.modeHard.addEventListener('click', function () { setPlayMode('hard'); });
+    els.modeNormal.addEventListener('click', function () {
+      if (state.mode !== 'title') { return; }
+      setPlayMode('normal');
+    });
+    els.modeHard.addEventListener('click', function () {
+      if (state.mode !== 'title') { return; }
+      setPlayMode('hard');
+    });
     els.boardClose.addEventListener('click', closeBoard);
     /* state.postedRow, not readName(): after a NOT YOU? rename the row on the
        board still carries the old name, and that is the row to highlight. */
