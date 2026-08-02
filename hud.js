@@ -1053,15 +1053,18 @@
     var row = { name: name, score: score };
     state.postedRow = row;
     setAutoRow('SAVING AS ' + lrm(name), false);
-    submitScore(name, score, deathMode(), function (ok) {
-      if (!ok) { addLocalScore(name, score); } /* record even mid-restart */
+    /* Captured now, not read in the callback: a late response must file this
+       run under the mode it was played in, not whatever is equipped by then. */
+    var m = deathMode();
+    submitScore(name, score, m, function (ok) {
+      if (!ok) { addLocalScore(name, score, m); } /* record even mid-restart */
       if (seq !== autoSeq || state.mode !== 'over') { return; }
       if (ok) {
         setAutoRow('SAVED AS ' + lrm(name), true);
         refreshBoard(row, true);
       } else {
         setAutoRow('SAVED HERE AS ' + lrm(name), true);
-        renderBoard(readLocalBoard(), row, 'THIS DEVICE ONLY');
+        renderBoard(readLocalBoard(m), row, 'THIS DEVICE ONLY');
       }
     });
   }
@@ -1099,19 +1102,28 @@
     catch (err) { /* ignore */ }
   }
 
-  function readLocalBoard() {
+  /* One device list per mode. Normal keeps the original key, so nothing has
+     to migrate: every row written before Hard shipped is a Normal row by
+     definition. Without this an offline Hard death shows Normal scores. */
+  function localBoardKey(mode) {
+    return mode === 'hard' ? LOCAL_BOARD_KEY + '-hard' : LOCAL_BOARD_KEY;
+  }
+
+  function readLocalBoard(mode) {
     try {
-      var rows = JSON.parse(window.localStorage.getItem(LOCAL_BOARD_KEY) || '[]');
+      var rows = JSON.parse(window.localStorage.getItem(localBoardKey(mode)) || '[]');
       return Array.isArray(rows) ? rows : [];
     } catch (err) { return []; }
   }
 
-  function addLocalScore(name, score) {
-    var rows = readLocalBoard();
+  function addLocalScore(name, score, mode) {
+    var rows = readLocalBoard(mode);
     rows.push({ name: name, score: score });
     rows.sort(function (a, b) { return (b.score || 0) - (a.score || 0); });
     rows = rows.slice(0, 10);
-    try { window.localStorage.setItem(LOCAL_BOARD_KEY, JSON.stringify(rows)); } catch (err) { /* ignore */ }
+    try {
+      window.localStorage.setItem(localBoardKey(mode), JSON.stringify(rows));
+    } catch (err) { /* ignore */ }
     return rows;
   }
 
@@ -1266,14 +1278,36 @@
      neighbour's score printed lines like "-21 MORE PASSES". Falls back to
      the local best only when the board has no row for me. */
   function showVictim(above, mineScore) {
-    if (!above || typeof above.score !== 'number') { return; }
-    var anchor = typeof mineScore === 'number' ? mineScore : bestFor(deathMode());
-    if (!(anchor > 0)) { return; }
-    var gap = above.score - anchor + 1;
-    if (gap < 1) { return; }   /* already past them: nothing left to chase */
-    els.overVictim.textContent =
-      gap + ' MORE PASSES ' +
-      lrm(String(above.name).slice(0, 16));
+    var text = '';
+    if (above && typeof above.score === 'number') {
+      var anchor = typeof mineScore === 'number' ? mineScore : bestFor(deathMode());
+      if (anchor > 0) {
+        var gap = above.score - anchor + 1;
+        /* gap < 1 means I am already past them, so there is nobody to chase
+           on the board and the fallback below takes over. */
+        if (gap >= 1) {
+          text = gap + ' MORE PASSES ' + lrm(String(above.name).slice(0, 16));
+        }
+      }
+    }
+    if (!text) {
+      /* Nobody above me: I am top of the board, or the board is empty (every
+         early Hard run, since that board starts with no rows), or it never
+         loaded at all. Then the only target left is my own record. Restores
+         the retention spec's "N FROM YOUR BEST", lost when the death screen
+         was rebuilt around the rank sandwich. */
+      var myBest = bestFor(deathMode());
+      var toBeat = myBest - state.score;
+      /* A run that placed nothing has nothing to chase with, and the score-0
+         screen must stay bare (it is also where a stale line from the
+         previous death would show up). toBeat < 1 means this run IS the
+         record, which NEW BEST already announces. */
+      if (myBest > 0 && state.score > 0 && toBeat >= 1) {
+        text = toBeat + ' FROM YOUR BEST';
+      }
+    }
+    if (!text) { return; }
+    els.overVictim.textContent = text;
     els.overVictim.hidden = false;
   }
 
@@ -1390,14 +1424,16 @@
   }
 
   function paintSandwich(rows, mine) {
+    els.overVictim.hidden = true;
+    els.overVictim.textContent = '';
     if (!rows) {
-      renderRows(els.lbList, els.lbStatus, readLocalBoard(), mine, 'THIS DEVICE ONLY', 3);
+      renderRows(els.lbList, els.lbStatus, readLocalBoard(deathMode()), mine, 'THIS DEVICE ONLY', 3);
+      /* No board at all still deserves a target, and my own best is one. */
+      showVictim(null, null);
       return;
     }
     var sw = buildSandwich(rows);
     renderSandwich(sw);
-    els.overVictim.hidden = true;
-    els.overVictim.textContent = '';
     showVictim(sw.above, sw.mineScore);
   }
 
@@ -1494,7 +1530,7 @@
       }
       if (!boardOpen || seq !== overlayBoardSeq) { return; }
       if (rows) { renderRows(els.boardList, els.boardStatus, rows, me, ''); }
-      else if (!warm) { renderRows(els.boardList, els.boardStatus, readLocalBoard(), me, 'THIS DEVICE ONLY'); }
+      else if (!warm) { renderRows(els.boardList, els.boardStatus, readLocalBoard(mode), me, 'THIS DEVICE ONLY'); }
       setColdFloor(false);
     }, false, mode);
   }
@@ -1661,15 +1697,16 @@
     els.nameInput.disabled = true;
     els.saveBtn.disabled = true;
     els.saveBtn.textContent = 'SAVING';
-    submitScore(name, score, deathMode(), function (ok) {
+    var m = deathMode();   /* captured, same reason as autoSubmit */
+    submitScore(name, score, m, function (ok) {
       els.entry.classList.add('is-done');
       if (ok) {
         els.saveBtn.textContent = 'SAVED';
         refreshBoard(row, false);
       } else {
-        addLocalScore(name, score);
+        addLocalScore(name, score, m);
         els.saveBtn.textContent = 'SAVED HERE';
-        renderBoard(readLocalBoard(), row, 'THIS DEVICE ONLY');
+        renderBoard(readLocalBoard(m), row, 'THIS DEVICE ONLY');
       }
     });
   }
@@ -1839,6 +1876,12 @@
       paintSandwich(warmRowsFor('all', runMode), null);
       var wday = warmRowsFor('day', runMode);
       if (wday) { applyRoastOnce(wday); }
+    } else {
+      /* No rows to draw a rival from, and the failed-submit path renders the
+         device list without ever reaching paintSandwich. Seed the own-best
+         target so an offline death still says what to beat; a board read
+         that lands later replaces this line with a real name. */
+      showVictim(null, null);
     }
     if (finalScore > 0 && autoName) {
       /* Known player: the run posts itself; the keyboard stays away. */
