@@ -749,6 +749,30 @@
   cursor: default;
 }
 
+/* Board pane's mode picker: same chips, stacked with the scope segment so
+   the pair reads as a filter rather than a setting. */
+.hud-board-mode {
+  display: flex;
+  justify-content: center;
+  margin-top: 1vh;
+  pointer-events: auto;
+}
+.hud-board-mode[hidden] { display: none; }
+.hud-board-mode .hud-mode-btn {
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 0.22em 0.85em 0.22em 1.01em;
+  font-size: clamp(9px, 1.4vmin, 11px);
+  letter-spacing: 0.16em;
+  opacity: 0.55;
+}
+.hud-board-mode .hud-mode-btn:first-child { border-radius: 999px 0 0 999px; border-right: 0; }
+.hud-board-mode .hud-mode-btn:last-child { border-radius: 0 999px 999px 0; }
+.hud-board-mode .hud-mode-btn.is-on {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.62);
+  opacity: 1;
+}
+
 /* Trophy leaves the stage during play (a tap would cover the game with the board); mute stays reachable. */
 #hud-root[data-state="playing"] .hud-board-btn,
 #hud-root[data-state="boot"] .hud-board-btn,
