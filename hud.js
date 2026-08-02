@@ -1853,6 +1853,15 @@
     var s = pickNumber(detail, ['score', 'value', 'points']);
     if (s != null) { state.score = Math.max(0, Math.round(s)); renderScore(); }
     var finalScore = state.score;
+    /* Bobo, the booby prize: the first score-0 death in either mode.
+       grantWorld returns true only when the grant is new, so the toast
+       cannot repeat. Never equips, same as the tier gifts — dropping a
+       brown World on someone the instant they fumble block one would be a
+       punishment. Hard counts: this is a joke, not an achievement, so a
+       mode gate would be a rule with no payoff (Maor, 2026-08-02). */
+    if (finalScore === 0 && grantWorld('bobo')) {
+      showToast('▲ BOBO · WORLD UNLOCKED');
+    }
     var gameBest = pickNumber(detail, ['best', 'highscore', 'hiScore']) || 0;
     var storedBest = bestFor(runMode);
     var baseline = state.runStartBest != null ? state.runStartBest : storedBest;
@@ -2051,6 +2060,17 @@
         renderShopPane();
         return;
       }
+      /* Secret Worlds are earned, never bought. Unconditional on the flag:
+         an owned World has already returned above, so anything reaching
+         here is unowned. This is defence in depth, not the primary guard —
+         renderShopPane hiding the card via display:none already keeps a
+         real user from ever reaching it. But a programmatic .click() or a
+         dispatched KeyboardEvent still reaches this handler regardless of
+         rendering, and price 0 would otherwise pass `bal < price` and hand
+         the World over free on the second tap. Any future change that
+         renders a secret card in some other context would inherit the same
+         guard instead of a fresh hole. */
+      if (w.secret) { disarmShop(true); return; }
       if (w.giftAt > 0) { disarmShop(true); return; } /* locked gift */
       var bal = readInt(PTS_KEY);
       if (bal < w.price) { disarmShop(true); return; }
