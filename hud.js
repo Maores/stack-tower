@@ -1699,7 +1699,13 @@
             var got = gift ? grantWorld(gift) : false;
             if (tn === 'MARBLE') {
               showToast(got ? '▲ MARBLE · WORLD + HARD MODE' : '▲ MARBLE · HARD MODE UNLOCKED');
-              renderModeSwitch();   /* the switch stops being dimmed */
+              /* No renderModeSwitch() here: the switch is opacity:0 /
+                 pointer-events:none outside the title state, and readBest()
+                 can't see this run's new peak until core's gameOver() writes
+                 it, so a call at this instant is provably a no-op. It
+                 un-dims correctly later, on the existing, unconditional
+                 renderTitleBest() -> renderModeSwitch() at the next return
+                 to title (the only time the control is visible anyway). */
             } else if (got) {
               showToast('▲ ' + tn + ' · WORLD UNLOCKED');
             } else {

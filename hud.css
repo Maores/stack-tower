@@ -1096,6 +1096,11 @@
   margin: 0.9vh 0;
 }
 .hud-rec-sep[hidden] { display: none; }
+/* An author `display` declaration always beats the UA [hidden] rule,
+   regardless of specificity (this has bitten the project twice now).
+   .hud-rec-row sets its own `display: flex`, so every row needs this
+   restated alongside it, or the `hidden` property does nothing visually. */
+.hud-rec-row[hidden] { display: none; }
 
 /* Records pane inside the trophy overlay (third tab) */
 /* Menu pill: the quiet way home from a death */
