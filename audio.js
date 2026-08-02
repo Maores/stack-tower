@@ -48,7 +48,8 @@
     neon:     { base: 587.33, tap: 494, ladder: [0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17] },
     deepsea:  { base: 392.00, tap: 349, ladder: [0, 2, 3, 5, 7, 8, 10, 12, 14, 15, 17] },
     marble:   { base: 466.16, tap: 415, ladder: [0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17] },
-    obsidian: { base: 349.23, tap: 311, ladder: [0, 2, 3, 5, 7, 8, 10, 12, 14, 15, 17] }
+    obsidian: { base: 349.23, tap: 311, ladder: [0, 2, 3, 5, 7, 8, 10, 12, 14, 15, 17] },
+    bobo:     { base: 415.30, tap: 349, ladder: [0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17] }
   };
   var sound = WORLD_SOUND.classic;
 
@@ -143,20 +144,33 @@
     o.stop(t + decay + 0.05);
   }
 
-  /* Sliced placement: glass tap + the shaved piece's band-swept swish. */
+  /* Sliced placement: a low body falling away under the shaved piece's
+     swish. No pitched note on purpose — this fires on most landings in a
+     run, and a flat held tone reads as an error beep. Chosen by ear from a
+     blind six-way audition (Maor, 2026-08-02).
+
+     The body tracks the World's tap so each World keeps its own weight;
+     the ratios reproduce 150 -> 78 Hz at classic's tap of 440, which is
+     the sound that was approved. */
   function playSliced(t) {
-    tone(t, 'triangle', sound.tap + (Math.random() * 30 - 15), 0.35, 0.14);
+    var o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(sound.tap * 0.34, t);
+    o.frequency.exponentialRampToValueAtTime(sound.tap * 0.177, t + 0.09);
+    o.connect(envGain(t, 0.34, 0.11));
+    o.start(t);
+    o.stop(t + 0.16);
     var src = ctx.createBufferSource();
     src.buffer = noise();
     var bp = ctx.createBiquadFilter();
     bp.type = 'bandpass';
-    bp.frequency.setValueAtTime(1200, t);
-    bp.frequency.exponentialRampToValueAtTime(400, t + 0.12);
-    bp.Q.value = 1;
+    bp.frequency.setValueAtTime(700, t);
+    bp.frequency.exponentialRampToValueAtTime(220, t + 0.10);
+    bp.Q.value = 0.7;
     src.connect(bp);
-    bp.connect(envGain(t, 0.12, 0.12));
+    bp.connect(envGain(t, 0.10, 0.10));
     src.start(t);
-    src.stop(t + 0.14);
+    src.stop(t + 0.12);
   }
 
   /* Perfect placement: chime stepping up the pentatonic ladder. Climbs for
