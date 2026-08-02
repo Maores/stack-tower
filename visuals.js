@@ -107,6 +107,13 @@
       satBias: -0.10, lightBias: -0.26,
       sky: { base: 8, swing: 6, innerS: 0.35, innerLBias: -0.22,
              outerS: 0.45, outerL: 0.055, beamS: 0.55, beamL: 0.62 }
+    },
+    bobo: {
+      families: [24, 30, 18, 36, 12],
+      hueStep: 0.4,     // the only World with an override; see pickRunPalette
+      satBias: -0.22, lightBias: -0.10,
+      sky: { base: 28, swing: 5, innerS: 0.42, innerLBias: -0.24,
+             outerS: 0.50, outerL: 0.08, beamS: 0.40, beamL: 0.72 }
     }
   };
   var worldStyle = WORLD_STYLES.classic;
@@ -226,8 +233,13 @@
 
   function pickRunPalette() {
     var fam = worldStyle.families;
+    // Per-World hue walk. A World whose families sit in a narrow band (brown)
+    // cannot absorb the global 3.8 per level: 45 blocks of it is 171 degrees,
+    // which leaves brown entirely. Absent means the global value, which is
+    // every World shipped before bobo.
+    var step = worldStyle.hueStep != null ? worldStyle.hueStep : CFG.hueStep;
     S.hueStart = fam[Math.floor(Math.random() * fam.length)];
-    S.hueStep = (Math.random() < 0.5 ? -1 : 1) * (CFG.hueStep * (0.85 + Math.random() * 0.5));
+    S.hueStep = (Math.random() < 0.5 ? -1 : 1) * (step * (0.85 + Math.random() * 0.5));
   }
 
   /* ------------------------------------------------ scene dressing */
