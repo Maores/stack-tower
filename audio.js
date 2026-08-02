@@ -30,16 +30,25 @@
   var MUTE_KEY = 'stack-muted';   /* shared with hud.js */
   var MASTER_GAIN = 0.5;
   /* Per-World chime voices: base note + scale per World, same synthesis.
-     Major pentatonic for the bright Worlds, minor pentatonic for the deep
-     and dark ones; tap is the sliced-placement thunk center. Keyed by the
-     ids the HUD broadcasts on hud:world; unknown ids fall back to classic. */
+     Major scale for the bright Worlds, natural minor for the deep and dark
+     ones; tap is the sliced-placement thunk center. Keyed by the ids the
+     HUD broadcasts on hud:world; unknown ids fall back to classic.
+
+     Diatomic since 2026-08-02 (Maor): the streak now walks do-re-mi-fa-sol
+     one step at a time. It was pentatonic, which skipped fa and ti and so
+     jumped mi straight to sol — audible, and the thing he asked to fix.
+     The trade the pentatonic was making: with no semitone steps, no two
+     notes in a long streak can clash. A full scale reintroduces mi-fa and
+     ti-do, which is exactly what makes it read as a scale. Seven notes also
+     cover less ground than five over the same eleven rungs, so the streak
+     peak now lands about half an octave lower than it used to. */
   var WORLD_SOUND = {
-    classic:  { base: 523.25, tap: 440, ladder: [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24] },
-    sunset:   { base: 440.00, tap: 392, ladder: [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24] },
-    neon:     { base: 587.33, tap: 494, ladder: [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24] },
-    deepsea:  { base: 392.00, tap: 349, ladder: [0, 3, 5, 7, 10, 12, 15, 17, 19, 22, 24] },
-    marble:   { base: 466.16, tap: 415, ladder: [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24] },
-    obsidian: { base: 349.23, tap: 311, ladder: [0, 3, 5, 7, 10, 12, 15, 17, 19, 22, 24] }
+    classic:  { base: 523.25, tap: 440, ladder: [0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17] },
+    sunset:   { base: 440.00, tap: 392, ladder: [0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17] },
+    neon:     { base: 587.33, tap: 494, ladder: [0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17] },
+    deepsea:  { base: 392.00, tap: 349, ladder: [0, 2, 3, 5, 7, 8, 10, 12, 14, 15, 17] },
+    marble:   { base: 466.16, tap: 415, ladder: [0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17] },
+    obsidian: { base: 349.23, tap: 311, ladder: [0, 2, 3, 5, 7, 8, 10, 12, 14, 15, 17] }
   };
   var sound = WORLD_SOUND.classic;
 
