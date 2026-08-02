@@ -997,6 +997,10 @@
 .hud-shop-card.is-dim {
   opacity: 0.5;
 }
+.hud-shop-card:disabled,
+.hud-shop-card.is-locked {
+  cursor: default;
+}
 .hud-shop-prev {
   height: clamp(44px, 7vh, 62px);
   position: relative;
@@ -1086,6 +1090,12 @@
   font-variant-numeric: lining-nums tabular-nums;
   text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
 }
+.hud-rec-sep {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.14);
+  margin: 0.9vh 0;
+}
+.hud-rec-sep[hidden] { display: none; }
 
 /* Records pane inside the trophy overlay (third tab) */
 /* Menu pill: the quiet way home from a death */

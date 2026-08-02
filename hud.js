@@ -21,11 +21,11 @@
      ready    "game:ready" | "game:reset" | "game:title"
               -> back to title state
 
-   OUTGOING (HUD -> game): dispatched on window:
-
-     "hud:start"    user tapped the title screen (HUD flips to playing
-                    optimistically; a later game:start is harmless)
-     "hud:restart"  user tapped restart on the game-over screen
+   OUTGOING (dispatched on window):
+     'hud:start', 'hud:restart', 'hud:menu'
+     'hud:mute'  { muted }        mute state for audio.js
+     'hud:world' { id }           equipped World for visuals.js / audio.js
+     'hud:mode'  { id }           difficulty for core.js; applied at run start
 
    The HUD never stops propagation of pointer events, so a game that starts
    or restarts from its own global tap handler keeps working; hud:start /
@@ -169,6 +169,21 @@
 
   function hardUnlocked() {
     return readBest() >= HARD_GATE;
+  }
+
+  /* Gift Worlds are keyed by their tier threshold, so the number lives only
+     in TIERS. Previously the threshold existed twice — in WORLDS[].giftAt
+     and again in tier-name matching — which is the drift this removes. */
+  function giftWorldForTier(tierName) {
+    var at = null, i;
+    for (i = 0; i < TIERS.length; i++) {
+      if (TIERS[i][0] === tierName) { at = TIERS[i][1]; break; }
+    }
+    if (at == null) { return null; }
+    for (i = 0; i < WORLDS.length; i++) {
+      if (WORLDS[i].giftAt === at) { return WORLDS[i].id; }
+    }
+    return null;
   }
 
   function readHardBest() {
@@ -573,6 +588,16 @@
     boardRecords.appendChild(recBlocks.row);
     var recPts = recRow('POINTS', 'hud-rec-pts');
     boardRecords.appendChild(recPts.row);
+    /* Records describes the whole player rather than a moment, so it shows
+       both modes. Exactly one new row, below a rule, and only once Hard is
+       unlocked — the density line held through every wave so far. */
+    var recHardSep = el('div', 'hud-rec-sep');
+    recHardSep.hidden = true;
+    boardRecords.appendChild(recHardSep);
+    var recHard = recRow('HARD BEST', 'hud-rec-hard');
+    recHard.row.classList.add('hud-rec-hard-row');
+    recHard.row.hidden = true;
+    boardRecords.appendChild(recHard.row);
     var ladder = el('div', 'hud-ladder');
     boardRecords.appendChild(ladder);
     var ladderNote = el('div', 'hud-ladder-note', 'TOWER TIERS · FROM YOUR BEST · NEVER DROP');
@@ -707,7 +732,10 @@
       recStreak: recStreak.val,
       recToday: recToday.val,
       recBlocks: recBlocks.val,
-      recPts: recPts.val
+      recPts: recPts.val,
+      recHardBest: recHard.val,
+      recHardRow: recHard.row,
+      recHardSep: recHardSep
     };
   }
 
@@ -1125,9 +1153,10 @@
     } catch (err) { clearTimeout(timer); finish(null); }
   }
 
-  /* Which mode the run being described belongs to. Task 4 points this at
-     the mode echoed by core on game:over; until then the equipped mode is
-     correct, because the two only diverge mid-run. */
+  /* Which mode the run being described belongs to. Set from the mode core
+     echoes on game:start and re-set from what it echoes on game:over, so a
+     finished run is always described in the mode it actually played, not
+     whatever the title switch happens to be equipped to by then. */
   var runMode = 'normal';
   function deathMode() { return runMode === 'hard' ? 'hard' : 'normal'; }
 
@@ -1498,6 +1527,8 @@
       else { cls += ' is-dim'; chip = String(w.price); }
       c.card.className = cls;
       c.chip.textContent = chip;
+      /* The visible chip carries the state; the label must say the same. */
+      c.card.setAttribute('aria-label', c.world.name + ' — ' + c.chip.textContent);
     }
   }
 
@@ -1552,8 +1583,11 @@
     setPane(pane);
   }
 
-  /* Opens on the board pane; the scope (TODAY / ALL TIME) persists. */
+  /* Opens on the board pane; the scope (TODAY / ALL TIME) persists.
+     Never during play: the button is visually gone but still focusable, and
+     since the shop arrived the overlay behind it can spend points. */
   function openBoard() {
+    if (state.mode === 'playing') { return; }
     openBoardTo('board');
   }
 
@@ -1576,6 +1610,10 @@
     els.recToday.textContent = String(readToday().best);
     els.recBlocks.textContent = String(readInt(BLOCKS_KEY));
     els.recPts.textContent = fmtPts(readInt(PTS_KEY));
+    var showHard = hardUnlocked();
+    els.recHardSep.hidden = !showHard;
+    els.recHardRow.hidden = !showHard;
+    if (showHard) { els.recHardBest.textContent = String(readHardBest()); }
     while (els.ladder.firstChild) { els.ladder.removeChild(els.ladder.firstChild); }
     var t = tierFor(b), i, row, reached, cur;
     for (i = 0; i < TIERS.length; i++) {
@@ -1646,17 +1684,29 @@
       /* Tier-up: first time this run's score crosses a threshold the stored
          best had not reached. Fires at most once per tier by construction
          (the next run's baseline already includes this best). */
-      var base = state.runStartBest != null ? state.runStartBest : readBest();
-      for (var ti = 0; ti < TIERS.length; ti++) {
-        if (n >= TIERS[ti][1] && prev < TIERS[ti][1] && base < TIERS[ti][1]) {
-          var tn = TIERS[ti][0];
-          /* Tier-gift Worlds ride the crossing toast (spec: Marble and
-             Obsidian each carry a World). grantWorld is false if some
-             corrupt store already owned it — then the plain toast shows. */
-          if (tn === 'MARBLE' && grantWorld('marble')) { showToast('▲ MARBLE · WORLD UNLOCKED'); }
-          else if (tn === 'OBSIDIAN' && grantWorld('obsidian')) { showToast('▲ OBSIDIAN · WORLD UNLOCKED'); }
-          else { showToast('▲ ' + tn); }
-          break;
+      /* Tiers derive from the Normal best alone (retention spec), so a Hard
+         run can never cross one. Without this guard the check compares this
+         run's score against the HARD best and re-announces tiers the player
+         passed long ago — and at Obsidian would reach grantWorld. */
+      if (state.mode === 'playing' && n > prev && deathMode() !== 'hard') {
+        var base = state.runStartBest != null ? state.runStartBest : readBest();
+        for (var ti = 0; ti < TIERS.length; ti++) {
+          if (n >= TIERS[ti][1] && prev < TIERS[ti][1] && base < TIERS[ti][1]) {
+            var tn = TIERS[ti][0];
+            /* Marble grants a World and unlocks Hard; one toast carries both
+               rather than firing twice into the same 2.5s window. */
+            var gift = giftWorldForTier(tn);
+            var got = gift ? grantWorld(gift) : false;
+            if (tn === 'MARBLE') {
+              showToast(got ? '▲ MARBLE · WORLD + HARD MODE' : '▲ MARBLE · HARD MODE UNLOCKED');
+              renderModeSwitch();   /* the switch stops being dimmed */
+            } else if (got) {
+              showToast('▲ ' + tn + ' · WORLD UNLOCKED');
+            } else {
+              showToast('▲ ' + tn);
+            }
+            break;
+          }
         }
       }
     }
