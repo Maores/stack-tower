@@ -886,6 +886,28 @@
 .hud-board-list {
   margin-top: 1.6vh;
 }
+/* Jump-to-my-row: floats over the list's lower edge. Absolute on purpose —
+   appearing must not change the panel's height. */
+.hud-board-myrow {
+  position: absolute;
+  left: 6vw;
+  right: 6vw;
+  bottom: 3.2vh;
+  min-height: 34px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 10px;
+  background: rgba(10, 18, 38, 0.92);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: clamp(10px, 1.6vmin, 12px);
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  pointer-events: auto;
+  cursor: pointer;
+  z-index: 2;
+}
+/* The chip hides via the property, and this class sets its own display
+   nowhere — but the rule stays explicit anyway: three prior bugs. */
+.hud-board-myrow[hidden] { display: none; }
 
 /* The death sandwich arrives from the network a beat after the screen
    does. Holding three rows' worth of space means it fills a slot instead

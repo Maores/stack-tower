@@ -645,6 +645,11 @@
     boardShop.appendChild(shopGrid);
 
     var boardList = el('ol', 'hud-lb-list hud-board-list');
+    /* Floating jump-to-my-row chip: absolutely positioned over the list's
+       lower edge, so showing or hiding it cannot move the panel. */
+    var boardMyRow = el('button', 'hud-board-myrow');
+    boardMyRow.type = 'button';
+    boardMyRow.hidden = true;
     boardPanel.appendChild(boardClose);
     boardPanel.appendChild(boardStatus);
     boardPanel.appendChild(boardTabs);
@@ -652,6 +657,7 @@
     boardPanel.appendChild(boardRecords);
     boardPanel.appendChild(boardShop);
     boardPanel.appendChild(boardList);
+    boardPanel.appendChild(boardMyRow);
     board.appendChild(boardPanel);
 
     /* Tier-up toast: fixed top-center, above everything, never interactive. */
@@ -712,6 +718,7 @@
       boardPanel: boardPanel,
       boardStatus: boardStatus,
       boardList: boardList,
+      boardMyRow: boardMyRow,
       boardClose: boardClose,
       boardRecords: boardRecords,
       ladder: ladder,
@@ -1403,6 +1410,26 @@
   var boardTimer = null;
   var BOARD_REFRESH_MS = 15000;
 
+  /* The chip points at the row renderRows marked mine. Rank is the row's
+     1-based position in the rendered list, which is the deduped board
+     order. Hidden whenever the row is on screen, absent, or the pane is
+     not the board. */
+  function updateMyRow() {
+    var chip = els.boardMyRow;
+    if (overlayPane !== 'board') { chip.hidden = true; return; }
+    var mine = els.boardList.querySelector('.hud-lb-mine');
+    if (!mine) { chip.hidden = true; return; }
+    var lr = els.boardList.getBoundingClientRect();
+    var mr = mine.getBoundingClientRect();
+    var above = mr.bottom < lr.top + 4;
+    var below = mr.top > lr.bottom - 4;
+    if (!above && !below) { chip.hidden = true; return; }
+    var rank = 1, node = mine;
+    while ((node = node.previousElementSibling)) { rank++; }
+    chip.textContent = (above ? '▴' : '▾') + ' MY ROW · #' + rank;
+    chip.hidden = false;
+  }
+
   function refreshOverlayBoard(showLoading) {
     if (overlayPane !== 'board') { return; }  /* records/shop panes are local: the 15s tick must not fetch */
     var seq = ++overlayBoardSeq;
@@ -1427,7 +1454,7 @@
        panel's height is fixed now (hud.css .hud-board-panel), so this just
        renders an empty list rather than padding out a floor; Task 4 adds a
        loading skeleton for it. */
-    if (warm) { renderRows(els.boardList, els.boardStatus, warm, me, ''); }
+    if (warm) { renderRows(els.boardList, els.boardStatus, warm, me, '', 50); updateMyRow(); }
     else if (showLoading && !els.boardList.children.length) { els.boardStatus.textContent = 'LOADING'; }
     fetchTop('all', function (rows) {
       if (rows) {
@@ -1435,9 +1462,17 @@
         w.all = rows; w.at = Date.now();
       }
       if (!boardOpen || seq !== overlayBoardSeq) { return; }
-      if (rows) { renderRows(els.boardList, els.boardStatus, rows, me, ''); }
-      else if (!warm) { renderRows(els.boardList, els.boardStatus, readLocalBoard(mode), me, 'THIS DEVICE ONLY'); }
-    }, false, mode);
+      if (rows) { renderRows(els.boardList, els.boardStatus, rows, me, '', 50); }
+      else if (!warm) { renderRows(els.boardList, els.boardStatus, readLocalBoard(mode), me, 'THIS DEVICE ONLY', 50); }
+      updateMyRow();
+    }, true, mode);   /* full: the uncapped list needs the whole deduped ranking,
+                          not fetchTop's own top-10 slice (Task 3 fix — this call
+                          was still asking for the 10-row answer the old renderRows
+                          cap used to match; raising renderRows's cap alone could
+                          never see past a truncation that already happened here.
+                          No extra network cost: LB_SELECT's limit=50 already runs
+                          regardless of this flag, which only ever gated the
+                          client-side slice). */
   }
 
   function fmtPts(n) {
@@ -1503,6 +1538,7 @@
     }
     if (pane === 'records') { renderRecordsPane(); }
     if (pane === 'shop') { renderShopPane(); }
+    updateMyRow();   /* non-board panes hide the chip via its own first guard */
   }
 
   /* The overlay's own NORMAL | HARD picker. View-only by construction: it
@@ -1909,6 +1945,16 @@
        for elsewhere in this file — see boardClose). Brief gap, fixed here. */
     keepKeysLocal(els.boardModeNormal);
     keepKeysLocal(els.boardModeHard);
+    /* The chip tracks scroll position live: a partial drag can bring my row
+       fully into view (or push it back out) without a re-render happening. */
+    els.boardList.addEventListener('scroll', updateMyRow);
+    els.boardMyRow.addEventListener('click', function () {
+      var mine = els.boardList.querySelector('.hud-lb-mine');
+      if (!mine) { return; }
+      try { mine.scrollIntoView({ block: 'center', behavior: reduceMotion ? 'auto' : 'smooth' }); }
+      catch (err) { mine.scrollIntoView(); }
+    });
+    keepKeysLocal(els.boardMyRow);
     els.shopGrid.addEventListener('click', function (ev) {
       var btn = ev.target && ev.target.closest ? ev.target.closest('.hud-shop-card') : null;
       if (!btn) { disarmShop(true); return; }        /* machine or gap: just disarm */
