@@ -1013,6 +1013,9 @@
   text-align: left;
   transition: border-color 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease, transform 0.18s ease;
 }
+/* .hud-shop-card sets its own display, and an author display beats the UA
+   [hidden] rule, so the property alone would do nothing. */
+.hud-shop-card[hidden] { display: none; }
 .hud-shop-card:active {
   transform: scale(0.97);
 }
@@ -2268,6 +2271,13 @@
       satBias: -0.10, lightBias: -0.26,
       sky: { base: 8, swing: 6, innerS: 0.35, innerLBias: -0.22,
              outerS: 0.45, outerL: 0.055, beamS: 0.55, beamL: 0.62 }
+    },
+    bobo: {
+      families: [24, 30, 18, 36, 12],
+      hueStep: 0.4,     // the only World with an override; see pickRunPalette
+      satBias: -0.22, lightBias: -0.10,
+      sky: { base: 28, swing: 5, innerS: 0.42, innerLBias: -0.24,
+             outerS: 0.50, outerL: 0.08, beamS: 0.40, beamL: 0.72 }
     }
   };
   var worldStyle = WORLD_STYLES.classic;
@@ -2387,8 +2397,13 @@
 
   function pickRunPalette() {
     var fam = worldStyle.families;
+    // Per-World hue walk. A World whose families sit in a narrow band (brown)
+    // cannot absorb the global 3.8 per level: 45 blocks of it is 171 degrees,
+    // which leaves brown entirely. Absent means the global value, which is
+    // every World shipped before bobo.
+    var step = worldStyle.hueStep != null ? worldStyle.hueStep : CFG.hueStep;
     S.hueStart = fam[Math.floor(Math.random() * fam.length)];
-    S.hueStep = (Math.random() < 0.5 ? -1 : 1) * (CFG.hueStep * (0.85 + Math.random() * 0.5));
+    S.hueStep = (Math.random() < 0.5 ? -1 : 1) * (step * (0.85 + Math.random() * 0.5));
   }
 
   /* ------------------------------------------------ scene dressing */
@@ -3473,7 +3488,17 @@
       blocks: ['#c2ccb0', '#c7c8a9', '#cac1ac'] },
     { id: 'obsidian', name: 'OBSIDIAN', price: 0,    giftAt: 250,
       sky: 'radial-gradient(120% 100% at 50% 26%,#884842 0%,#150d08 78%)',
-      blocks: ['#5d7d29', '#756b27', '#784528'] }
+      blocks: ['#5d7d29', '#756b27', '#784528'] },
+    /* Bobo is neither bought nor a tier gift: it is a booby prize for dying
+       at 0, so it carries `secret` and stays off the shelf until earned.
+       price 0 is NOT what makes it unbuyable — the buy path tests
+       bal < price, which is false at zero. The guard is `secret`; price 0
+       only keeps a price string from ever rendering.
+       Card art is sampled at depths 0/6/13 rather than three hue rungs:
+       hueStep 0.4 means a hue sample returns the same brown three times. */
+    { id: 'bobo',     name: 'BOBO',     price: 0,    giftAt: 0, secret: true,
+      sky: 'radial-gradient(120% 100% at 50% 26%,#885737 0%,#1f180a 78%)',
+      blocks: ['#a7704b', '#90542b', '#82471f'] }
   ];
   var WORLD_BY_ID = {};
   (function () {
@@ -4319,6 +4344,16 @@
       'The mountain keeps the pieces.',
       'Dark glass, darker landing.',
       'Cooled, hardened, toppled.'
+    ],
+    bobo: [
+      'Well. That happened.',
+      'Down the drain, as ever.',
+      'Nothing about that was solid.',
+      'A brown day for architecture.',
+      'It went the way these things go.',
+      'The tower had one job.',
+      'Gravity remains undefeated.',
+      'Back to the bottom with you.'
     ]
   };
 
@@ -4963,6 +4998,10 @@
       else if (bal >= w.price) { chip = String(w.price); }
       else { cls += ' is-dim'; chip = String(w.price); }
       c.card.className = cls;
+      /* Secret Worlds are absent from the shelf until earned. Set on every
+         card, not only the secret one, so a card can never stay hidden
+         after its grant. */
+      c.card.hidden = !!(w.secret && !ownsWorld(w.id));
       c.chip.textContent = chip;
       /* The visible chip carries the state; the label must say the same. */
       c.card.setAttribute('aria-label', c.world.name + ' — ' + c.chip.textContent);
@@ -5222,6 +5261,15 @@
     var s = pickNumber(detail, ['score', 'value', 'points']);
     if (s != null) { state.score = Math.max(0, Math.round(s)); renderScore(); }
     var finalScore = state.score;
+    /* Bobo, the booby prize: the first score-0 death in either mode.
+       grantWorld returns true only when the grant is new, so the toast
+       cannot repeat. Never equips, same as the tier gifts — dropping a
+       brown World on someone the instant they fumble block one would be a
+       punishment. Hard counts: this is a joke, not an achievement, so a
+       mode gate would be a rule with no payoff (Maor, 2026-08-02). */
+    if (finalScore === 0 && grantWorld('bobo')) {
+      showToast('▲ BOBO · WORLD UNLOCKED');
+    }
     var gameBest = pickNumber(detail, ['best', 'highscore', 'hiScore']) || 0;
     var storedBest = bestFor(runMode);
     var baseline = state.runStartBest != null ? state.runStartBest : storedBest;
@@ -5420,6 +5468,17 @@
         renderShopPane();
         return;
       }
+      /* Secret Worlds are earned, never bought. Unconditional on the flag:
+         an owned World has already returned above, so anything reaching
+         here is unowned. This is defence in depth, not the primary guard —
+         renderShopPane hiding the card via display:none already keeps a
+         real user from ever reaching it. But a programmatic .click() or a
+         dispatched KeyboardEvent still reaches this handler regardless of
+         rendering, and price 0 would otherwise pass `bal < price` and hand
+         the World over free on the second tap. Any future change that
+         renders a secret card in some other context would inherit the same
+         guard instead of a fresh hole. */
+      if (w.secret) { disarmShop(true); return; }
       if (w.giftAt > 0) { disarmShop(true); return; } /* locked gift */
       var bal = readInt(PTS_KEY);
       if (bal < w.price) { disarmShop(true); return; }
@@ -5592,7 +5651,8 @@
     neon:     { base: 587.33, tap: 494, ladder: [0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17] },
     deepsea:  { base: 392.00, tap: 349, ladder: [0, 2, 3, 5, 7, 8, 10, 12, 14, 15, 17] },
     marble:   { base: 466.16, tap: 415, ladder: [0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17] },
-    obsidian: { base: 349.23, tap: 311, ladder: [0, 2, 3, 5, 7, 8, 10, 12, 14, 15, 17] }
+    obsidian: { base: 349.23, tap: 311, ladder: [0, 2, 3, 5, 7, 8, 10, 12, 14, 15, 17] },
+    bobo:     { base: 415.30, tap: 349, ladder: [0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17] }
   };
   var sound = WORLD_SOUND.classic;
 
@@ -5687,20 +5747,33 @@
     o.stop(t + decay + 0.05);
   }
 
-  /* Sliced placement: glass tap + the shaved piece's band-swept swish. */
+  /* Sliced placement: a low body falling away under the shaved piece's
+     swish. No pitched note on purpose — this fires on most landings in a
+     run, and a flat held tone reads as an error beep. Chosen by ear from a
+     blind six-way audition (Maor, 2026-08-02).
+
+     The body tracks the World's tap so each World keeps its own weight;
+     the ratios reproduce 150 -> 78 Hz at classic's tap of 440, which is
+     the sound that was approved. */
   function playSliced(t) {
-    tone(t, 'triangle', sound.tap + (Math.random() * 30 - 15), 0.35, 0.14);
+    var o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(sound.tap * 0.34, t);
+    o.frequency.exponentialRampToValueAtTime(sound.tap * 0.177, t + 0.09);
+    o.connect(envGain(t, 0.34, 0.11));
+    o.start(t);
+    o.stop(t + 0.16);
     var src = ctx.createBufferSource();
     src.buffer = noise();
     var bp = ctx.createBiquadFilter();
     bp.type = 'bandpass';
-    bp.frequency.setValueAtTime(1200, t);
-    bp.frequency.exponentialRampToValueAtTime(400, t + 0.12);
-    bp.Q.value = 1;
+    bp.frequency.setValueAtTime(700, t);
+    bp.frequency.exponentialRampToValueAtTime(220, t + 0.10);
+    bp.Q.value = 0.7;
     src.connect(bp);
-    bp.connect(envGain(t, 0.12, 0.12));
+    bp.connect(envGain(t, 0.10, 0.10));
     src.start(t);
-    src.stop(t + 0.14);
+    src.stop(t + 0.12);
   }
 
   /* Perfect placement: chime stepping up the pentatonic ladder. Climbs for
