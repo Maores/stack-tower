@@ -358,7 +358,7 @@
 .hud-lb-status:empty {
   display: none;
 }
-/* Board scope tabs: TODAY | ALL TIME */
+/* Overlay pane tabs: BOARD | RECORDS | SHOP */
 .hud-lb-tabs {
   display: flex;
   justify-content: center;
@@ -755,8 +755,8 @@
   cursor: default;
 }
 
-/* Board pane's mode picker: same chips, stacked with the scope segment so
-   the pair reads as a filter rather than a setting. */
+/* Board pane's mode picker: same chips as .hud-mode-seg. Which board this
+   pane reads, NORMAL | HARD. */
 .hud-board-mode {
   display: flex;
   justify-content: center;

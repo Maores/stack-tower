@@ -1539,7 +1539,7 @@
     setPane(pane);
   }
 
-  /* Opens on the board pane; the scope (TODAY / ALL TIME) persists.
+  /* Opens on the board pane, all-time for the equipped mode.
      Never during play: the button is visually gone but still focusable, and
      since the shop arrived the overlay behind it can spend points. */
   function openBoard() {
