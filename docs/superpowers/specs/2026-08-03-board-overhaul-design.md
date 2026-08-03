@@ -144,8 +144,10 @@ The spec proceeds under (a); if Maor picks (b) the plan adds one task.
 Carried per the standing "next-wave first-commit bundle" note; all three
 are small and live in the files this wave already touches:
 
-1. `openBoard` gains a state guard (no overlay during `playing`; the
-   keyboard path can currently reach it mid-run, and from there purchases).
+1. ~~`openBoard` gains a state guard~~ Already shipped: `openBoard` has
+   carried `if (state.mode === 'playing') { return; }` since the shop
+   arrived (hud.js ~1657). The rider shrinks to adding the missing test
+   coverage for it.
 2. The hud.js header's OUTGOING section documents `hud:world`, `hud:mute`,
    `hud:menu`, `hud:mode`.
 3. `cursor: default` on inert (locked/dimmed) shop cards.
