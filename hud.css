@@ -456,6 +456,9 @@
 .hud-lb-list .hud-lb-empty::before {
   content: none;
 }
+.hud-lb-list .hud-lb-skel::before {
+  content: none;
+}
 
 .hud-lb-entry {
   display: flex;
@@ -1006,7 +1009,8 @@
   opacity: 0.5;
 }
 .hud-shop-card:disabled,
-.hud-shop-card.is-locked {
+.hud-shop-card.is-locked,
+.hud-shop-card.is-dim {
   cursor: default;
 }
 .hud-shop-prev {

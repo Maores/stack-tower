@@ -485,6 +485,9 @@
 .hud-lb-list .hud-lb-empty::before {
   content: none;
 }
+.hud-lb-list .hud-lb-skel::before {
+  content: none;
+}
 
 .hud-lb-entry {
   display: flex;
@@ -915,6 +918,48 @@
 .hud-board-list {
   margin-top: 1.6vh;
 }
+/* Jump-to-my-row: floats over the list's lower edge. Absolute on purpose —
+   appearing must not change the panel's height. */
+.hud-board-myrow {
+  position: absolute;
+  left: 6vw;
+  right: 6vw;
+  bottom: 3.2vh;
+  min-height: 34px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 10px;
+  background: rgba(10, 18, 38, 0.92);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: clamp(10px, 1.6vmin, 12px);
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  pointer-events: auto;
+  cursor: pointer;
+  z-index: 2;
+}
+/* The chip hides via the property, and this class sets its own display
+   nowhere — but the rule stays explicit anyway: three prior bugs. */
+.hud-board-myrow[hidden] { display: none; }
+
+/* Cold-open skeleton rows. Same box as a real row; shimmer is decorative
+   and stops for reduced motion. */
+.hud-lb-skel {
+  height: 1.5em;
+  border-radius: 8px;
+  background: linear-gradient(90deg,
+    rgba(255, 255, 255, 0.05) 25%,
+    rgba(255, 255, 255, 0.13) 50%,
+    rgba(255, 255, 255, 0.05) 75%);
+  background-size: 200% 100%;
+  animation: hud-skel-sweep 1.1s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hud-lb-skel { animation: none; }
+}
+@keyframes hud-skel-sweep {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
 
 /* The death sandwich arrives from the network a beat after the screen
    does. Holding three rows' worth of space means it fills a slot instead
@@ -993,7 +1038,8 @@
   opacity: 0.5;
 }
 .hud-shop-card:disabled,
-.hud-shop-card.is-locked {
+.hud-shop-card.is-locked,
+.hud-shop-card.is-dim {
   cursor: default;
 }
 .hud-shop-prev {
@@ -3393,7 +3439,8 @@
               -> back to title state
 
    OUTGOING (dispatched on window):
-     'hud:start', 'hud:restart', 'hud:menu'
+     'hud:start', 'hud:restart'
+     'hud:menu'                   back to title; core answers with game:ready
      'hud:mute'  { muted }        mute state for audio.js
      'hud:world' { id }           equipped World for visuals.js / audio.js
      'hud:mode'  { id }           difficulty for core.js; applied at run start
@@ -4016,6 +4063,11 @@
     boardShop.appendChild(shopGrid);
 
     var boardList = el('ol', 'hud-lb-list hud-board-list');
+    /* Floating jump-to-my-row chip: absolutely positioned over the list's
+       lower edge, so showing or hiding it cannot move the panel. */
+    var boardMyRow = el('button', 'hud-board-myrow');
+    boardMyRow.type = 'button';
+    boardMyRow.hidden = true;
     boardPanel.appendChild(boardClose);
     boardPanel.appendChild(boardStatus);
     boardPanel.appendChild(boardTabs);
@@ -4023,6 +4075,7 @@
     boardPanel.appendChild(boardRecords);
     boardPanel.appendChild(boardShop);
     boardPanel.appendChild(boardList);
+    boardPanel.appendChild(boardMyRow);
     board.appendChild(boardPanel);
 
     /* Tier-up toast: fixed top-center, above everything, never interactive. */
@@ -4083,6 +4136,7 @@
       boardPanel: boardPanel,
       boardStatus: boardStatus,
       boardList: boardList,
+      boardMyRow: boardMyRow,
       boardClose: boardClose,
       boardRecords: boardRecords,
       ladder: ladder,
@@ -4561,6 +4615,14 @@
     }
   }
 
+  /* Cold-open placeholder: six shimmer bars where rows will land. Only
+     ever rendered into an empty list; any real render replaces it because
+     renderRows clears the list first. */
+  function renderSkeleton(listEl) {
+    while (listEl.firstChild) { listEl.removeChild(listEl.firstChild); }
+    for (var i = 0; i < 6; i++) { listEl.appendChild(el('li', 'hud-lb-skel')); }
+  }
+
   function renderBoard(rows, mine, label) {
     /* Death-screen fallback list matches the sandwich scale: 3 rows; the
        trophy overlay keeps the full 10 (density revision, 2026-07-31). */
@@ -4774,6 +4836,26 @@
   var boardTimer = null;
   var BOARD_REFRESH_MS = 15000;
 
+  /* The chip points at the row renderRows marked mine. Rank is the row's
+     1-based position in the rendered list, which is the deduped board
+     order. Hidden whenever the row is on screen, absent, or the pane is
+     not the board. */
+  function updateMyRow() {
+    var chip = els.boardMyRow;
+    if (overlayPane !== 'board') { chip.hidden = true; return; }
+    var mine = els.boardList.querySelector('.hud-lb-mine');
+    if (!mine) { chip.hidden = true; return; }
+    var lr = els.boardList.getBoundingClientRect();
+    var mr = mine.getBoundingClientRect();
+    var above = mr.bottom < lr.top + 4;
+    var below = mr.top > lr.bottom - 4;
+    if (!above && !below) { chip.hidden = true; return; }
+    var rank = 1, node = mine;
+    while ((node = node.previousElementSibling)) { rank++; }
+    chip.textContent = (above ? '▴' : '▾') + ' MY ROW · #' + rank;
+    chip.hidden = false;
+  }
+
   function refreshOverlayBoard(showLoading) {
     if (overlayPane !== 'board') { return; }  /* records/shop panes are local: the 15s tick must not fetch */
     var seq = ++overlayBoardSeq;
@@ -4795,20 +4877,30 @@
        that grew instead. */
     var warm = warmRowsFor('all', mode);
     /* Nothing cached and nothing on screen yet — the cold-empty case. The
-       panel's height is fixed now (hud.css .hud-board-panel), so this just
-       renders an empty list rather than padding out a floor; Task 4 adds a
-       loading skeleton for it. */
-    if (warm) { renderRows(els.boardList, els.boardStatus, warm, me, ''); }
-    else if (showLoading && !els.boardList.children.length) { els.boardStatus.textContent = 'LOADING'; }
+       panel's height is fixed (hud.css .hud-board-panel), so a skeleton
+       costs nothing to show; the fetch below replaces it the moment real
+       rows (or the empty/device-fallback state) land. showLoading is false
+       on the silent 15s tick, so a background refresh never interrupts
+       whatever is already on screen with a fresh skeleton. */
+    if (warm) { renderRows(els.boardList, els.boardStatus, warm, me, '', 50); updateMyRow(); }
+    else if (showLoading && !els.boardList.children.length) { renderSkeleton(els.boardList); }
     fetchTop('all', function (rows) {
       if (rows) {
         var w = warmSlot(mode);
         w.all = rows; w.at = Date.now();
       }
       if (!boardOpen || seq !== overlayBoardSeq) { return; }
-      if (rows) { renderRows(els.boardList, els.boardStatus, rows, me, ''); }
-      else if (!warm) { renderRows(els.boardList, els.boardStatus, readLocalBoard(mode), me, 'THIS DEVICE ONLY'); }
-    }, false, mode);
+      if (rows) { renderRows(els.boardList, els.boardStatus, rows, me, '', 50); }
+      else if (!warm) { renderRows(els.boardList, els.boardStatus, readLocalBoard(mode), me, 'THIS DEVICE ONLY', 50); }
+      updateMyRow();
+    }, true, mode);   /* full: the uncapped list needs the whole deduped ranking,
+                          not fetchTop's own top-10 slice (Task 3 fix — this call
+                          was still asking for the 10-row answer the old renderRows
+                          cap used to match; raising renderRows's cap alone could
+                          never see past a truncation that already happened here.
+                          No extra network cost: LB_SELECT's limit=50 already runs
+                          regardless of this flag, which only ever gated the
+                          client-side slice). */
   }
 
   function fmtPts(n) {
@@ -4874,6 +4966,7 @@
     }
     if (pane === 'records') { renderRecordsPane(); }
     if (pane === 'shop') { renderShopPane(); }
+    updateMyRow();   /* non-board panes hide the chip via its own first guard */
   }
 
   /* The overlay's own NORMAL | HARD picker. View-only by construction: it
@@ -4887,7 +4980,6 @@
     els.boardModeHard.setAttribute('aria-pressed', overlayMode === 'hard' ? 'true' : 'false');
     if (!refresh) { return; }
     overlayBoardSeq++;   /* the other board's in-flight read must not paint here */
-    while (els.boardList.firstChild) { els.boardList.removeChild(els.boardList.firstChild); }
     refreshOverlayBoard(true);
   }
 
@@ -5280,6 +5372,16 @@
        for elsewhere in this file — see boardClose). Brief gap, fixed here. */
     keepKeysLocal(els.boardModeNormal);
     keepKeysLocal(els.boardModeHard);
+    /* The chip tracks scroll position live: a partial drag can bring my row
+       fully into view (or push it back out) without a re-render happening. */
+    els.boardList.addEventListener('scroll', updateMyRow);
+    els.boardMyRow.addEventListener('click', function () {
+      var mine = els.boardList.querySelector('.hud-lb-mine');
+      if (!mine) { return; }
+      try { mine.scrollIntoView({ block: 'center', behavior: reduceMotion ? 'auto' : 'smooth' }); }
+      catch (err) { mine.scrollIntoView(); }
+    });
+    keepKeysLocal(els.boardMyRow);
     els.shopGrid.addEventListener('click', function (ev) {
       var btn = ev.target && ev.target.closest ? ev.target.closest('.hud-shop-card') : null;
       if (!btn) { disarmShop(true); return; }        /* machine or gap: just disarm */

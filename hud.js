@@ -22,7 +22,8 @@
               -> back to title state
 
    OUTGOING (dispatched on window):
-     'hud:start', 'hud:restart', 'hud:menu'
+     'hud:start', 'hud:restart'
+     'hud:menu'                   back to title; core answers with game:ready
      'hud:mute'  { muted }        mute state for audio.js
      'hud:world' { id }           equipped World for visuals.js / audio.js
      'hud:mode'  { id }           difficulty for core.js; applied at run start
