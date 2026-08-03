@@ -798,6 +798,10 @@
     if (!S.inited) return;
     if (typeof level !== 'number') level = S.level + 1;
     styleBlock(mesh, level, opts);
+    // Rejoin the default transparent pool: the slider-only pin (see the
+    // stack:block listener) must not survive landing, or every placed row
+    // would composite over the flashes and the ghost line.
+    mesh.renderOrder = 0;
     if (level > S.level) setLevel(level);
     if (opts.perfect) {
       perfectFlashForMesh(mesh);
@@ -1204,6 +1208,19 @@
   window.addEventListener('stack:block', function (e) {
     var d = det(e);
     styleBlock(d.mesh, d.level, d);
+    // The slider composites LAST while it slides. Every block is translucent
+    // glass that writes depth, and three.js re-sorts transparents by
+    // object-center distance each frame - so as the slider crossed the tower
+    // its draw order flipped mid-pass, and whichever drew first erased the
+    // other from the overlap. On one side of center the cap ate the slider,
+    // on the other the slider floated whole: a visible pop on every single
+    // pass (Maor's hovering_bug.MP4, 2026-08-03). Pinning the moving block's
+    // order keeps the composite identical all the way across; placement and
+    // the full-miss debris path hand the mesh back to the default pool.
+    // Level 0 is the base pedestal, which also arrives on this event but is
+    // never placed - without the guard it would keep the pin forever and
+    // composite over the whole tower.
+    if (d.mesh && d.level > 0) { d.mesh.renderOrder = 100000; }
   });
   window.addEventListener('stack:placed', function (e) {
     var d = det(e);
@@ -1211,6 +1228,9 @@
   });
   window.addEventListener('stack:debris', function (e) {
     var d = det(e);
+    // A full miss turns the slider itself into debris with no stack:placed
+    // in between, so the slider-only pin is dropped here too.
+    if (d.mesh) { d.mesh.renderOrder = 0; }
     spawnDebris(d.mesh, d);
   });
   window.addEventListener('stack:level', function (e) {

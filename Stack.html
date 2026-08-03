@@ -387,7 +387,7 @@
 .hud-lb-status:empty {
   display: none;
 }
-/* Board scope tabs: TODAY | ALL TIME */
+/* Overlay pane tabs: BOARD | RECORDS | SHOP */
 .hud-lb-tabs {
   display: flex;
   justify-content: center;
@@ -402,6 +402,7 @@
   background: transparent;
   border-radius: 999px;
   padding: 0.28em 0.9em 0.28em 1.08em; /* extra left pad balances letter-spacing */
+  min-height: 44px;
   font-size: clamp(10px, 1.5vmin, 12px);
   font-weight: 300;
   letter-spacing: 0.18em;
@@ -784,8 +785,8 @@
   cursor: default;
 }
 
-/* Board pane's mode picker: same chips, stacked with the scope segment so
-   the pair reads as a filter rather than a setting. */
+/* Board pane's mode picker: same chips as .hud-mode-seg. Which board this
+   pane reads, NORMAL | HARD. */
 .hud-board-mode {
   display: flex;
   justify-content: center;
@@ -796,6 +797,7 @@
 .hud-board-mode .hud-mode-btn {
   border: 1px solid rgba(255, 255, 255, 0.3);
   padding: 0.22em 0.85em 0.22em 1.01em;
+  min-height: 38px;
   font-size: clamp(9px, 1.4vmin, 11px);
   letter-spacing: 0.16em;
   opacity: 0.55;
@@ -837,25 +839,25 @@
   pointer-events: auto;
   transition: opacity 0.3s ease;
 }
-/* Sized by its contents, but the contents are there from the first frame:
-   the rows are painted from the board read that was warmed earlier, so the
-   panel opens at its settled size instead of growing as data lands. A
-   fixed height was tried and rejected — it held the shape but left two
-   rows floating in a half-empty pane whenever the day's board was quiet.
-   The floor here only catches the cold case where nothing is cached yet. */
+/* Fixed height, not sized by content: one height across every pane, both
+   modes, and every loading state, so nothing a player does moves the
+   panel. A min-height floor was tried before this (01-08) and measured as
+   "zero movement" against a handful of mocked rows, then did nothing
+   against the live board's ten: the content was taller than the floor, so
+   the floor never engaged. 66vh is the measured RECORDS pane (438px) over
+   the emulated iPhone 13's 664px innerHeight; the 460px cap covers desktop. */
 .hud-board-panel {
   position: relative;
   width: min(84vw, 380px);
-  min-height: min(30vh, 240px);
-  max-height: 82vh;
+  height: min(66vh, 460px);
   display: flex;
   flex-direction: column;
   /* Top padding clears the close button rather than guessing at it: the
-     button is a fixed 34px at a fixed 10px inset, so a vh-based gap would
+     button is a fixed 40px at a fixed 10px inset, so a vh-based gap would
      clear it on a tall phone and let the tabs slide under it on a short
      one. The heading used to occupy this band and was narrow enough to
      miss the button; the tabs row spans the full width and does not. */
-  padding: calc(10px + 34px + 8px) 6vw 3.2vh;
+  padding: calc(10px + 40px + 8px) 6vw 3.2vh;
   border: 1px solid rgba(255, 255, 255, 0.35);
   border-radius: 18px;
   background: rgba(10, 18, 38, 0.35);
@@ -866,20 +868,13 @@
 .hud-board-panel .hud-lb-tabs {
   margin-top: 0;
 }
-/* Only while the list is empty and nothing is cached: hold roughly a full
-   board's height so the first rows land in a space already their size.
-   Dropped as soon as anything renders, so a quiet day's two rows are not
-   padded out into an empty pane. */
-.hud-board-panel.is-cold {
-  min-height: min(57vh, 420px);
-}
 .hud-board-close {
   position: absolute;
   z-index: 2; /* stays tappable above the tabs row */
   top: 10px;
   right: 10px;
-  width: 34px;
-  height: 34px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   border: 1px solid rgba(255, 255, 255, 0.5);
   background: rgba(255, 255, 255, 0.08);
@@ -915,6 +910,7 @@
   flex: 1 1 auto;
   min-height: 0;
   max-height: none;
+  overflow-y: auto;
 }
 .hud-board-list {
   margin-top: 1.6vh;
@@ -925,45 +921,6 @@
    of growing the panel under whoever is already reading it. */
 .hud-over .hud-lb-list {
   min-height: 4.6em;
-}
-
-/* Board-pane scope segment: TODAY | ALL TIME */
-.hud-lb-seg {
-  display: flex;
-  justify-content: center;
-  margin-top: 1vh;
-  pointer-events: auto;
-}
-.hud-lb-seg[hidden] {
-  display: none;
-}
-.hud-lb-seg-btn {
-  pointer-events: auto;
-  cursor: pointer;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  background: transparent;
-  padding: 0.22em 0.85em 0.22em 1.01em; /* extra left pad balances letter-spacing */
-  font-size: clamp(9px, 1.4vmin, 11px);
-  font-weight: 300;
-  letter-spacing: 0.16em;
-  opacity: 0.55;
-  transition: opacity 0.18s ease, background-color 0.18s ease;
-}
-.hud-lb-seg-btn:first-child {
-  border-radius: 999px 0 0 999px;
-}
-.hud-lb-seg-btn:last-child {
-  border-radius: 0 999px 999px 0;
-  border-left: none;
-}
-.hud-lb-seg-btn.is-on {
-  opacity: 1;
-  border-color: rgba(255, 255, 255, 0.75);
-  background: rgba(255, 255, 255, 0.10);
-}
-.hud-lb-seg-btn:focus-visible {
-  outline: 2px solid #fff;
-  outline-offset: 2px;
 }
 
 /* Shop pane (trophy overlay third destination). Height comes from the
@@ -1192,20 +1149,6 @@
 .hud-toast.is-on {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
-}
-
-/* Overlay TODAY percentile header */
-.hud-board-pct {
-  margin-top: 1.2vh;
-  text-align: center;
-  font-size: clamp(11px, 1.7vmin, 14px);
-  font-weight: 300;
-  letter-spacing: 0.24em;
-  margin-right: -0.24em;
-  text-shadow: 0 0 12px rgba(255, 255, 255, 0.4);
-}
-.hud-board-pct[hidden] {
-  display: none;
 }
 
 .hud-board-records {
@@ -2962,6 +2905,10 @@
     if (!S.inited) return;
     if (typeof level !== 'number') level = S.level + 1;
     styleBlock(mesh, level, opts);
+    // Rejoin the default transparent pool: the slider-only pin (see the
+    // stack:block listener) must not survive landing, or every placed row
+    // would composite over the flashes and the ghost line.
+    mesh.renderOrder = 0;
     if (level > S.level) setLevel(level);
     if (opts.perfect) {
       perfectFlashForMesh(mesh);
@@ -3368,6 +3315,19 @@
   window.addEventListener('stack:block', function (e) {
     var d = det(e);
     styleBlock(d.mesh, d.level, d);
+    // The slider composites LAST while it slides. Every block is translucent
+    // glass that writes depth, and three.js re-sorts transparents by
+    // object-center distance each frame - so as the slider crossed the tower
+    // its draw order flipped mid-pass, and whichever drew first erased the
+    // other from the overlap. On one side of center the cap ate the slider,
+    // on the other the slider floated whole: a visible pop on every single
+    // pass (Maor's hovering_bug.MP4, 2026-08-03). Pinning the moving block's
+    // order keeps the composite identical all the way across; placement and
+    // the full-miss debris path hand the mesh back to the default pool.
+    // Level 0 is the base pedestal, which also arrives on this event but is
+    // never placed - without the guard it would keep the pin forever and
+    // composite over the whole tower.
+    if (d.mesh && d.level > 0) { d.mesh.renderOrder = 100000; }
   });
   window.addEventListener('stack:placed', function (e) {
     var d = det(e);
@@ -3375,6 +3335,9 @@
   });
   window.addEventListener('stack:debris', function (e) {
     var d = det(e);
+    // A full miss turns the slider itself into debris with no stack:placed
+    // in between, so the slider-only pin is dropped here too.
+    if (d.mesh) { d.mesh.renderOrder = 0; }
     spawnDebris(d.mesh, d);
   });
   window.addEventListener('stack:level', function (e) {
@@ -3959,23 +3922,9 @@
     boardTabs.appendChild(boardTabRec);
     boardTabs.appendChild(boardTabShop);
 
-    /* TODAY | ALL TIME, demoted from top-level tabs into the board pane
-       when SHOP arrived (round-2 mockup pick): places on top, views of the
-       board inside it. */
-    var boardSeg = el('div', 'hud-lb-seg');
-    var segDay = el('button', 'hud-lb-seg-btn', 'TODAY');
-    segDay.type = 'button';
-    segDay.setAttribute('data-scope', 'day');
-    var segAll = el('button', 'hud-lb-seg-btn is-on', 'ALL TIME');
-    segAll.type = 'button';
-    segAll.setAttribute('data-scope', 'all');
-    boardSeg.appendChild(segDay);
-    boardSeg.appendChild(segAll);
-
-    /* NORMAL | HARD as a sibling of TODAY | ALL TIME, so both read as views
-       of the board. This picker is view-only: it never changes what will be
-       played, because the trophy opens from the death screen too, where the
-       title switch is not visible. */
+    /* NORMAL | HARD: which board this pane reads. View-only: it never
+       changes what will be played, because the trophy opens from the death
+       screen too, where the title switch is not visible. */
     var boardMode = el('div', 'hud-board-mode');
     var boardModeNormal = el('button', 'hud-mode-btn is-on', 'NORMAL');
     boardModeNormal.type = 'button';
@@ -4067,15 +4016,10 @@
     boardShop.appendChild(shopGrid);
 
     var boardList = el('ol', 'hud-lb-list hud-board-list');
-    /* TODAY-tab percentile header (density revision: relocated from death) */
-    var boardPct = el('div', 'hud-board-pct', '');
-    boardPct.hidden = true;
     boardPanel.appendChild(boardClose);
     boardPanel.appendChild(boardStatus);
     boardPanel.appendChild(boardTabs);
     boardPanel.appendChild(boardMode);
-    boardPanel.appendChild(boardSeg);
-    boardPanel.appendChild(boardPct);
     boardPanel.appendChild(boardRecords);
     boardPanel.appendChild(boardShop);
     boardPanel.appendChild(boardList);
@@ -4113,9 +4057,6 @@
       boardTabBoard: boardTabBoard,
       boardTabRec: boardTabRec,
       boardTabShop: boardTabShop,
-      segDay: segDay,
-      segAll: segAll,
-      boardSeg: boardSeg,
       boardMode: boardMode,
       boardModeNormal: boardModeNormal,
       boardModeHard: boardModeHard,
@@ -4123,7 +4064,6 @@
       shopBalVal: shopBalVal,
       shopGrid: shopGrid,
       shopCards: shopCards,
-      boardPct: boardPct,
       toast: toast,
       lbList: lbList,
       entry: entry,
@@ -4572,27 +4512,6 @@
     } catch (err) { clearTimeout(timer); finish(null); }
   }
 
-  /* HEAD + Prefer count=exact: row count for a filter, no rows transferred. */
-  function countRows(filters, cb) {
-    if (!window.fetch) { cb(null); return; }
-    var done = false;
-    var finish = function (n) { if (!done) { done = true; cb(n); } };
-    var timer = setTimeout(function () { finish(null); }, LB_TIMEOUT_MS);
-    try {
-      window.fetch(LB_URL + '?select=score' + filters + '&limit=1', {
-        method: 'HEAD',
-        headers: { apikey: LB_KEY, Prefer: 'count=exact' }
-      })
-        .then(function (r) {
-          clearTimeout(timer);
-          var cr = (r.headers.get('content-range') || '').split('/')[1];
-          var n = parseInt(cr, 10);
-          finish(isFinite(n) ? n : null);
-        })
-        .catch(function () { clearTimeout(timer); finish(null); });
-    } catch (err) { clearTimeout(timer); finish(null); }
-  }
-
   /* Which mode the run being described belongs to. Set from the mode core
      echoes on game:start and re-set from what it echoes on game:over, so a
      finished run is always described in the mode it actually played, not
@@ -4739,71 +4658,11 @@
     els.overVictim.hidden = false;
   }
 
-  var PCT_MIN_ROWS = 10;
-
-  /* One percentile attempt over a given scope. Calls done(true) when it has
-     either painted a line or definitively cannot, and done(false) only when
-     the window was too thin to mean anything — which is the one case the
-     caller retries against a wider pool. seq is the epoch from showPercentile
-     (see overlayPctSeq above); the day attempt and its all-time fallback
-     share one seq, so either both belong to the current mode or neither
-     paints. */
-  function tryPercentile(scope, mine, label, seq, done) {
-    var f = scopeFilter(scope, overlayMode);
-    countRows(f, function (total) {
-      if (overlayPane !== 'board' || overlayScope !== 'day' || seq !== overlayPctSeq) { done(true); return; }
-      if (total == null || total < PCT_MIN_ROWS) { done(false); return; }
-      countRows(f + '&score=gt.' + mine, function (above) {
-        if (overlayPane !== 'board' || overlayScope !== 'day' || seq !== overlayPctSeq || above == null) { done(true); return; }
-        var pct = Math.max(1, Math.round(((above + 1) / total) * 100));
-        /* Dead last reads as "TOP 100%"; not a brag worth printing. */
-        if (pct >= 100) { done(true); return; }
-        els.boardPct.textContent = 'YOU: TOP ' + pct + label;
-        els.boardPct.hidden = false;
-        done(true);
-      });
-    });
-  }
-
-  /* Overlay TODAY header: "YOU: TOP n% TODAY" for today's device best.
-     Same hiding rules as the old death-screen line: window >= 10, both
-     counts healthy, never 100%. Relocated here by the density revision.
-     Mode-aware (this task) and gains an all-time fallback: the 24h window
-     needs PCT_MIN_ROWS rows before a percentage means anything, and the
-     Hard board will not reach that for a long time, so rather than showing
-     nothing it ranks against the whole board and says so in the label. */
-  function showPercentile() {
-    els.boardPct.hidden = true;
-    els.boardPct.textContent = '';
-    /* A fresh epoch every call: invalidates any tryPercentile still in
-       flight from a mode (or scope, or pane-then-back) switch that has
-       since moved on, even though overlayPane/overlayScope alone would
-       still read as unchanged for a same-pane, same-scope mode switch. */
-    var seq = ++overlayPctSeq;
-    /* Hard tracks no per-day best, so it ranks its all-time best in both
-       windows. Normal keeps today's best for the daily pool. */
-    var dayMine = overlayMode === 'hard' ? readHardBest() : readToday().best;
-    var allMine = bestFor(overlayMode);
-    if (dayMine > 0) {
-      tryPercentile('day', dayMine, '% TODAY', seq, function (shown) {
-        if (!shown && allMine > 0) { tryPercentile('all', allMine, '% ALL TIME', seq, function () {}); }
-      });
-    } else if (allMine > 0) {
-      tryPercentile('all', allMine, '% ALL TIME', seq, function () {});
-    }
-  }
-
   /* Render tokens, one per board, matching their independent scopes: a slow
      response must never paint under a tab the player has since left. Same
-     idiom as autoSeq. Bumped by every request and by every scope change.
-     overlayPctSeq covers the mode axis specifically: overlayBoardSeq guards
-     els.boardList, but a mode switch (unlike a scope or pane switch) leaves
-     overlayPane and overlayScope both unchanged, so tryPercentile needed its
-     own token or a stale in-flight count for the outgoing mode could still
-     pass both of those checks and paint under the incoming mode's board. */
+     idiom as autoSeq. Bumped by every request and by every scope change. */
   var deathBoardSeq = 0;
   var overlayBoardSeq = 0;
-  var overlayPctSeq = 0;
   /* One generation per death, not per request: the death lines describe the
      run that just ended, so they survive a tab switch (the board tokens do
      not) but are dropped the moment the next run dies. */
@@ -4909,57 +4768,46 @@
 
   /* Standalone board view: opens from the corner trophy, refreshes itself
      every 15s while open so nobody has to reload anything. */
-  var overlayScope = 'all';
   var overlayMode = 'normal';   /* which board is being READ, not played */
   var overlayPane = 'board';
   var boardOpen = false;
   var boardTimer = null;
   var BOARD_REFRESH_MS = 15000;
 
-  function setColdFloor(on) {
-    els.boardPanel.classList.toggle('is-cold', !!on);
-  }
-
   function refreshOverlayBoard(showLoading) {
     if (overlayPane !== 'board') { return; }  /* records/shop panes are local: the 15s tick must not fetch */
     var seq = ++overlayBoardSeq;
-    /* Captured once, at issue time (Review Finding 2): overlayMode and
-       overlayScope are live pickers, not the mode/scope this particular
-       read was issued for. The fetchTop callback below is async, so a tap
-       on the picker before it resolves must not relabel the answer that
-       is already in flight — the same reasoning refreshBoard already
-       applies via its own captured `m`. */
+    /* Captured once, at issue time (Review Finding 2): overlayMode is a
+       live picker, not the mode this particular read was issued for. The
+       fetchTop callback below is async, so a tap on the picker before it
+       resolves must not relabel the answer that is already in flight — the
+       same reasoning refreshBoard already applies via its own captured
+       `m`. */
     var mode = overlayMode;
-    var scope = overlayScope;
     /* Find myself on the shared board: the whole point of opening it is
        seeing where I sit, and scanning a list of friends for my own name
        is work the highlight can do. Name only — the board keeps my best
        run, whichever one that was. */
     var myName = readName();
     var me = myName ? { name: myName } : null;
-    /* Paint this scope's warmed rows first, so the panel is the size it
-       will stay at before the read even leaves. Opening used to show an
-       empty list that grew, and flipping scope used to leave the other
-       scope's rows up until the answer came back and resized everything. */
-    var warm = warmRowsFor(scope, mode);
-    /* Nothing cached and nothing on screen yet — the one case where the
-       size of what is coming is genuinely unknown. Hold the panel at the
-       height a full board occupies so the rows land in a space that is
-       already the right shape, and let content take over the moment they
-       do. Any other time this floor would pad a short board into a void. */
-    setColdFloor(!warm && !els.boardList.children.length);
-    if (warm) { renderRows(els.boardList, els.boardStatus, warm, me, ''); setColdFloor(false); }
+    /* Paint the warmed rows first, so the panel is the size it will stay
+       at before the read even leaves — opening used to show an empty list
+       that grew instead. */
+    var warm = warmRowsFor('all', mode);
+    /* Nothing cached and nothing on screen yet — the cold-empty case. The
+       panel's height is fixed now (hud.css .hud-board-panel), so this just
+       renders an empty list rather than padding out a floor; Task 4 adds a
+       loading skeleton for it. */
+    if (warm) { renderRows(els.boardList, els.boardStatus, warm, me, ''); }
     else if (showLoading && !els.boardList.children.length) { els.boardStatus.textContent = 'LOADING'; }
-    fetchTop(scope, function (rows) {
+    fetchTop('all', function (rows) {
       if (rows) {
         var w = warmSlot(mode);
-        if (scope === 'day') { w.day = rows; }
-        else { w.all = rows; w.at = Date.now(); }
+        w.all = rows; w.at = Date.now();
       }
       if (!boardOpen || seq !== overlayBoardSeq) { return; }
       if (rows) { renderRows(els.boardList, els.boardStatus, rows, me, ''); }
       else if (!warm) { renderRows(els.boardList, els.boardStatus, readLocalBoard(mode), me, 'THIS DEVICE ONLY'); }
-      setColdFloor(false);
     }, false, mode);
   }
 
@@ -5015,16 +4863,12 @@
     els.boardTabRec.classList.toggle('is-on', pane === 'records');
     els.boardTabShop.classList.toggle('is-on', pane === 'shop');
     els.boardMode.hidden = pane !== 'board';
-    els.boardSeg.hidden = pane !== 'board';
     els.boardList.hidden = pane !== 'board';
     els.boardRecords.hidden = pane !== 'records';
     els.boardShop.hidden = pane !== 'shop';
-    els.boardPct.hidden = true;
     els.boardStatus.textContent = '';
-    setColdFloor(false);   /* records and shop bring their own content */
     if (pane === 'board') {
       refreshOverlayBoard(true);
-      if (overlayScope === 'day') { showPercentile(); }
     } else {
       overlayBoardSeq++;  /* an in-flight list fetch must not repaint under another pane */
     }
@@ -5045,7 +4889,6 @@
     overlayBoardSeq++;   /* the other board's in-flight read must not paint here */
     while (els.boardList.firstChild) { els.boardList.removeChild(els.boardList.firstChild); }
     refreshOverlayBoard(true);
-    if (overlayScope === 'day') { showPercentile(); } else { els.boardPct.hidden = true; }
   }
 
   function openBoardTo(pane) {
@@ -5059,7 +4902,7 @@
     setPane(pane);
   }
 
-  /* Opens on the board pane; the scope (TODAY / ALL TIME) persists.
+  /* Opens on the board pane, all-time for the equipped mode.
      Never during play: the button is visually gone but still focusable, and
      since the shop arrived the overlay behind it can spend points. */
   function openBoard() {
@@ -5425,29 +5268,11 @@
     els.boardTabBoard.addEventListener('click', function () { setPane('board'); });
     els.boardTabRec.addEventListener('click', function () { setPane('records'); });
     els.boardTabShop.addEventListener('click', function () { setPane('shop'); });
-    els.segDay.addEventListener('click', function () {
-      if (overlayScope === 'day') { return; }
-      overlayScope = 'day';
-      els.segDay.classList.add('is-on');
-      els.segAll.classList.remove('is-on');
-      refreshOverlayBoard(true);
-      showPercentile();
-    });
-    els.segAll.addEventListener('click', function () {
-      if (overlayScope === 'all') { return; }
-      overlayScope = 'all';
-      els.segAll.classList.add('is-on');
-      els.segDay.classList.remove('is-on');
-      els.boardPct.hidden = true;
-      refreshOverlayBoard(true);
-    });
     els.boardModeNormal.addEventListener('click', function () { setOverlayMode('normal', true); });
     els.boardModeHard.addEventListener('click', function () { setOverlayMode('hard', true); });
     keepKeysLocal(els.boardTabBoard);
     keepKeysLocal(els.boardTabRec);
     keepKeysLocal(els.boardTabShop);
-    keepKeysLocal(els.segDay);
-    keepKeysLocal(els.segAll);
     /* Same treatment as every other control inside .hud-board: Space/Enter
        here must not bubble to core.js's own window keydown listener, which
        knows nothing of boardOpen and would drop a block or start a run
