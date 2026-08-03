@@ -1,6 +1,6 @@
 # Stack tower
 
-A Stack-style browser tower builder: a block slides, you tap to drop it, overhang gets sliced away, the tower climbs. Built with Three.js, plain JavaScript, and zero external assets.
+A Stack-style browser tower builder: a block slides, you tap to drop it, overhang gets sliced away, the tower climbs. Built with Three.js and plain JavaScript; no asset files are fetched, and everything is synthesized in code except two embedded fart recordings for one unlockable World (see sound credits below).
 
 **Play it: https://maores.github.io/stack-tower/**
 
@@ -10,6 +10,15 @@ Tap, click, or press space to drop a block. Every game over hands you a fresh in
 
 - `index.html` plus `core.js` (mechanics), `visuals.js` (look and feel), `hud.js` / `hud.css` (HUD and leaderboard): the playable source.
 - `Stack.html`: the whole game in one file, Three.js inlined, for offline double-click play. The leaderboard falls back to a device-local board when there is no network.
+
+## Sound credits
+
+The Bobo World's placement sounds are two Freesound recordings, embedded in `audio.js`:
+
+- ["Fart 1 sm58.wav"](https://freesound.org/people/bakhmutzki/sounds/589857/) by [bakhmutzki](https://freesound.org/people/bakhmutzki/), licensed [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Trimmed and downmixed to mono for the game.
+- ["Bad Chili Fart.wav"](https://freesound.org/people/deleted_user_1391979/sounds/94989/) by deleted_user_1391979, licensed [CC0](https://creativecommons.org/publicdomain/zero/1.0/).
+
+Every other sound in the game is synthesized in code.
 
 ## How it was built
 

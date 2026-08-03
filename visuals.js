@@ -665,7 +665,10 @@
   /* ------------------------------------------------ events */
 
   function meshFootprint(mesh, out) {
-    if (!mesh.geometry) return null;
+    /* Synthetic mesh-less stack:placed events are legal (the audio suites
+       send them); the perfect/almost branches funnel here, so the guard
+       must cover the mesh itself, not just its geometry. */
+    if (!mesh || !mesh.geometry) return null;
     if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
     var bb = mesh.geometry.boundingBox;
     if (!bb) return null;

@@ -12,3 +12,6 @@ CLAUDE.md
 
 # Playwright MCP session artifacts.
 .playwright-mcp/
+
+# Raw Freesound downloads (the used cuts are embedded in audio.js).
+fart_sounds_freesound/
