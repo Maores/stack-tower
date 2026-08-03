@@ -9,3 +9,6 @@ CLAUDE.md
 
 # Subagent-driven-development scratch (progress ledger).
 .superpowers/
+
+# Playwright MCP session artifacts.
+.playwright-mcp/

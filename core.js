@@ -49,7 +49,7 @@
 
    Visuals bridge (for visuals.js, dispatched on window as CustomEvents):
      'stack:init' {scene, camera, renderer, THREE}, 'stack:block'
-     {mesh, level}, 'stack:placed' {mesh, level, perfect, almost}, 'stack:debris'
+     {mesh, level, grown}, 'stack:placed' {mesh, level, perfect, almost}, 'stack:debris'
      {mesh, level, dir}, 'stack:gameover', 'stack:reset'; plus a direct
      StackVisuals.update(dt) call each frame. When StackVisuals is ready it
      owns lighting, materials, debris animation, and placement juice; core
@@ -273,9 +273,14 @@
     var axis = index % 2 === 1 ? 'x' : 'z';
     var w = prev.w, d = prev.d;
     var M = MODES[activeMode] || MODES.normal;
+    var grown = null;
     if (M.regrow && combo >= CFG.growCombo) {   // streak regrowth, Stack-style
+      var pw = w, pd = d;
       w = Math.min(CFG.blockSize, w + CFG.growStep);
       d = Math.min(CFG.blockSize, d + CFG.growStep);
+      // Carry the pre-growth footprint so visuals can animate the give-back;
+      // silent regrowth reads as a size bug, not a streak reward.
+      if (w > pw || d > pd) { grown = { fromW: pw, fromD: pd }; }
     }
     sideToggle = -sideToggle;
 
@@ -293,7 +298,7 @@
       axis === 'z' ? startA : prev.z
     );
     scene.add(mesh);
-    fireDom('stack:block', { mesh: mesh, level: index });
+    fireDom('stack:block', { mesh: mesh, level: index, grown: grown });
 
     current = {
       mesh: mesh, axis: axis, index: index,

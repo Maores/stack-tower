@@ -25,7 +25,7 @@
  *
  * CustomEvent fallback, window.dispatchEvent(new CustomEvent(name, { detail })):
  *   'stack:init'     { scene, camera, renderer }
- *   'stack:block'    { mesh, level }
+ *   'stack:block'    { mesh, level, grown }
  *   'stack:placed'   { mesh, level, perfect }
  *   'stack:debris'   { mesh, dir }
  *   'stack:level'    { level }
@@ -62,6 +62,8 @@
     maxFlashes: 8,
     maxPulses: 12,
     flashDur: 0.5,
+    growInDur: 0.28,    // streak-regrowth grow-in pop, seconds
+    growInBack: 1.7,    // grow-in overshoot; higher = springier settle
     gravity: 15,        // in block widths per second squared
     debrisDrag: 2.1,    // horizontal damping per second
     debrisLife: 1.25,   // seconds until a cut piece is fully gone
@@ -134,6 +136,7 @@
     pending: [],        // styleBlock calls made before init
     debris: [],
     pulses: [],
+    growIns: [],        // active streak-regrowth grow-in pops
     flashPool: [],
     bgCur: null,        // { inner, outer, beam } THREE.Color, working space
     bgTarget: null,
@@ -737,6 +740,46 @@
     });
   }
 
+  /* Streak-regrowth grow-in: the regrown spawn pops from its previous
+     footprint to the new one, so the give-back reads as a streak reward
+     instead of a silent size glitch. Pure scale channel - the geometry
+     already has the regrown size, and every exit path (landing, full-miss
+     debris, reset) snaps the scale home first. Ordering constraint: the
+     cancel in onBlockPlaced must run before startPulse, because the pulse
+     clones mesh.scale as its restore point and would otherwise freeze a
+     mid-pop scale into the tower. */
+
+  function easeOutBack(p) {
+    var s = CFG.growInBack, q = p - 1;
+    return 1 + (s + 1) * q * q * q + s * q * q;
+  }
+
+  function finishGrowIn(gi) {
+    if (gi && gi.mesh) { gi.mesh.scale.x = 1; gi.mesh.scale.z = 1; }
+  }
+
+  function cancelGrowIn(mesh) {
+    for (var i = 0; i < S.growIns.length; i++) {
+      if (S.growIns[i].mesh === mesh) {
+        finishGrowIn(S.growIns[i]);
+        S.growIns.splice(i, 1);
+        return;
+      }
+    }
+  }
+
+  function startGrowIn(mesh, grown) {
+    if (!mesh || !mesh.geometry || !mesh.geometry.parameters) return;
+    var gp = mesh.geometry.parameters;
+    var fx = gp.width > 0 ? clampRange(grown.fromW / gp.width, 0.05, 1) : 1;
+    var fz = gp.depth > 0 ? clampRange(grown.fromD / gp.depth, 0.05, 1) : 1;
+    if (fx > 0.995 && fz > 0.995) return;   /* grew too little to show */
+    cancelGrowIn(mesh);
+    mesh.scale.x = fx;
+    mesh.scale.z = fz;
+    S.growIns.push({ mesh: mesh, t: 0, fx: fx, fz: fz });
+  }
+
   /* ---- ghost line: dashed outline at the personal-best height ---------- */
   /* Reads StackCore.getTowerState() (public state seam); rebuilt fresh on
      every init/reset so visuals' own reset can never leave a stale mesh. */
@@ -803,7 +846,7 @@
     // would composite over the flashes and the ghost line. Guarded like the
     // other listeners: synthetic stack:placed events without a mesh are
     // legal (the audio suite sends them) and styleBlock tolerates them.
-    if (mesh) { mesh.renderOrder = 0; }
+    if (mesh) { mesh.renderOrder = 0; cancelGrowIn(mesh); }
     if (level > S.level) setLevel(level);
     if (opts.perfect) {
       perfectFlashForMesh(mesh);
@@ -924,6 +967,8 @@
     while (S.debris.length) removeDebris(S.debris[0]);
     for (var i = 0; i < S.pulses.length; i++) finishPulse(S.pulses[i]);
     S.pulses.length = 0;
+    for (var g = 0; g < S.growIns.length; g++) finishGrowIn(S.growIns[g]);
+    S.growIns.length = 0;
     for (var j = 0; j < S.flashPool.length; j++) {
       S.flashPool[j].active = false;
       S.flashPool[j].mesh.visible = false;
@@ -1040,6 +1085,21 @@
           mat.emissive.setRGB(e, e, e);
         }
       }
+    }
+
+    // streak-regrowth grow-ins
+    for (var gw = S.growIns.length - 1; gw >= 0; gw--) {
+      var gi = S.growIns[gw];
+      gi.t += dt;
+      var gpr = gi.t / CFG.growInDur;
+      if (gpr >= 1) {
+        finishGrowIn(gi);
+        S.growIns.splice(gw, 1);
+        continue;
+      }
+      var ge = easeOutBack(gpr);
+      gi.mesh.scale.x = gi.fx + (1 - gi.fx) * ge;
+      gi.mesh.scale.z = gi.fz + (1 - gi.fz) * ge;
     }
 
     // debris
@@ -1223,6 +1283,9 @@
     // never placed - without the guard it would keep the pin forever and
     // composite over the whole tower.
     if (d.mesh && d.level > 0) { d.mesh.renderOrder = 100000; }
+    // A regrown spawn pops in from its previous footprint (see startGrowIn).
+    // After styleBlock, so estimateScale never reads a mid-pop scale.
+    if (d.mesh && d.grown && d.level > 0) { startGrowIn(d.mesh, d.grown); }
   });
   window.addEventListener('stack:placed', function (e) {
     var d = det(e);
@@ -1231,8 +1294,9 @@
   window.addEventListener('stack:debris', function (e) {
     var d = det(e);
     // A full miss turns the slider itself into debris with no stack:placed
-    // in between, so the slider-only pin is dropped here too.
-    if (d.mesh) { d.mesh.renderOrder = 0; }
+    // in between, so the slider-only pin is dropped here too, and the scale
+    // snaps home before spawnDebris reads the footprint.
+    if (d.mesh) { d.mesh.renderOrder = 0; cancelGrowIn(d.mesh); }
     spawnDebris(d.mesh, d);
   });
   window.addEventListener('stack:level', function (e) {
