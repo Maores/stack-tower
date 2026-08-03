@@ -96,6 +96,10 @@ const fails = [];
   if (a.pct !== 0) { fails.push('A: percentile element still in the DOM: ' + a.pct); }
   if (a.rows < 1) { fails.push('A: board rendered no rows'); }
 
+  /* Boot capture for section C, hoisted ABOVE section B's reset: warmUp's
+     day GET fires during load, and B is about to wipe the log. */
+  const bootDay = gets.filter(u => u.indexOf('created_at=gte.') >= 0);
+
   /* B — overlay traffic is all-time only, through a mode flip too */
   gets.length = 0;
   await page.evaluate(() => {
@@ -114,8 +118,7 @@ const fails = [];
      at death time was this plan's original mistake and blocked Task 1.
      The deterministic survival signal is the boot fetch itself: it runs
      through scopeFilter('day') and dayFloorIso, exactly the machinery the
-     deletion must not touch. `gets` has captured since page load. */
-  const bootDay = gets.filter(u => u.indexOf('created_at=gte.') >= 0);
+     deletion must not touch. bootDay was captured above, before B's reset. */
   console.log('OBS C bootDay=' + bootDay.length);
   if (!bootDay.length) { fails.push('C: boot no longer warms the day window — the roast lost its victim pool'); }
 
