@@ -2953,8 +2953,10 @@
     styleBlock(mesh, level, opts);
     // Rejoin the default transparent pool: the slider-only pin (see the
     // stack:block listener) must not survive landing, or every placed row
-    // would composite over the flashes and the ghost line.
-    mesh.renderOrder = 0;
+    // would composite over the flashes and the ghost line. Guarded like the
+    // other listeners: synthetic stack:placed events without a mesh are
+    // legal (the audio suite sends them) and styleBlock tolerates them.
+    if (mesh) { mesh.renderOrder = 0; }
     if (level > S.level) setLevel(level);
     if (opts.perfect) {
       perfectFlashForMesh(mesh);
