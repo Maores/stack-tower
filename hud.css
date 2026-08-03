@@ -842,6 +842,29 @@
 .hud-board-panel .hud-lb-tabs {
   margin-top: 0;
 }
+/* Out of flow (Review Finding 1): an in-flow status line here pushed the
+   tabs/list down whenever the failure-path text ("THIS DEVICE ONLY")
+   appeared, moving the panel's supposedly fixed chrome on network luck
+   alone. Lives in the top padding band instead, left of the close button
+   (which owns the band's top-right 40px+10px corner). Empty and
+   populated states both leave the tabs/list exactly where the panel's
+   fixed padding put them. Scoped to the overlay only: the death screen's
+   own .hud-lb-status (under .hud-over, never .hud-board-panel) keeps its
+   original in-flow, centered rule above, untouched. */
+.hud-board-panel .hud-lb-status {
+  position: absolute;
+  top: 0;
+  left: 6vw;
+  right: 60px; /* clears the close button: 10px inset + 40px + 10px gap */
+  height: calc(10px + 40px + 8px); /* same band as the panel's padding-top */
+  margin: 0;
+  display: flex;
+  align-items: center;
+  text-align: left;
+}
+.hud-board-panel .hud-lb-status:empty {
+  display: none;
+}
 .hud-board-close {
   position: absolute;
   z-index: 2; /* stays tappable above the tabs row */
@@ -888,6 +911,12 @@
 }
 .hud-board-list {
   margin-top: 1.6vh;
+  /* Room for the my-row chip (Review Finding 2): the chip floats over the
+     list's lower edge, and without this the last row scrolls in flush
+     under it, unreadable at 0.92 alpha exactly when a player has scrolled
+     away from their own row. 40px chip height (Review Finding 3) + a 6px
+     gap. */
+  padding-bottom: calc(40px + 6px);
 }
 /* Jump-to-my-row: floats over the list's lower edge. Absolute on purpose —
    appearing must not change the panel's height. */
@@ -896,7 +925,7 @@
   left: 6vw;
   right: 6vw;
   bottom: 3.2vh;
-  min-height: 34px;
+  min-height: 40px; /* Review Finding 3: raised from 34px, matching this wave's other touch targets (44/38/40) */
   border: 1px solid rgba(255, 255, 255, 0.5);
   border-radius: 10px;
   background: rgba(10, 18, 38, 0.92);
