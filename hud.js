@@ -551,23 +551,9 @@
     boardTabs.appendChild(boardTabRec);
     boardTabs.appendChild(boardTabShop);
 
-    /* TODAY | ALL TIME, demoted from top-level tabs into the board pane
-       when SHOP arrived (round-2 mockup pick): places on top, views of the
-       board inside it. */
-    var boardSeg = el('div', 'hud-lb-seg');
-    var segDay = el('button', 'hud-lb-seg-btn', 'TODAY');
-    segDay.type = 'button';
-    segDay.setAttribute('data-scope', 'day');
-    var segAll = el('button', 'hud-lb-seg-btn is-on', 'ALL TIME');
-    segAll.type = 'button';
-    segAll.setAttribute('data-scope', 'all');
-    boardSeg.appendChild(segDay);
-    boardSeg.appendChild(segAll);
-
-    /* NORMAL | HARD as a sibling of TODAY | ALL TIME, so both read as views
-       of the board. This picker is view-only: it never changes what will be
-       played, because the trophy opens from the death screen too, where the
-       title switch is not visible. */
+    /* NORMAL | HARD: which board this pane reads. View-only: it never
+       changes what will be played, because the trophy opens from the death
+       screen too, where the title switch is not visible. */
     var boardMode = el('div', 'hud-board-mode');
     var boardModeNormal = el('button', 'hud-mode-btn is-on', 'NORMAL');
     boardModeNormal.type = 'button';
@@ -659,15 +645,10 @@
     boardShop.appendChild(shopGrid);
 
     var boardList = el('ol', 'hud-lb-list hud-board-list');
-    /* TODAY-tab percentile header (density revision: relocated from death) */
-    var boardPct = el('div', 'hud-board-pct', '');
-    boardPct.hidden = true;
     boardPanel.appendChild(boardClose);
     boardPanel.appendChild(boardStatus);
     boardPanel.appendChild(boardTabs);
     boardPanel.appendChild(boardMode);
-    boardPanel.appendChild(boardSeg);
-    boardPanel.appendChild(boardPct);
     boardPanel.appendChild(boardRecords);
     boardPanel.appendChild(boardShop);
     boardPanel.appendChild(boardList);
@@ -705,9 +686,6 @@
       boardTabBoard: boardTabBoard,
       boardTabRec: boardTabRec,
       boardTabShop: boardTabShop,
-      segDay: segDay,
-      segAll: segAll,
-      boardSeg: boardSeg,
       boardMode: boardMode,
       boardModeNormal: boardModeNormal,
       boardModeHard: boardModeHard,
@@ -715,7 +693,6 @@
       shopBalVal: shopBalVal,
       shopGrid: shopGrid,
       shopCards: shopCards,
-      boardPct: boardPct,
       toast: toast,
       lbList: lbList,
       entry: entry,
@@ -1164,27 +1141,6 @@
     } catch (err) { clearTimeout(timer); finish(null); }
   }
 
-  /* HEAD + Prefer count=exact: row count for a filter, no rows transferred. */
-  function countRows(filters, cb) {
-    if (!window.fetch) { cb(null); return; }
-    var done = false;
-    var finish = function (n) { if (!done) { done = true; cb(n); } };
-    var timer = setTimeout(function () { finish(null); }, LB_TIMEOUT_MS);
-    try {
-      window.fetch(LB_URL + '?select=score' + filters + '&limit=1', {
-        method: 'HEAD',
-        headers: { apikey: LB_KEY, Prefer: 'count=exact' }
-      })
-        .then(function (r) {
-          clearTimeout(timer);
-          var cr = (r.headers.get('content-range') || '').split('/')[1];
-          var n = parseInt(cr, 10);
-          finish(isFinite(n) ? n : null);
-        })
-        .catch(function () { clearTimeout(timer); finish(null); });
-    } catch (err) { clearTimeout(timer); finish(null); }
-  }
-
   /* Which mode the run being described belongs to. Set from the mode core
      echoes on game:start and re-set from what it echoes on game:over, so a
      finished run is always described in the mode it actually played, not
@@ -1331,71 +1287,11 @@
     els.overVictim.hidden = false;
   }
 
-  var PCT_MIN_ROWS = 10;
-
-  /* One percentile attempt over a given scope. Calls done(true) when it has
-     either painted a line or definitively cannot, and done(false) only when
-     the window was too thin to mean anything — which is the one case the
-     caller retries against a wider pool. seq is the epoch from showPercentile
-     (see overlayPctSeq above); the day attempt and its all-time fallback
-     share one seq, so either both belong to the current mode or neither
-     paints. */
-  function tryPercentile(scope, mine, label, seq, done) {
-    var f = scopeFilter(scope, overlayMode);
-    countRows(f, function (total) {
-      if (overlayPane !== 'board' || overlayScope !== 'day' || seq !== overlayPctSeq) { done(true); return; }
-      if (total == null || total < PCT_MIN_ROWS) { done(false); return; }
-      countRows(f + '&score=gt.' + mine, function (above) {
-        if (overlayPane !== 'board' || overlayScope !== 'day' || seq !== overlayPctSeq || above == null) { done(true); return; }
-        var pct = Math.max(1, Math.round(((above + 1) / total) * 100));
-        /* Dead last reads as "TOP 100%"; not a brag worth printing. */
-        if (pct >= 100) { done(true); return; }
-        els.boardPct.textContent = 'YOU: TOP ' + pct + label;
-        els.boardPct.hidden = false;
-        done(true);
-      });
-    });
-  }
-
-  /* Overlay TODAY header: "YOU: TOP n% TODAY" for today's device best.
-     Same hiding rules as the old death-screen line: window >= 10, both
-     counts healthy, never 100%. Relocated here by the density revision.
-     Mode-aware (this task) and gains an all-time fallback: the 24h window
-     needs PCT_MIN_ROWS rows before a percentage means anything, and the
-     Hard board will not reach that for a long time, so rather than showing
-     nothing it ranks against the whole board and says so in the label. */
-  function showPercentile() {
-    els.boardPct.hidden = true;
-    els.boardPct.textContent = '';
-    /* A fresh epoch every call: invalidates any tryPercentile still in
-       flight from a mode (or scope, or pane-then-back) switch that has
-       since moved on, even though overlayPane/overlayScope alone would
-       still read as unchanged for a same-pane, same-scope mode switch. */
-    var seq = ++overlayPctSeq;
-    /* Hard tracks no per-day best, so it ranks its all-time best in both
-       windows. Normal keeps today's best for the daily pool. */
-    var dayMine = overlayMode === 'hard' ? readHardBest() : readToday().best;
-    var allMine = bestFor(overlayMode);
-    if (dayMine > 0) {
-      tryPercentile('day', dayMine, '% TODAY', seq, function (shown) {
-        if (!shown && allMine > 0) { tryPercentile('all', allMine, '% ALL TIME', seq, function () {}); }
-      });
-    } else if (allMine > 0) {
-      tryPercentile('all', allMine, '% ALL TIME', seq, function () {});
-    }
-  }
-
   /* Render tokens, one per board, matching their independent scopes: a slow
      response must never paint under a tab the player has since left. Same
-     idiom as autoSeq. Bumped by every request and by every scope change.
-     overlayPctSeq covers the mode axis specifically: overlayBoardSeq guards
-     els.boardList, but a mode switch (unlike a scope or pane switch) leaves
-     overlayPane and overlayScope both unchanged, so tryPercentile needed its
-     own token or a stale in-flight count for the outgoing mode could still
-     pass both of those checks and paint under the incoming mode's board. */
+     idiom as autoSeq. Bumped by every request and by every scope change. */
   var deathBoardSeq = 0;
   var overlayBoardSeq = 0;
-  var overlayPctSeq = 0;
   /* One generation per death, not per request: the death lines describe the
      run that just ended, so they survive a tab switch (the board tokens do
      not) but are dropped the moment the next run dies. */
@@ -1501,7 +1397,6 @@
 
   /* Standalone board view: opens from the corner trophy, refreshes itself
      every 15s while open so nobody has to reload anything. */
-  var overlayScope = 'all';
   var overlayMode = 'normal';   /* which board is being READ, not played */
   var overlayPane = 'board';
   var boardOpen = false;
@@ -1515,25 +1410,23 @@
   function refreshOverlayBoard(showLoading) {
     if (overlayPane !== 'board') { return; }  /* records/shop panes are local: the 15s tick must not fetch */
     var seq = ++overlayBoardSeq;
-    /* Captured once, at issue time (Review Finding 2): overlayMode and
-       overlayScope are live pickers, not the mode/scope this particular
-       read was issued for. The fetchTop callback below is async, so a tap
-       on the picker before it resolves must not relabel the answer that
-       is already in flight — the same reasoning refreshBoard already
-       applies via its own captured `m`. */
+    /* Captured once, at issue time (Review Finding 2): overlayMode is a
+       live picker, not the mode this particular read was issued for. The
+       fetchTop callback below is async, so a tap on the picker before it
+       resolves must not relabel the answer that is already in flight — the
+       same reasoning refreshBoard already applies via its own captured
+       `m`. */
     var mode = overlayMode;
-    var scope = overlayScope;
     /* Find myself on the shared board: the whole point of opening it is
        seeing where I sit, and scanning a list of friends for my own name
        is work the highlight can do. Name only — the board keeps my best
        run, whichever one that was. */
     var myName = readName();
     var me = myName ? { name: myName } : null;
-    /* Paint this scope's warmed rows first, so the panel is the size it
-       will stay at before the read even leaves. Opening used to show an
-       empty list that grew, and flipping scope used to leave the other
-       scope's rows up until the answer came back and resized everything. */
-    var warm = warmRowsFor(scope, mode);
+    /* Paint the warmed rows first, so the panel is the size it will stay
+       at before the read even leaves — opening used to show an empty list
+       that grew instead. */
+    var warm = warmRowsFor('all', mode);
     /* Nothing cached and nothing on screen yet — the one case where the
        size of what is coming is genuinely unknown. Hold the panel at the
        height a full board occupies so the rows land in a space that is
@@ -1542,11 +1435,10 @@
     setColdFloor(!warm && !els.boardList.children.length);
     if (warm) { renderRows(els.boardList, els.boardStatus, warm, me, ''); setColdFloor(false); }
     else if (showLoading && !els.boardList.children.length) { els.boardStatus.textContent = 'LOADING'; }
-    fetchTop(scope, function (rows) {
+    fetchTop('all', function (rows) {
       if (rows) {
         var w = warmSlot(mode);
-        if (scope === 'day') { w.day = rows; }
-        else { w.all = rows; w.at = Date.now(); }
+        w.all = rows; w.at = Date.now();
       }
       if (!boardOpen || seq !== overlayBoardSeq) { return; }
       if (rows) { renderRows(els.boardList, els.boardStatus, rows, me, ''); }
@@ -1607,16 +1499,13 @@
     els.boardTabRec.classList.toggle('is-on', pane === 'records');
     els.boardTabShop.classList.toggle('is-on', pane === 'shop');
     els.boardMode.hidden = pane !== 'board';
-    els.boardSeg.hidden = pane !== 'board';
     els.boardList.hidden = pane !== 'board';
     els.boardRecords.hidden = pane !== 'records';
     els.boardShop.hidden = pane !== 'shop';
-    els.boardPct.hidden = true;
     els.boardStatus.textContent = '';
     setColdFloor(false);   /* records and shop bring their own content */
     if (pane === 'board') {
       refreshOverlayBoard(true);
-      if (overlayScope === 'day') { showPercentile(); }
     } else {
       overlayBoardSeq++;  /* an in-flight list fetch must not repaint under another pane */
     }
@@ -1637,7 +1526,6 @@
     overlayBoardSeq++;   /* the other board's in-flight read must not paint here */
     while (els.boardList.firstChild) { els.boardList.removeChild(els.boardList.firstChild); }
     refreshOverlayBoard(true);
-    if (overlayScope === 'day') { showPercentile(); } else { els.boardPct.hidden = true; }
   }
 
   function openBoardTo(pane) {
@@ -2017,29 +1905,11 @@
     els.boardTabBoard.addEventListener('click', function () { setPane('board'); });
     els.boardTabRec.addEventListener('click', function () { setPane('records'); });
     els.boardTabShop.addEventListener('click', function () { setPane('shop'); });
-    els.segDay.addEventListener('click', function () {
-      if (overlayScope === 'day') { return; }
-      overlayScope = 'day';
-      els.segDay.classList.add('is-on');
-      els.segAll.classList.remove('is-on');
-      refreshOverlayBoard(true);
-      showPercentile();
-    });
-    els.segAll.addEventListener('click', function () {
-      if (overlayScope === 'all') { return; }
-      overlayScope = 'all';
-      els.segAll.classList.add('is-on');
-      els.segDay.classList.remove('is-on');
-      els.boardPct.hidden = true;
-      refreshOverlayBoard(true);
-    });
     els.boardModeNormal.addEventListener('click', function () { setOverlayMode('normal', true); });
     els.boardModeHard.addEventListener('click', function () { setOverlayMode('hard', true); });
     keepKeysLocal(els.boardTabBoard);
     keepKeysLocal(els.boardTabRec);
     keepKeysLocal(els.boardTabShop);
-    keepKeysLocal(els.segDay);
-    keepKeysLocal(els.segAll);
     /* Same treatment as every other control inside .hud-board: Space/Enter
        here must not bubble to core.js's own window keydown listener, which
        knows nothing of boardOpen and would drop a block or start a run
