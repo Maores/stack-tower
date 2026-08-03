@@ -1197,6 +1197,14 @@
     }
   }
 
+  /* Cold-open placeholder: six shimmer bars where rows will land. Only
+     ever rendered into an empty list; any real render replaces it because
+     renderRows clears the list first. */
+  function renderSkeleton(listEl) {
+    while (listEl.firstChild) { listEl.removeChild(listEl.firstChild); }
+    for (var i = 0; i < 6; i++) { listEl.appendChild(el('li', 'hud-lb-skel')); }
+  }
+
   function renderBoard(rows, mine, label) {
     /* Death-screen fallback list matches the sandwich scale: 3 rows; the
        trophy overlay keeps the full 10 (density revision, 2026-07-31). */
@@ -1451,11 +1459,13 @@
        that grew instead. */
     var warm = warmRowsFor('all', mode);
     /* Nothing cached and nothing on screen yet — the cold-empty case. The
-       panel's height is fixed now (hud.css .hud-board-panel), so this just
-       renders an empty list rather than padding out a floor; Task 4 adds a
-       loading skeleton for it. */
+       panel's height is fixed (hud.css .hud-board-panel), so a skeleton
+       costs nothing to show; the fetch below replaces it the moment real
+       rows (or the empty/device-fallback state) land. showLoading is false
+       on the silent 15s tick, so a background refresh never interrupts
+       whatever is already on screen with a fresh skeleton. */
     if (warm) { renderRows(els.boardList, els.boardStatus, warm, me, '', 50); updateMyRow(); }
-    else if (showLoading && !els.boardList.children.length) { els.boardStatus.textContent = 'LOADING'; }
+    else if (showLoading && !els.boardList.children.length) { renderSkeleton(els.boardList); }
     fetchTop('all', function (rows) {
       if (rows) {
         var w = warmSlot(mode);
@@ -1552,7 +1562,6 @@
     els.boardModeHard.setAttribute('aria-pressed', overlayMode === 'hard' ? 'true' : 'false');
     if (!refresh) { return; }
     overlayBoardSeq++;   /* the other board's in-flight read must not paint here */
-    while (els.boardList.firstChild) { els.boardList.removeChild(els.boardList.firstChild); }
     refreshOverlayBoard(true);
   }
 
