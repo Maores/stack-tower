@@ -1403,10 +1403,6 @@
   var boardTimer = null;
   var BOARD_REFRESH_MS = 15000;
 
-  function setColdFloor(on) {
-    els.boardPanel.classList.toggle('is-cold', !!on);
-  }
-
   function refreshOverlayBoard(showLoading) {
     if (overlayPane !== 'board') { return; }  /* records/shop panes are local: the 15s tick must not fetch */
     var seq = ++overlayBoardSeq;
@@ -1427,13 +1423,11 @@
        at before the read even leaves — opening used to show an empty list
        that grew instead. */
     var warm = warmRowsFor('all', mode);
-    /* Nothing cached and nothing on screen yet — the one case where the
-       size of what is coming is genuinely unknown. Hold the panel at the
-       height a full board occupies so the rows land in a space that is
-       already the right shape, and let content take over the moment they
-       do. Any other time this floor would pad a short board into a void. */
-    setColdFloor(!warm && !els.boardList.children.length);
-    if (warm) { renderRows(els.boardList, els.boardStatus, warm, me, ''); setColdFloor(false); }
+    /* Nothing cached and nothing on screen yet — the cold-empty case. The
+       panel's height is fixed now (hud.css .hud-board-panel), so this just
+       renders an empty list rather than padding out a floor; Task 4 adds a
+       loading skeleton for it. */
+    if (warm) { renderRows(els.boardList, els.boardStatus, warm, me, ''); }
     else if (showLoading && !els.boardList.children.length) { els.boardStatus.textContent = 'LOADING'; }
     fetchTop('all', function (rows) {
       if (rows) {
@@ -1443,7 +1437,6 @@
       if (!boardOpen || seq !== overlayBoardSeq) { return; }
       if (rows) { renderRows(els.boardList, els.boardStatus, rows, me, ''); }
       else if (!warm) { renderRows(els.boardList, els.boardStatus, readLocalBoard(mode), me, 'THIS DEVICE ONLY'); }
-      setColdFloor(false);
     }, false, mode);
   }
 
@@ -1503,7 +1496,6 @@
     els.boardRecords.hidden = pane !== 'records';
     els.boardShop.hidden = pane !== 'shop';
     els.boardStatus.textContent = '';
-    setColdFloor(false);   /* records and shop bring their own content */
     if (pane === 'board') {
       refreshOverlayBoard(true);
     } else {

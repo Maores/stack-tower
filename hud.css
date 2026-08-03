@@ -373,6 +373,7 @@
   background: transparent;
   border-radius: 999px;
   padding: 0.28em 0.9em 0.28em 1.08em; /* extra left pad balances letter-spacing */
+  min-height: 44px;
   font-size: clamp(10px, 1.5vmin, 12px);
   font-weight: 300;
   letter-spacing: 0.18em;
@@ -767,6 +768,7 @@
 .hud-board-mode .hud-mode-btn {
   border: 1px solid rgba(255, 255, 255, 0.3);
   padding: 0.22em 0.85em 0.22em 1.01em;
+  min-height: 38px;
   font-size: clamp(9px, 1.4vmin, 11px);
   letter-spacing: 0.16em;
   opacity: 0.55;
@@ -808,25 +810,25 @@
   pointer-events: auto;
   transition: opacity 0.3s ease;
 }
-/* Sized by its contents, but the contents are there from the first frame:
-   the rows are painted from the board read that was warmed earlier, so the
-   panel opens at its settled size instead of growing as data lands. A
-   fixed height was tried and rejected — it held the shape but left two
-   rows floating in a half-empty pane whenever the day's board was quiet.
-   The floor here only catches the cold case where nothing is cached yet. */
+/* Fixed height, not sized by content: one height across every pane, both
+   modes, and every loading state, so nothing a player does moves the
+   panel. A min-height floor was tried before this (01-08) and measured as
+   "zero movement" against a handful of mocked rows, then did nothing
+   against the live board's ten: the content was taller than the floor, so
+   the floor never engaged. 66vh is the measured RECORDS pane (438px) over
+   the emulated iPhone 13's 664px innerHeight; the 460px cap covers desktop. */
 .hud-board-panel {
   position: relative;
   width: min(84vw, 380px);
-  min-height: min(30vh, 240px);
-  max-height: 82vh;
+  height: min(66vh, 460px);
   display: flex;
   flex-direction: column;
   /* Top padding clears the close button rather than guessing at it: the
-     button is a fixed 34px at a fixed 10px inset, so a vh-based gap would
+     button is a fixed 40px at a fixed 10px inset, so a vh-based gap would
      clear it on a tall phone and let the tabs slide under it on a short
      one. The heading used to occupy this band and was narrow enough to
      miss the button; the tabs row spans the full width and does not. */
-  padding: calc(10px + 34px + 8px) 6vw 3.2vh;
+  padding: calc(10px + 40px + 8px) 6vw 3.2vh;
   border: 1px solid rgba(255, 255, 255, 0.35);
   border-radius: 18px;
   background: rgba(10, 18, 38, 0.35);
@@ -837,20 +839,13 @@
 .hud-board-panel .hud-lb-tabs {
   margin-top: 0;
 }
-/* Only while the list is empty and nothing is cached: hold roughly a full
-   board's height so the first rows land in a space already their size.
-   Dropped as soon as anything renders, so a quiet day's two rows are not
-   padded out into an empty pane. */
-.hud-board-panel.is-cold {
-  min-height: min(57vh, 420px);
-}
 .hud-board-close {
   position: absolute;
   z-index: 2; /* stays tappable above the tabs row */
   top: 10px;
   right: 10px;
-  width: 34px;
-  height: 34px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   border: 1px solid rgba(255, 255, 255, 0.5);
   background: rgba(255, 255, 255, 0.08);
@@ -886,6 +881,7 @@
   flex: 1 1 auto;
   min-height: 0;
   max-height: none;
+  overflow-y: auto;
 }
 .hud-board-list {
   margin-top: 1.6vh;
