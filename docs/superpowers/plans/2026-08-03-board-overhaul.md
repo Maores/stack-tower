@@ -108,20 +108,16 @@ const fails = [];
   if (overlayDay.length) { fails.push('B: the overlay still queries the day window: ' + overlayDay[0]); }
   if (!gets.length) { fails.push('B: the mode flip fetched nothing at all'); }
 
-  /* C — the death path still queries the day window (roast source) */
-  await page.click('.hud-board-close');
-  await page.waitForTimeout(300);
-  gets.length = 0;
-  await page.evaluate(() => {
-    window.StackCore.debug.reset();
-    window.StackCore.debug.build(12, 0);
-    window.StackCore.debug.drop(9);
-  });
-  await page.waitForSelector('#hud-root[data-state="over"]', { timeout: 8000 });
-  await page.waitForTimeout(1500);
-  const deathDay = gets.filter(u => u.indexOf('created_at=gte.') >= 0);
-  console.log('OBS C gets=' + gets.length + ' day=' + deathDay.length);
-  if (!deathDay.length) { fails.push('C: death no longer queries the day window — the roast lost its victim pool'); }
+  /* C — the day window survives as a data source. The roast consumes day
+     rows from the warm cache fetched at BOOT (warmUp fires ~150ms into
+     load), so a healthy death makes no fresh day request — asserting one
+     at death time was this plan's original mistake and blocked Task 1.
+     The deterministic survival signal is the boot fetch itself: it runs
+     through scopeFilter('day') and dayFloorIso, exactly the machinery the
+     deletion must not touch. `gets` has captured since page load. */
+  const bootDay = gets.filter(u => u.indexOf('created_at=gte.') >= 0);
+  console.log('OBS C bootDay=' + bootDay.length);
+  if (!bootDay.length) { fails.push('C: boot no longer warms the day window — the roast lost its victim pool'); }
 
   if (errs.length) { fails.push('errors: ' + JSON.stringify(errs)); }
   await browser.close();
@@ -132,7 +128,9 @@ const fails = [];
 
 - [ ] **Step 2: Run it and watch it fail**
 
-Expected: A fails (`seg elements still in the DOM: 3`, pct 1). B likely fails too (the TODAY tab's request machinery still exists if the seg is on day, but with ALL TIME default it may pass; A alone gates). C passes today. If C fails BEFORE your change, stop and report: the roast path is already broken and you are not the cause.
+Expected: A fails (`seg elements still in the DOM: 3`, pct 1). B likely fails too (the TODAY tab's request machinery still exists if the seg is on day, but with ALL TIME default it may pass; A alone gates). C passes today (warmUp fires a day GET on every load). If C fails BEFORE your change, stop and report: the boot warm path is already broken and you are not the cause.
+
+Note for section B: `gets.length = 0` before the mode flip resets the capture; section C reads the boot-time entries, so C's filter must run on a capture taken BEFORE that reset — hoist `const bootDay = …` above section B's reset (the ordering in the listing above already reflects this if C's filter line sits before `gets.length = 0`; if you reorder, keep the boot capture intact).
 
 - [ ] **Step 3: Delete the view**
 
@@ -149,7 +147,7 @@ In `hud.css`: delete the `.hud-lb-seg` / `.hud-lb-seg-btn` block (including any 
 
 - [ ] **Step 4: Run the test to green, then the neighbors**
 
-`pw-oneboard.js` must pass all three sections. Then run `pw-deathlines.js`, `pw-chase-local.js`, `pw-tiers.js` — the death screen and records are untouched territory and must stay green. `pw-boards.js` and `pw-hard-board.js` are EXPECTED to fail from this task (they assert the seg and the percentile); do not fix them here — that is Task 5's reconciliation. Record their failure signatures in the report.
+`pw-oneboard.js` must pass all three sections. Then run `pw-chase-local.js` and `pw-tiers.js` — untouched territory, must stay green (if `pw-tiers` turns out to touch the seg too, report it and reclassify rather than fixing). `pw-boards.js`, `pw-hard-board.js`, AND `pw-deathlines.js` are EXPECTED to fail from this task (all three assert the seg or the percentile — pw-deathlines' dependence was found during Task 1's block); do not fix them here — that is Task 5's reconciliation. Record their failure signatures in the report.
 
 - [ ] **Step 5: Commit**
 
@@ -711,7 +709,7 @@ git commit -m "One loading strategy: keep what you have, shimmer only when cold"
 
 - [ ] **Step 2: Reconcile pw-boards.js and pw-hard-board.js**
 
-Read both. Sections asserting the TODAY|ALL TIME seg, `overlayScope` behavior, or the percentile line describe deleted features: retire each with a dated comment naming this spec (do not delete the file). Sections asserting the mode-race guard, dedupe, mode-scoped requests, or death behavior must be kept and passing — adapt selectors if the seg's absence shifted them. Record per-section verdicts (kept/adapted/retired) in the report.
+Read all three: `pw-boards.js`, `pw-hard-board.js`, and `pw-deathlines.js` (the third joined the list during Task 1: it drives scope switches through `.hud-lb-seg-btn[data-scope="day"]` and reads `.hud-board-pct`). Sections asserting the TODAY|ALL TIME seg, `overlayScope` behavior, or the percentile line describe deleted features: retire each with a dated comment naming this spec (do not delete the file). Sections asserting the mode-race guard, dedupe, mode-scoped requests, or death behavior must be kept and passing — adapt selectors if the seg's absence shifted them. Record per-section verdicts (kept/adapted/retired) in the report.
 
 - [ ] **Step 3: The full ledger**
 
