@@ -33,8 +33,9 @@
  *   'stack:reset'    {}
  *   'hud:world'   { id }  active World changed (palette + sky swap)
  *   'hud:gear'    { trail, flare, slice, death, record, material }  equipped
- *                 singles per slot (id or null); trail/flare/material land
- *                 here, slice/death/record land with Task 5
+ *                 singles per slot (id or null); trail/flare/material style
+ *                 blocks and drops; slice/death/record style the cut piece,
+ *                 the death sequence and new-best moments
  *
  * Extras for the HUD layer:
  *   StackVisuals.getBlockColor(level, depth) -> '#rrggbb'
@@ -145,6 +146,7 @@
     slider: null,       // mesh of the currently-sliding block (trail emitter)
     trailAcc: 0,        // seconds accumulated toward the next trail spawn
     slowmoT: 0,         // seconds remaining of post-death slow motion
+    fireworksTimers: [], // pending death-fireworks burst timer ids, cleared on reset
     bgCur: null,        // { inner, outer, beam } THREE.Color, working space
     bgTarget: null,
     sky: null,
@@ -1119,6 +1121,8 @@
     S.slider = null;
     S.trailAcc = 0;
     S.slowmoT = 0;
+    for (var f = 0; f < S.fireworksTimers.length; f++) { clearTimeout(S.fireworksTimers[f]); }
+    S.fireworksTimers.length = 0;
     for (var j = 0; j < S.flashPool.length; j++) {
       S.flashPool[j].active = false;
       S.flashPool[j].mesh.visible = false;
@@ -1522,7 +1526,7 @@
       var cols = [[0.69, 0.55, 1.0], [1.0, 0.72, 0.38], [0.55, 0.95, 0.88]];
       for (var b = 0; b < 3; b++) {
         (function (bi) {
-          setTimeout(function () {
+          var tid = setTimeout(function () {
             if (!S.inited) { return; }
             var bx = (Math.random() - 0.5) * 3 * S.blockW;
             var bz = (Math.random() - 0.5) * 3 * S.blockW;
@@ -1536,6 +1540,7 @@
               });
             }
           }, 500 + bi * 250);
+          S.fireworksTimers.push(tid);
         })(b);
       }
     }

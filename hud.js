@@ -27,6 +27,7 @@
      'hud:mute'  { muted }        mute state for audio.js
      'hud:world' { id }           equipped World for visuals.js / audio.js
      'hud:mode'  { id }           difficulty for core.js; applied at run start
+     'hud:gear'  { trail, flare, slice, death, record, material }  broadcast at boot and on gear changes
 
    The HUD never stops propagation of pointer events, so a game that starts
    or restarts from its own global tap handler keeps working; hud:start /
