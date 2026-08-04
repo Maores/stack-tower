@@ -371,7 +371,7 @@
       if (!Array.isArray(v)) { return []; }
       var out = [];
       for (var i = 0; i < v.length; i++) {
-        if (SINGLE_BY_ID[v[i]] && out.indexOf(v[i]) < 0) { out.push(v[i]); }
+        if (Object.prototype.hasOwnProperty.call(SINGLE_BY_ID, v[i]) && out.indexOf(v[i]) < 0) { out.push(v[i]); }
       }
       return out;
     } catch (err) { return []; }
@@ -386,7 +386,7 @@
   }
 
   function grantSingle(id) {
-    if (!SINGLE_BY_ID[id] || ownsSingle(id)) { return false; }
+    if (!Object.prototype.hasOwnProperty.call(SINGLE_BY_ID, id) || ownsSingle(id)) { return false; }
     var owned = readSingles();
     owned.push(id);
     writeSingles(owned);
@@ -429,8 +429,8 @@
   }
 
   function equipSingle(id) {
+    if (!Object.prototype.hasOwnProperty.call(SINGLE_BY_ID, id)) { return; }
     var s = SINGLE_BY_ID[id];
-    if (!s) { return; }
     var g = readGear();
     g[s.slot] = id;
     writeGear(g);
