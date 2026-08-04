@@ -1846,9 +1846,12 @@
   var machineBusy = false;
   var machineLast = null;   /* {single} for the session's win row */
   var MACHINE_ROWH = 32;
-  var MACHINE_ROLL_MS = 1250;
-  var MACHINE_HIT_MS = 1300;
-  var MACHINE_LOCK_MS = 1900;
+  /* Lengthened from 1250/1300/1900 on Maor's verdict (2026-08-04: the spin
+     "ends too fast"); same deceleration curve, stretched. Further pacing
+     shapes belong to the shop-overhaul mockup round. */
+  var MACHINE_ROLL_MS = 2000;
+  var MACHINE_HIT_MS = 2050;
+  var MACHINE_LOCK_MS = 2650;
   var MACHINE_LOCK_REDUCED_MS = 400;
 
   function unownedSingles() {
