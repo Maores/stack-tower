@@ -144,6 +144,7 @@
     gearFx: [],         // Wave B gear particle pool: trail/flare bits
     slider: null,       // mesh of the currently-sliding block (trail emitter)
     trailAcc: 0,        // seconds accumulated toward the next trail spawn
+    slowmoT: 0,         // seconds remaining of post-death slow motion
     bgCur: null,        // { inner, outer, beam } THREE.Color, working space
     bgTarget: null,
     sky: null,
@@ -910,10 +911,11 @@
     GHOST.line = line;
   }
 
-  function ghostCheckPassed(level) {
+  function ghostCheckPassed(level, mesh) {
     if (!GHOST.line || GHOST.passed) return;
     if (typeof level === 'number' && level > GHOST.best) {
       GHOST.passed = true;
+      recordFx(mesh);
       ghostStyle(true);
     }
   }
@@ -954,7 +956,7 @@
       GHOST.line.position.x = mesh.position.x;
       GHOST.line.position.z = mesh.position.z;
     }
-    ghostCheckPassed(level);
+    ghostCheckPassed(level, mesh);
   }
 
   /* Cut piece handover. The piece must read as physical: it tips OUTWARD
@@ -982,7 +984,14 @@
     ud.svMat = mat;
     mesh.material = mat;
     ensureEdges(mesh);
-    if (ud.svEdges) ud.svEdges.material = S.edgeMat.clone();
+    // A neonedge material single leaves a per-mesh clone on ud.svEdges while
+    // the block stood (applyMaterialGear); overwriting it here without a
+    // dispose orphans that clone (Task 4 review finding). S.edgeMat itself
+    // is the shared default and must never be disposed.
+    if (ud.svEdges) {
+      if (ud.svEdges.material && ud.svEdges.material !== S.edgeMat) { ud.svEdges.material.dispose(); }
+      ud.svEdges.material = S.edgeMat.clone();
+    }
     var dir = null;
     if (opts.dir && typeof opts.dir.x === 'number' &&
         (opts.dir.x !== 0 || (opts.dir.z || 0) !== 0)) {
@@ -1012,6 +1021,59 @@
       dur: CFG.debrisLife,
       baseOp: mat.opacity
     });
+    var entry = S.debris[S.debris.length - 1];
+    // Slice singles restyle the cut piece. They apply to every debris
+    // spawn, including the run-ending miss, so the look stays consistent;
+    // the death single layers on top of whatever the slice style left.
+    var sliceKind = GEAR.slice;
+    if (sliceKind === 'petals') {
+      entry.gravK = 0.22;
+      entry.rate *= 2.2;
+      entry.dur = Math.max(entry.dur, 1.6);
+      for (var pi = 0; pi < 5; pi++) {
+        spawnGearBit({
+          x: mesh.position.x, y: mesh.position.y, z: mesh.position.z,
+          size: 0.1, life: 1.3, op: 0.8, grav: 1.1,
+          vx: (Math.random() - 0.5) * 1.4, vy: 0.7 + Math.random() * 0.4,
+          vz: (Math.random() - 0.5) * 1.4,
+          scaleK: 0.7, fadePow: 1.2, color: [1.0, 0.7, 0.8]
+        });
+      }
+    } else if (sliceKind === 'confetti') {
+      entry.dur = Math.min(entry.dur, 0.45);
+      var cCols = [[1, 0.44, 0.57], [0.35, 0.94, 1], [0.95, 0.76, 0.31], [0.61, 0.89, 0.5]];
+      for (var ci = 0; ci < 10; ci++) {
+        spawnGearBit({
+          x: mesh.position.x, y: mesh.position.y, z: mesh.position.z,
+          size: 0.07, life: 0.9, op: 0.95, grav: 5.5,
+          vx: (Math.random() - 0.5) * 3.2, vy: 1.6 + Math.random() * 1.2,
+          vz: (Math.random() - 0.5) * 3.2,
+          scaleK: 0.6, fadePow: 1, color: cCols[ci % cCols.length]
+        });
+      }
+    } else if (sliceKind === 'pixels') {
+      entry.dur = Math.min(entry.dur, 0.35);
+      for (var xi = 0; xi < 8; xi++) {
+        spawnGearBit({
+          x: mesh.position.x + (Math.random() - 0.5) * 0.5 * S.blockW,
+          y: mesh.position.y + (Math.random() - 0.5) * 0.3 * S.blockW,
+          z: mesh.position.z + (Math.random() - 0.5) * 0.5 * S.blockW,
+          size: 0.11, life: 0.6, op: 0.9, grav: 4.5,
+          vx: (Math.random() - 0.5) * 1.6, vy: 0.5, vz: (Math.random() - 0.5) * 1.6,
+          scaleK: 1, fadePow: 0.8, color: [0.35, 0.94, 1]
+        });
+      }
+    } else if (sliceKind === 'shards') {
+      entry.rate *= 1.6;
+      for (var hi = 0; hi < 4; hi++) {
+        spawnGearBit({
+          x: mesh.position.x, y: mesh.position.y, z: mesh.position.z,
+          size: 0.12, life: 0.7, op: 0.85, grav: 6,
+          vx: (Math.random() - 0.5) * 2.6, vy: 1.2 + Math.random(), vz: (Math.random() - 0.5) * 2.6,
+          scaleK: 0.3, fadePow: 2, color: [0.75, 0.89, 1.0]
+        });
+      }
+    }
   }
 
   function removeDebris(entry) {
@@ -1056,6 +1118,7 @@
     while (S.gearFx.length) { removeGearBit(S.gearFx[0]); }
     S.slider = null;
     S.trailAcc = 0;
+    S.slowmoT = 0;
     for (var j = 0; j < S.flashPool.length; j++) {
       S.flashPool[j].active = false;
       S.flashPool[j].mesh.visible = false;
@@ -1082,6 +1145,10 @@
 
   function update(dt) {
     if (!S.inited) return;
+    if (S.slowmoT > 0) {
+      S.slowmoT -= dt;
+      dt *= 0.4;   /* the whole scene breathes slower for under a second */
+    }
     dt = Math.max(0, Math.min(dt || 0.016, 0.05));
     S.time += dt;
     S.gameDim += (S.gameDimTarget - S.gameDim) * (1 - Math.exp(-dt * 3));
@@ -1233,10 +1300,14 @@
     for (var d = S.debris.length - 1; d >= 0; d--) {
       var en = S.debris[d];
       en.t += dt;
-      en.vel.y -= CFG.gravity * S.blockW * dt;
+      en.vel.y -= CFG.gravity * S.blockW * dt * (en.gravK == null ? 1 : en.gravK);
       en.vel.x *= drag;
       en.vel.z *= drag;
       en.mesh.position.addScaledVector(en.vel, dt);
+      if (en.bounces > 0 && en.mesh.position.y <= en.bounceY && en.vel.y < 0) {
+        en.vel.y = -en.vel.y * 0.55;
+        en.bounces--;
+      }
       if (en.mesh.rotateOnWorldAxis) en.mesh.rotateOnWorldAxis(en.axis, en.rate * dt);
       else en.mesh.rotateOnAxis(en.axis, en.rate * dt);
       var gone = en.mesh.position.y < camY - 26 * S.blockW;
@@ -1434,7 +1505,41 @@
     var d = det(e);
     if (typeof d.level === 'number') setLevel(d.level);
   });
-  window.addEventListener('stack:gameover', function () { onGameOver(); });
+  window.addEventListener('stack:gameover', function () {
+    onGameOver();
+    // Death singles dress the fall. The screen and the audio stay silent;
+    // this is scene-side only.
+    if (GEAR.death === 'slowmo') {
+      S.slowmoT = 0.8;
+    } else if (GEAR.death === 'bounce' && S.debris.length) {
+      var en = S.debris[S.debris.length - 1];
+      en.bounces = 1;
+      en.bounceY = en.mesh.position.y - 3 * S.blockW;
+      en.dur = Math.max(en.dur, 2.0);
+    } else if (GEAR.death === 'fireworks') {
+      var top = 0;
+      try { top = window.StackCore.getTowerState().towerTop; } catch (err) { top = 4; }
+      var cols = [[0.69, 0.55, 1.0], [1.0, 0.72, 0.38], [0.55, 0.95, 0.88]];
+      for (var b = 0; b < 3; b++) {
+        (function (bi) {
+          setTimeout(function () {
+            if (!S.inited) { return; }
+            var bx = (Math.random() - 0.5) * 3 * S.blockW;
+            var bz = (Math.random() - 0.5) * 3 * S.blockW;
+            for (var p = 0; p < 8; p++) {
+              var a = (p / 8) * Math.PI * 2;
+              spawnGearBit({
+                x: bx, y: top + (2.5 + bi) * S.blockW, z: bz,
+                size: 0.1, life: 0.8, op: 0.95, grav: 1.6,
+                vx: Math.cos(a) * 2.4, vy: Math.sin(a) * 2.4 * 0.6 + 0.8, vz: Math.sin(a) * 1.2,
+                scaleK: 0.4, fadePow: 1.5, color: cols[bi % cols.length]
+              });
+            }
+          }, 500 + bi * 250);
+        })(b);
+      }
+    }
+  });
   window.addEventListener('stack:reset', function () { reset(); ghostSync(); });
   window.addEventListener('hud:world', function (e) {
     var id = e && e.detail ? String(e.detail.id) : '';
@@ -1493,6 +1598,25 @@
           x: fp.cx, y: y, z: fp.cz, size: def.size, life: def.life, op: def.op,
           vx: Math.cos(a) * def.speed, vz: Math.sin(a) * def.speed, vy: 0.6,
           grav: 2.2, scaleK: 0.4, fadePow: 1.5, color: def.color
+        });
+      }
+    }
+  }
+
+  function recordFx(mesh) {
+    if (!GEAR.record || !S.inited) { return; }
+    var fp = mesh ? meshFootprint(mesh, {}) : null;
+    if (GEAR.record === 'ringburst' && fp) {
+      spawnGearBit({ x: fp.cx, y: fp.topY + 0.05 * S.blockW, z: fp.cz, flat: true, size: 0.6, scaleK: 6.5, life: 0.7, op: 0.9, color: [1.0, 0.88, 0.54], fadePow: 2 });
+      spawnGearBit({ x: fp.cx, y: fp.topY + 0.05 * S.blockW, z: fp.cz, flat: true, size: 0.4, scaleK: 5.0, life: 0.55, op: 0.6, color: [1.0, 0.95, 0.8], fadePow: 2 });
+    } else if (GEAR.record === 'aurora') {
+      var y = (fp ? fp.topY : 4) + 6 * S.blockW;
+      for (var i = 0; i < 6; i++) {
+        spawnGearBit({
+          x: -6 * S.blockW + i * 0.6 * S.blockW, y: y + (i % 2) * 0.5 * S.blockW, z: -2 * S.blockW,
+          size: 1.4, life: 1.2, op: 0.35,
+          vx: 5.5, vy: 0.2, vz: 0,
+          scaleK: 1.6, fadePow: 1.2, color: [0.5, 1.0, 0.79]
         });
       }
     }
