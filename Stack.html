@@ -2425,10 +2425,10 @@
  *   'stack:gameover' {}
  *   'stack:reset'    {}
  *   'hud:world'   { id }  active World changed (palette + sky swap)
- *   'hud:gear'    { trail, flare, slice, death, record, material }  equipped
+ *   'hud:gear'    { trail, flare, slice, death, material }  equipped
  *                 singles per slot (id or null); trail/flare/material style
- *                 blocks and drops; slice/death/record style the cut piece,
- *                 the death sequence and new-best moments
+ *                 blocks and drops; slice/death style the cut piece and
+ *                 the death sequence
  *
  * Extras for the HUD layer:
  *   StackVisuals.getBlockColor(level, depth) -> '#rrggbb'
@@ -2542,7 +2542,6 @@
     slider: null,       // mesh of the currently-sliding block (trail emitter)
     trailAcc: 0,        // seconds accumulated toward the next trail spawn
     slowmoT: 0,         // seconds remaining of post-death slow motion
-    fireworksTimers: [], // pending death-fireworks burst timer ids, cleared on reset
     bgCur: null,        // { inner, outer, beam } THREE.Color, working space
     bgTarget: null,
     sky: null,
@@ -3313,14 +3312,12 @@
   function ghostCheckPassed(level, mesh) {
     if (GHOST.passed) return;
     if (typeof level !== 'number' || level <= GHOST.best) return;
-    // Option B (Maor, 2026-08-04): below best 10 no ghost line exists, but
-    // beating the stored best is still the record moment, so the two record
-    // singles fire on any new personal best. A fresh device (best 0) stays
-    // silent: block one of run one is technically a record, and a flash
-    // there reads as noise, not celebration.
+    // The record-moment singles that used to fire here were cut in the
+    // 2026-08-04 shop review; what remains is the ghost line's own style
+    // flip when the run passes the stored best (a no-op below best 10,
+    // where no line exists).
     if (!GHOST.line && GHOST.best < 1) return;
     GHOST.passed = true;
-    recordFx(mesh);
     ghostStyle(true);
   }
 
@@ -3544,8 +3541,6 @@
     S.slider = null;
     S.trailAcc = 0;
     S.slowmoT = 0;
-    for (var f = 0; f < S.fireworksTimers.length; f++) { clearTimeout(S.fireworksTimers[f]); }
-    S.fireworksTimers.length = 0;
     for (var j = 0; j < S.flashPool.length; j++) {
       S.flashPool[j].active = false;
       S.flashPool[j].mesh.visible = false;
@@ -3899,7 +3894,7 @@
     getBlockColor: getBlockColor,
     getPalette: getPalette,
     debug: {
-      gear: function () { return { trail: GEAR.trail, flare: GEAR.flare, slice: GEAR.slice, death: GEAR.death, record: GEAR.record, material: GEAR.material }; },
+      gear: function () { return { trail: GEAR.trail, flare: GEAR.flare, slice: GEAR.slice, death: GEAR.death, material: GEAR.material }; },
       fxCount: function () { return S.gearFx.length; },
       debris: function () {
         var out = [];
@@ -3979,30 +3974,8 @@
       // mid-tower (Maor's report, 2026-08-04).
       var en = S.debris[S.debris.length - 1];
       en.bounces = 1;
-    } else if (GEAR.death === 'fireworks') {
-      var top = 0;
-      try { top = window.StackCore.getTowerState().towerTop; } catch (err) { top = 4; }
-      var cols = [[0.69, 0.55, 1.0], [1.0, 0.72, 0.38], [0.55, 0.95, 0.88]];
-      for (var b = 0; b < 3; b++) {
-        (function (bi) {
-          var tid = setTimeout(function () {
-            if (!S.inited) { return; }
-            var bx = (Math.random() - 0.5) * 3 * S.blockW;
-            var bz = (Math.random() - 0.5) * 3 * S.blockW;
-            for (var p = 0; p < 8; p++) {
-              var a = (p / 8) * Math.PI * 2;
-              spawnGearBit({
-                x: bx, y: top + (2.5 + bi) * S.blockW, z: bz,
-                size: 0.1, life: 0.8, op: 0.95, grav: 1.6,
-                vx: Math.cos(a) * 2.4, vy: Math.sin(a) * 2.4 * 0.6 + 0.8, vz: Math.sin(a) * 1.2,
-                scaleK: 0.4, fadePow: 1.5, color: cols[bi % cols.length]
-              });
-            }
-          }, 500 + bi * 250);
-          S.fireworksTimers.push(tid);
-        })(b);
-      }
     }
+    // FIREWORKS was the third death single; cut in the 2026-08-04 review.
   });
   window.addEventListener('stack:reset', function () { reset(); ghostSync(); });
   window.addEventListener('hud:world', function (e) {
@@ -4020,7 +3993,7 @@
   /* Wave B gear: equipped singles per slot, broadcast by the HUD. Effects
      read this at event time; an unknown id in a slot simply never matches
      an effect branch, so forward compatibility is silence, not breakage. */
-  var GEAR = { trail: null, flare: null, slice: null, death: null, record: null, material: null };
+  var GEAR = { trail: null, flare: null, slice: null, death: null, material: null };
   window.addEventListener('hud:gear', function (e) {
     var d = det(e);
     for (var k in GEAR) {
@@ -4067,25 +4040,6 @@
     }
   }
 
-  function recordFx(mesh) {
-    if (!GEAR.record || !S.inited) { return; }
-    var fp = mesh ? meshFootprint(mesh, {}) : null;
-    if (GEAR.record === 'ringburst' && fp) {
-      spawnGearBit({ x: fp.cx, y: fp.topY + 0.05 * S.blockW, z: fp.cz, flat: true, size: 0.6, scaleK: 6.5, life: 0.7, op: 0.9, color: [1.0, 0.88, 0.54], fadePow: 2 });
-      spawnGearBit({ x: fp.cx, y: fp.topY + 0.05 * S.blockW, z: fp.cz, flat: true, size: 0.4, scaleK: 5.0, life: 0.55, op: 0.6, color: [1.0, 0.95, 0.8], fadePow: 2 });
-    } else if (GEAR.record === 'aurora') {
-      var y = (fp ? fp.topY : 4) + 6 * S.blockW;
-      for (var i = 0; i < 6; i++) {
-        spawnGearBit({
-          x: -6 * S.blockW + i * 0.6 * S.blockW, y: y + (i % 2) * 0.5 * S.blockW, z: -2 * S.blockW,
-          size: 1.4, life: 1.2, op: 0.35,
-          vx: 5.5, vy: 0.2, vz: 0,
-          scaleK: 1.6, fadePow: 1.2, color: [0.5, 1.0, 0.79]
-        });
-      }
-    }
-  }
-
   /* stack:reset only fires on restarts. game:start is still needed as a
      fallback because core.js fires stack:init before it reads `best` from
      localStorage (fireDom('stack:init', ...) runs ahead of the
@@ -4127,7 +4081,7 @@
      'hud:mute'  { muted }        mute state for audio.js
      'hud:world' { id }           equipped World for visuals.js / audio.js
      'hud:mode'  { id }           difficulty for core.js; applied at run start
-     'hud:gear'  { trail, flare, slice, death, record, material }  broadcast at boot and on gear changes
+     'hud:gear'  { trail, flare, slice, death, material }  broadcast at boot and on gear changes
 
    The HUD never stops propagation of pointer events, so a game that starts
    or restarts from its own global tap handler keeps working; hud:start /
@@ -4201,18 +4155,18 @@
     for (var i = 0; i < WORLDS.length; i++) { WORLD_BY_ID[WORLDS[i].id] = WORLDS[i]; }
   })();
 
-  /* Wave B singles: seven gear slots, one equippable per slot, layered over
+  /* Wave B singles: five gear slots, one equippable per slot, layered over
      the active World. hud owns names/prices/swatches; visuals owns the
      effects under the same ids; the only coupling is the hud:gear event.
-     The roast slot never rides the event - packs apply inside this file. */
+     Cut on Maor's review verdicts (2026-08-04): the record-moment and
+     roast-pack slots in full, plus fireworks. Stale owned/equipped ids in
+     old saves drop out through the validated reads below. */
   var GEAR_SLOTS = [
     { id: 'trail',    name: 'DROP TRAIL' },
     { id: 'flare',    name: 'PERFECT FLARE' },
     { id: 'slice',    name: 'SLICE STYLE' },
     { id: 'death',    name: 'DEATH EFFECT' },
-    { id: 'record',   name: 'RECORD MOMENT' },
-    { id: 'material', name: 'BLOCK MATERIAL' },
-    { id: 'roast',    name: 'ROAST PACK' }
+    { id: 'material', name: 'BLOCK MATERIAL' }
   ];
   var SINGLES = [
     { id: 'comet',     slot: 'trail',    name: 'COMET',        color: '#ffb45e' },
@@ -4227,16 +4181,9 @@
     { id: 'pixels',    slot: 'slice',    name: 'PIXELS',       color: '#59f0ff' },
     { id: 'slowmo',    slot: 'death',    name: 'SLOW-MO',      color: '#b8c6dd' },
     { id: 'bounce',    slot: 'death',    name: 'BOUNCE',       color: '#9be37f' },
-    { id: 'fireworks', slot: 'death',    name: 'FIREWORKS',    color: '#b18cff' },
-    { id: 'aurora',    slot: 'record',   name: 'AURORA SWEEP', color: '#7fffc9' },
-    { id: 'ringburst', slot: 'record',   name: 'RING BURST',   color: '#ffe08a' },
     { id: 'glass',     slot: 'material', name: 'GLASS',        color: '#d7ecff' },
     { id: 'wood',      slot: 'material', name: 'WOOD GRAIN',   color: '#c89a66' },
-    { id: 'neonedge',  slot: 'material', name: 'NEON EDGE',    color: '#59f0ff' },
-    { id: 'savage',    slot: 'roast',    name: 'SAVAGE PACK',  color: '#ff5d5d' },
-    { id: 'gentle',    slot: 'roast',    name: 'GENTLE PACK',  color: '#9be37f' },
-    { id: 'nerd',      slot: 'roast',    name: 'NERD PACK',    color: '#59a8f0' },
-    { id: 'bard',      slot: 'roast',    name: 'SHAKESPEARE',  color: '#d9b8ff' }
+    { id: 'neonedge',  slot: 'material', name: 'NEON EDGE',    color: '#59f0ff' }
   ];
   var SINGLE_BY_ID = {};
   (function () {
@@ -4496,7 +4443,8 @@
 
   /* Validated read: every key must be a known slot, every value an owned-
      shape id whose slot matches the key. Anything else is dropped, so a
-     corrupt map can never equip a trail into the roast slot. */
+     corrupt map can never equip a trail into the death slot, and ids from
+     cut catalog entries fall out of old saves on their own. */
   function readGear() {
     var out = {};
     try {
@@ -4522,7 +4470,6 @@
     var detail = {};
     for (var i = 0; i < GEAR_SLOTS.length; i++) {
       var slot = GEAR_SLOTS[i].id;
-      if (slot === 'roast') { continue; } /* hud-internal, never broadcast */
       detail[slot] = g[slot] || null;
     }
     try { window.dispatchEvent(new CustomEvent('hud:gear', { detail: detail })); }
@@ -4535,7 +4482,6 @@
     var g = readGear();
     g[s.slot] = id;
     writeGear(g);
-    if (s.slot === 'roast') { quipBag = []; } /* next death draws the new pack */
     fireGear();
   }
 
@@ -4544,7 +4490,6 @@
     if (!g[slot]) { return; }
     delete g[slot];
     writeGear(g);
-    if (slot === 'roast') { quipBag = []; }
     fireGear();
   }
 
@@ -4889,7 +4834,7 @@
     shopMachine.appendChild(machineWin);
     boardShop.appendChild(shopGrid);
 
-    /* GEAR rack: seven slot groups of small single cards. Swatch colors are
+    /* GEAR rack: five slot groups of small single cards. Swatch colors are
        catalog constants (decorative), names/states are textContent. */
     var gearRack = el('div', 'hud-gear-rack');
     var gearCards = [];
@@ -4925,8 +4870,8 @@
        game beats reading mockups). The code ships in a public repo, so
        anyone reading source can find it; cosmetics only, accepted like the
        rest of the trollable-by-design surface. Trophies stay earned: the
-       code grants the 22 singles and the three priced Worlds, never the
-       tier gifts or Bobo. */
+       code grants every catalog single and the three priced Worlds, never
+       the tier gifts or Bobo. */
     var redeemRow = el('div', 'hud-redeem');
     var redeemInput = document.createElement('input');
     redeemInput.type = 'text';
@@ -5242,84 +5187,14 @@
     ]
   };
 
-  /* Roast packs (Wave B singles): an equipped pack replaces the World's
-     quip bag and the generic rival templates - it never stacks. Rival
-     templates keep the {n}/{s} slots and go through fillRoast, so Hebrew
-     names keep their LRM guard. */
-  var ROAST_PACK_QUIPS = {
-    savage: [
-      'That was a cry for help in block form.',
-      'The tower died of embarrassment first.',
-      'Delete this run from your memory. Everyone else will.',
-      'Gravity did you a favor, honestly.',
-      'Your thumbs owe the tower an apology.',
-      'The blocks unionized against you.',
-      'Even the base is disappointed, and it does nothing.',
-      'That collapse had witnesses.'
-    ],
-    gentle: [
-      'A very brave attempt, all things considered.',
-      'The tower simply needed a rest.',
-      'You placed some of those beautifully. Some.',
-      'Every collapse is a lesson wearing a costume.',
-      'The blocks enjoyed their time with you.',
-      'That was nearly something wonderful.',
-      'Rest now. The tower certainly is.',
-      'Tomorrow the blocks will forgive everything.'
-    ],
-    nerd: [
-      'Stack overflow. Literally.',
-      'Segmentation fault at block level.',
-      'Your tower failed the integration test.',
-      'Entropy: 1. Architecture: 0.',
-      'That was an off-by-everything error.',
-      'The tower got garbage collected.',
-      'Undefined behavior, well defined outcome.',
-      'Race condition between thumb and physics. Physics won.'
-    ],
-    bard: [
-      'Alas, poor tower. It knew thee well.',
-      'Thy blocks hath fallen most grievously.',
-      'A plague upon that final drop.',
-      'So falls the tower, so falls the crown.',
-      'Wherefore didst thou tap, and tap so ill?',
-      'The stage is cleared. The tragedy, complete.',
-      'Sleep, sweet prince of poorly landed stone.',
-      'Exeunt tower, pursued by gravity.'
-    ]
-  };
-  var ROAST_PACK_RIVAL = {
-    savage: [
-      '{n} got {s} without even trying. Think about that.',
-      'You lost to {n}. {n}! At {s}!'
-    ],
-    gentle: [
-      '{n} reached {s}. You will get there, probably.',
-      'Look at {n} with {s}. Something to aim for, gently.'
-    ],
-    nerd: [
-      '{n} benchmarked {s}. Your build failed to compile.',
-      'Diff vs {n}: you are {s} minus a lot.'
-    ],
-    bard: [
-      'Yon {n} standeth taller at {s}.',
-      'To {n} at {s}: the crown remains thine.'
-    ]
-  };
-
-  function activeRoastPack() {
-    return readGear().roast || null;
-  }
-
+  /* Roast packs were Wave B singles that replaced these pools; Maor cut
+     the whole section in the 2026-08-04 shop review, so the World quip bag
+     and the stock rival templates are the only sources again. */
   function activeQuips() {
-    var pack = activeRoastPack();
-    if (pack && ROAST_PACK_QUIPS[pack]) { return ROAST_PACK_QUIPS[pack]; }
     return WORLD_QUIPS[readWorld()] || QUIPS;
   }
 
   function activeRivals() {
-    var pack = activeRoastPack();
-    if (pack && ROAST_PACK_RIVAL[pack]) { return ROAST_PACK_RIVAL[pack]; }
     return ROAST_RIVAL;
   }
 

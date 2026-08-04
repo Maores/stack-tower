@@ -27,7 +27,7 @@
      'hud:mute'  { muted }        mute state for audio.js
      'hud:world' { id }           equipped World for visuals.js / audio.js
      'hud:mode'  { id }           difficulty for core.js; applied at run start
-     'hud:gear'  { trail, flare, slice, death, record, material }  broadcast at boot and on gear changes
+     'hud:gear'  { trail, flare, slice, death, material }  broadcast at boot and on gear changes
 
    The HUD never stops propagation of pointer events, so a game that starts
    or restarts from its own global tap handler keeps working; hud:start /
@@ -101,18 +101,18 @@
     for (var i = 0; i < WORLDS.length; i++) { WORLD_BY_ID[WORLDS[i].id] = WORLDS[i]; }
   })();
 
-  /* Wave B singles: seven gear slots, one equippable per slot, layered over
+  /* Wave B singles: five gear slots, one equippable per slot, layered over
      the active World. hud owns names/prices/swatches; visuals owns the
      effects under the same ids; the only coupling is the hud:gear event.
-     The roast slot never rides the event - packs apply inside this file. */
+     Cut on Maor's review verdicts (2026-08-04): the record-moment and
+     roast-pack slots in full, plus fireworks. Stale owned/equipped ids in
+     old saves drop out through the validated reads below. */
   var GEAR_SLOTS = [
     { id: 'trail',    name: 'DROP TRAIL' },
     { id: 'flare',    name: 'PERFECT FLARE' },
     { id: 'slice',    name: 'SLICE STYLE' },
     { id: 'death',    name: 'DEATH EFFECT' },
-    { id: 'record',   name: 'RECORD MOMENT' },
-    { id: 'material', name: 'BLOCK MATERIAL' },
-    { id: 'roast',    name: 'ROAST PACK' }
+    { id: 'material', name: 'BLOCK MATERIAL' }
   ];
   var SINGLES = [
     { id: 'comet',     slot: 'trail',    name: 'COMET',        color: '#ffb45e' },
@@ -127,16 +127,9 @@
     { id: 'pixels',    slot: 'slice',    name: 'PIXELS',       color: '#59f0ff' },
     { id: 'slowmo',    slot: 'death',    name: 'SLOW-MO',      color: '#b8c6dd' },
     { id: 'bounce',    slot: 'death',    name: 'BOUNCE',       color: '#9be37f' },
-    { id: 'fireworks', slot: 'death',    name: 'FIREWORKS',    color: '#b18cff' },
-    { id: 'aurora',    slot: 'record',   name: 'AURORA SWEEP', color: '#7fffc9' },
-    { id: 'ringburst', slot: 'record',   name: 'RING BURST',   color: '#ffe08a' },
     { id: 'glass',     slot: 'material', name: 'GLASS',        color: '#d7ecff' },
     { id: 'wood',      slot: 'material', name: 'WOOD GRAIN',   color: '#c89a66' },
-    { id: 'neonedge',  slot: 'material', name: 'NEON EDGE',    color: '#59f0ff' },
-    { id: 'savage',    slot: 'roast',    name: 'SAVAGE PACK',  color: '#ff5d5d' },
-    { id: 'gentle',    slot: 'roast',    name: 'GENTLE PACK',  color: '#9be37f' },
-    { id: 'nerd',      slot: 'roast',    name: 'NERD PACK',    color: '#59a8f0' },
-    { id: 'bard',      slot: 'roast',    name: 'SHAKESPEARE',  color: '#d9b8ff' }
+    { id: 'neonedge',  slot: 'material', name: 'NEON EDGE',    color: '#59f0ff' }
   ];
   var SINGLE_BY_ID = {};
   (function () {
@@ -396,7 +389,8 @@
 
   /* Validated read: every key must be a known slot, every value an owned-
      shape id whose slot matches the key. Anything else is dropped, so a
-     corrupt map can never equip a trail into the roast slot. */
+     corrupt map can never equip a trail into the death slot, and ids from
+     cut catalog entries fall out of old saves on their own. */
   function readGear() {
     var out = {};
     try {
@@ -422,7 +416,6 @@
     var detail = {};
     for (var i = 0; i < GEAR_SLOTS.length; i++) {
       var slot = GEAR_SLOTS[i].id;
-      if (slot === 'roast') { continue; } /* hud-internal, never broadcast */
       detail[slot] = g[slot] || null;
     }
     try { window.dispatchEvent(new CustomEvent('hud:gear', { detail: detail })); }
@@ -435,7 +428,6 @@
     var g = readGear();
     g[s.slot] = id;
     writeGear(g);
-    if (s.slot === 'roast') { quipBag = []; } /* next death draws the new pack */
     fireGear();
   }
 
@@ -444,7 +436,6 @@
     if (!g[slot]) { return; }
     delete g[slot];
     writeGear(g);
-    if (slot === 'roast') { quipBag = []; }
     fireGear();
   }
 
@@ -789,7 +780,7 @@
     shopMachine.appendChild(machineWin);
     boardShop.appendChild(shopGrid);
 
-    /* GEAR rack: seven slot groups of small single cards. Swatch colors are
+    /* GEAR rack: five slot groups of small single cards. Swatch colors are
        catalog constants (decorative), names/states are textContent. */
     var gearRack = el('div', 'hud-gear-rack');
     var gearCards = [];
@@ -825,8 +816,8 @@
        game beats reading mockups). The code ships in a public repo, so
        anyone reading source can find it; cosmetics only, accepted like the
        rest of the trollable-by-design surface. Trophies stay earned: the
-       code grants the 22 singles and the three priced Worlds, never the
-       tier gifts or Bobo. */
+       code grants every catalog single and the three priced Worlds, never
+       the tier gifts or Bobo. */
     var redeemRow = el('div', 'hud-redeem');
     var redeemInput = document.createElement('input');
     redeemInput.type = 'text';
@@ -1142,84 +1133,14 @@
     ]
   };
 
-  /* Roast packs (Wave B singles): an equipped pack replaces the World's
-     quip bag and the generic rival templates - it never stacks. Rival
-     templates keep the {n}/{s} slots and go through fillRoast, so Hebrew
-     names keep their LRM guard. */
-  var ROAST_PACK_QUIPS = {
-    savage: [
-      'That was a cry for help in block form.',
-      'The tower died of embarrassment first.',
-      'Delete this run from your memory. Everyone else will.',
-      'Gravity did you a favor, honestly.',
-      'Your thumbs owe the tower an apology.',
-      'The blocks unionized against you.',
-      'Even the base is disappointed, and it does nothing.',
-      'That collapse had witnesses.'
-    ],
-    gentle: [
-      'A very brave attempt, all things considered.',
-      'The tower simply needed a rest.',
-      'You placed some of those beautifully. Some.',
-      'Every collapse is a lesson wearing a costume.',
-      'The blocks enjoyed their time with you.',
-      'That was nearly something wonderful.',
-      'Rest now. The tower certainly is.',
-      'Tomorrow the blocks will forgive everything.'
-    ],
-    nerd: [
-      'Stack overflow. Literally.',
-      'Segmentation fault at block level.',
-      'Your tower failed the integration test.',
-      'Entropy: 1. Architecture: 0.',
-      'That was an off-by-everything error.',
-      'The tower got garbage collected.',
-      'Undefined behavior, well defined outcome.',
-      'Race condition between thumb and physics. Physics won.'
-    ],
-    bard: [
-      'Alas, poor tower. It knew thee well.',
-      'Thy blocks hath fallen most grievously.',
-      'A plague upon that final drop.',
-      'So falls the tower, so falls the crown.',
-      'Wherefore didst thou tap, and tap so ill?',
-      'The stage is cleared. The tragedy, complete.',
-      'Sleep, sweet prince of poorly landed stone.',
-      'Exeunt tower, pursued by gravity.'
-    ]
-  };
-  var ROAST_PACK_RIVAL = {
-    savage: [
-      '{n} got {s} without even trying. Think about that.',
-      'You lost to {n}. {n}! At {s}!'
-    ],
-    gentle: [
-      '{n} reached {s}. You will get there, probably.',
-      'Look at {n} with {s}. Something to aim for, gently.'
-    ],
-    nerd: [
-      '{n} benchmarked {s}. Your build failed to compile.',
-      'Diff vs {n}: you are {s} minus a lot.'
-    ],
-    bard: [
-      'Yon {n} standeth taller at {s}.',
-      'To {n} at {s}: the crown remains thine.'
-    ]
-  };
-
-  function activeRoastPack() {
-    return readGear().roast || null;
-  }
-
+  /* Roast packs were Wave B singles that replaced these pools; Maor cut
+     the whole section in the 2026-08-04 shop review, so the World quip bag
+     and the stock rival templates are the only sources again. */
   function activeQuips() {
-    var pack = activeRoastPack();
-    if (pack && ROAST_PACK_QUIPS[pack]) { return ROAST_PACK_QUIPS[pack]; }
     return WORLD_QUIPS[readWorld()] || QUIPS;
   }
 
   function activeRivals() {
-    var pack = activeRoastPack();
-    if (pack && ROAST_PACK_RIVAL[pack]) { return ROAST_PACK_RIVAL[pack]; }
     return ROAST_RIVAL;
   }
 

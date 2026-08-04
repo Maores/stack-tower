@@ -32,10 +32,10 @@
  *   'stack:gameover' {}
  *   'stack:reset'    {}
  *   'hud:world'   { id }  active World changed (palette + sky swap)
- *   'hud:gear'    { trail, flare, slice, death, record, material }  equipped
+ *   'hud:gear'    { trail, flare, slice, death, material }  equipped
  *                 singles per slot (id or null); trail/flare/material style
- *                 blocks and drops; slice/death/record style the cut piece,
- *                 the death sequence and new-best moments
+ *                 blocks and drops; slice/death style the cut piece and
+ *                 the death sequence
  *
  * Extras for the HUD layer:
  *   StackVisuals.getBlockColor(level, depth) -> '#rrggbb'
@@ -149,7 +149,6 @@
     slider: null,       // mesh of the currently-sliding block (trail emitter)
     trailAcc: 0,        // seconds accumulated toward the next trail spawn
     slowmoT: 0,         // seconds remaining of post-death slow motion
-    fireworksTimers: [], // pending death-fireworks burst timer ids, cleared on reset
     bgCur: null,        // { inner, outer, beam } THREE.Color, working space
     bgTarget: null,
     sky: null,
@@ -920,14 +919,12 @@
   function ghostCheckPassed(level, mesh) {
     if (GHOST.passed) return;
     if (typeof level !== 'number' || level <= GHOST.best) return;
-    // Option B (Maor, 2026-08-04): below best 10 no ghost line exists, but
-    // beating the stored best is still the record moment, so the two record
-    // singles fire on any new personal best. A fresh device (best 0) stays
-    // silent: block one of run one is technically a record, and a flash
-    // there reads as noise, not celebration.
+    // The record-moment singles that used to fire here were cut in the
+    // 2026-08-04 shop review; what remains is the ghost line's own style
+    // flip when the run passes the stored best (a no-op below best 10,
+    // where no line exists).
     if (!GHOST.line && GHOST.best < 1) return;
     GHOST.passed = true;
-    recordFx(mesh);
     ghostStyle(true);
   }
 
@@ -1151,8 +1148,6 @@
     S.slider = null;
     S.trailAcc = 0;
     S.slowmoT = 0;
-    for (var f = 0; f < S.fireworksTimers.length; f++) { clearTimeout(S.fireworksTimers[f]); }
-    S.fireworksTimers.length = 0;
     for (var j = 0; j < S.flashPool.length; j++) {
       S.flashPool[j].active = false;
       S.flashPool[j].mesh.visible = false;
@@ -1506,7 +1501,7 @@
     getBlockColor: getBlockColor,
     getPalette: getPalette,
     debug: {
-      gear: function () { return { trail: GEAR.trail, flare: GEAR.flare, slice: GEAR.slice, death: GEAR.death, record: GEAR.record, material: GEAR.material }; },
+      gear: function () { return { trail: GEAR.trail, flare: GEAR.flare, slice: GEAR.slice, death: GEAR.death, material: GEAR.material }; },
       fxCount: function () { return S.gearFx.length; },
       debris: function () {
         var out = [];
@@ -1586,30 +1581,8 @@
       // mid-tower (Maor's report, 2026-08-04).
       var en = S.debris[S.debris.length - 1];
       en.bounces = 1;
-    } else if (GEAR.death === 'fireworks') {
-      var top = 0;
-      try { top = window.StackCore.getTowerState().towerTop; } catch (err) { top = 4; }
-      var cols = [[0.69, 0.55, 1.0], [1.0, 0.72, 0.38], [0.55, 0.95, 0.88]];
-      for (var b = 0; b < 3; b++) {
-        (function (bi) {
-          var tid = setTimeout(function () {
-            if (!S.inited) { return; }
-            var bx = (Math.random() - 0.5) * 3 * S.blockW;
-            var bz = (Math.random() - 0.5) * 3 * S.blockW;
-            for (var p = 0; p < 8; p++) {
-              var a = (p / 8) * Math.PI * 2;
-              spawnGearBit({
-                x: bx, y: top + (2.5 + bi) * S.blockW, z: bz,
-                size: 0.1, life: 0.8, op: 0.95, grav: 1.6,
-                vx: Math.cos(a) * 2.4, vy: Math.sin(a) * 2.4 * 0.6 + 0.8, vz: Math.sin(a) * 1.2,
-                scaleK: 0.4, fadePow: 1.5, color: cols[bi % cols.length]
-              });
-            }
-          }, 500 + bi * 250);
-          S.fireworksTimers.push(tid);
-        })(b);
-      }
     }
+    // FIREWORKS was the third death single; cut in the 2026-08-04 review.
   });
   window.addEventListener('stack:reset', function () { reset(); ghostSync(); });
   window.addEventListener('hud:world', function (e) {
@@ -1627,7 +1600,7 @@
   /* Wave B gear: equipped singles per slot, broadcast by the HUD. Effects
      read this at event time; an unknown id in a slot simply never matches
      an effect branch, so forward compatibility is silence, not breakage. */
-  var GEAR = { trail: null, flare: null, slice: null, death: null, record: null, material: null };
+  var GEAR = { trail: null, flare: null, slice: null, death: null, material: null };
   window.addEventListener('hud:gear', function (e) {
     var d = det(e);
     for (var k in GEAR) {
@@ -1669,25 +1642,6 @@
           x: fp.cx, y: y, z: fp.cz, size: def.size, life: def.life, op: def.op,
           vx: Math.cos(a) * def.speed, vz: Math.sin(a) * def.speed, vy: 0.6,
           grav: 2.2, scaleK: 0.4, fadePow: 1.5, color: def.color
-        });
-      }
-    }
-  }
-
-  function recordFx(mesh) {
-    if (!GEAR.record || !S.inited) { return; }
-    var fp = mesh ? meshFootprint(mesh, {}) : null;
-    if (GEAR.record === 'ringburst' && fp) {
-      spawnGearBit({ x: fp.cx, y: fp.topY + 0.05 * S.blockW, z: fp.cz, flat: true, size: 0.6, scaleK: 6.5, life: 0.7, op: 0.9, color: [1.0, 0.88, 0.54], fadePow: 2 });
-      spawnGearBit({ x: fp.cx, y: fp.topY + 0.05 * S.blockW, z: fp.cz, flat: true, size: 0.4, scaleK: 5.0, life: 0.55, op: 0.6, color: [1.0, 0.95, 0.8], fadePow: 2 });
-    } else if (GEAR.record === 'aurora') {
-      var y = (fp ? fp.topY : 4) + 6 * S.blockW;
-      for (var i = 0; i < 6; i++) {
-        spawnGearBit({
-          x: -6 * S.blockW + i * 0.6 * S.blockW, y: y + (i % 2) * 0.5 * S.blockW, z: -2 * S.blockW,
-          size: 1.4, life: 1.2, op: 0.35,
-          vx: 5.5, vy: 0.2, vz: 0,
-          scaleK: 1.6, fadePow: 1.2, color: [0.5, 1.0, 0.79]
         });
       }
     }
