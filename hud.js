@@ -50,6 +50,8 @@
   var DAILY_KEY = 'stack-daily';   /* local date of the last doubled run */
   var WORLD_KEY = 'stack-world';    /* equipped World id */
   var OWNED_KEY = 'stack-worlds';   /* owned ids beyond classic (JSON array) */
+  var SINGLES_KEY = 'stack-singles'; /* owned single ids (JSON array) */
+  var GEAR_KEY = 'stack-gear';       /* slot id -> equipped single id (JSON map) */
   var MODE_KEY = 'stack-mode';      /* equipped difficulty: normal | hard */
   var HARD_BEST_KEY = 'stack-best-hard';   /* core owns the writes; hud reads */
 
@@ -97,6 +99,50 @@
   (function () {
     for (var i = 0; i < WORLDS.length; i++) { WORLD_BY_ID[WORLDS[i].id] = WORLDS[i]; }
   })();
+
+  /* Wave B singles: seven gear slots, one equippable per slot, layered over
+     the active World. hud owns names/prices/swatches; visuals owns the
+     effects under the same ids; the only coupling is the hud:gear event.
+     The roast slot never rides the event - packs apply inside this file. */
+  var GEAR_SLOTS = [
+    { id: 'trail',    name: 'DROP TRAIL' },
+    { id: 'flare',    name: 'PERFECT FLARE' },
+    { id: 'slice',    name: 'SLICE STYLE' },
+    { id: 'death',    name: 'DEATH EFFECT' },
+    { id: 'record',   name: 'RECORD MOMENT' },
+    { id: 'material', name: 'BLOCK MATERIAL' },
+    { id: 'roast',    name: 'ROAST PACK' }
+  ];
+  var SINGLES = [
+    { id: 'comet',     slot: 'trail',    name: 'COMET',        color: '#ffb45e' },
+    { id: 'ribbon',    slot: 'trail',    name: 'RIBBON',       color: '#8fd0ff' },
+    { id: 'bubbles',   slot: 'trail',    name: 'BUBBLES',      color: '#7fe8d8' },
+    { id: 'goldring',  slot: 'flare',    name: 'GOLD RING',    color: '#f2c14e' },
+    { id: 'shockwave', slot: 'flare',    name: 'SHOCKWAVE',    color: '#eef2f8' },
+    { id: 'starburst', slot: 'flare',    name: 'STARBURST',    color: '#ffd98a' },
+    { id: 'shards',    slot: 'slice',    name: 'GLASS SHARDS', color: '#bfe3ff' },
+    { id: 'confetti',  slot: 'slice',    name: 'CONFETTI',     color: '#ff6f91' },
+    { id: 'petals',    slot: 'slice',    name: 'PETALS',       color: '#ffa6c5' },
+    { id: 'pixels',    slot: 'slice',    name: 'PIXELS',       color: '#59f0ff' },
+    { id: 'slowmo',    slot: 'death',    name: 'SLOW-MO',      color: '#b8c6dd' },
+    { id: 'bounce',    slot: 'death',    name: 'BOUNCE',       color: '#9be37f' },
+    { id: 'fireworks', slot: 'death',    name: 'FIREWORKS',    color: '#b18cff' },
+    { id: 'aurora',    slot: 'record',   name: 'AURORA SWEEP', color: '#7fffc9' },
+    { id: 'ringburst', slot: 'record',   name: 'RING BURST',   color: '#ffe08a' },
+    { id: 'glass',     slot: 'material', name: 'GLASS',        color: '#d7ecff' },
+    { id: 'wood',      slot: 'material', name: 'WOOD GRAIN',   color: '#c89a66' },
+    { id: 'neonedge',  slot: 'material', name: 'NEON EDGE',    color: '#59f0ff' },
+    { id: 'savage',    slot: 'roast',    name: 'SAVAGE PACK',  color: '#ff5d5d' },
+    { id: 'gentle',    slot: 'roast',    name: 'GENTLE PACK',  color: '#9be37f' },
+    { id: 'nerd',      slot: 'roast',    name: 'NERD PACK',    color: '#59a8f0' },
+    { id: 'bard',      slot: 'roast',    name: 'SHAKESPEARE',  color: '#d9b8ff' }
+  ];
+  var SINGLE_BY_ID = {};
+  (function () {
+    for (var i = 0; i < SINGLES.length; i++) { SINGLE_BY_ID[SINGLES[i].id] = SINGLES[i]; }
+  })();
+  var SINGLE_PRICE = 800;
+  var SPIN_COST = 200;
   var RESTART_LOCKOUT_MS = 500;  /* ignore taps right after game over */
   var RESTART_DEDUPE_MS = 400;   /* pointerdown + click on button = one restart */
   var SHOP_ARM_MS = 3000;        /* armed BUY confirm window */
@@ -317,6 +363,88 @@
     writeWorld(id);
     quipBag = [];   /* the next death draws from the new World's pack */
     fireWorld(id);
+  }
+
+  function readSingles() {
+    try {
+      var v = JSON.parse(window.localStorage.getItem(SINGLES_KEY) || '[]');
+      if (!Array.isArray(v)) { return []; }
+      var out = [];
+      for (var i = 0; i < v.length; i++) {
+        if (SINGLE_BY_ID[v[i]] && out.indexOf(v[i]) < 0) { out.push(v[i]); }
+      }
+      return out;
+    } catch (err) { return []; }
+  }
+
+  function writeSingles(arr) {
+    try { window.localStorage.setItem(SINGLES_KEY, JSON.stringify(arr)); } catch (err) { /* ignore */ }
+  }
+
+  function ownsSingle(id) {
+    return readSingles().indexOf(id) >= 0;
+  }
+
+  function grantSingle(id) {
+    if (!SINGLE_BY_ID[id] || ownsSingle(id)) { return false; }
+    var owned = readSingles();
+    owned.push(id);
+    writeSingles(owned);
+    return true;
+  }
+
+  /* Validated read: every key must be a known slot, every value an owned-
+     shape id whose slot matches the key. Anything else is dropped, so a
+     corrupt map can never equip a trail into the roast slot. */
+  function readGear() {
+    var out = {};
+    try {
+      var v = JSON.parse(window.localStorage.getItem(GEAR_KEY) || '{}');
+      if (!v || typeof v !== 'object') { return out; }
+      for (var i = 0; i < GEAR_SLOTS.length; i++) {
+        var slot = GEAR_SLOTS[i].id;
+        var id = v[slot];
+        if (typeof id === 'string' && SINGLE_BY_ID[id] && SINGLE_BY_ID[id].slot === slot) {
+          out[slot] = id;
+        }
+      }
+    } catch (err) { /* fall through to what validated */ }
+    return out;
+  }
+
+  function writeGear(map) {
+    try { window.localStorage.setItem(GEAR_KEY, JSON.stringify(map)); } catch (err) { /* ignore */ }
+  }
+
+  function fireGear() {
+    var g = readGear();
+    var detail = {};
+    for (var i = 0; i < GEAR_SLOTS.length; i++) {
+      var slot = GEAR_SLOTS[i].id;
+      if (slot === 'roast') { continue; } /* hud-internal, never broadcast */
+      detail[slot] = g[slot] || null;
+    }
+    try { window.dispatchEvent(new CustomEvent('hud:gear', { detail: detail })); }
+    catch (err) { /* ignore */ }
+  }
+
+  function equipSingle(id) {
+    var s = SINGLE_BY_ID[id];
+    if (!s) { return; }
+    var g = readGear();
+    g[s.slot] = id;
+    writeGear(g);
+    if (s.slot === 'roast') { quipBag = []; } /* next death draws the new pack */
+    fireGear();
+  }
+
+  function unequipSlot(slot) {
+    var g = readGear();
+    if (!g[slot]) { return; }
+    delete g[slot];
+    writeGear(g);
+    if (slot === 'roast') { quipBag = []; }
+    fireGear();
   }
 
   function pickNumber(detail, keys) {
@@ -2091,6 +2219,7 @@
         if (WORLDS[i].giftAt > 0 && b >= WORLDS[i].giftAt) { grantWorld(WORLDS[i].id); }
       }
       fireWorld(readWorld());
+      fireGear();
       /* Same DOMContentLoaded gate as the World broadcast, and for the same
          reason: core.js may not have executed when a 0ms timer fires. */
       var m = readPlayMode();
