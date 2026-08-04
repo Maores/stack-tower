@@ -182,3 +182,9 @@ Sound themes, ritual and chicken Worlds, server-side inventory, any
 real-money mechanism (parked to the store phase), per-World gear
 profiles, machine odds weighting, pity timers (pointless without
 duplicates), and any change to earn rates.
+
+## As-shipped addendum (final review, 2026-08-04)
+
+- The material singles ship simplified relative to the pool descriptions: GLASS lowers block opacity without a brighter rim, WOOD GRAIN is a warm tint without stripe texture, GLASS SHARDS spins the intact cut piece faster with glinting sparks rather than splitting the geometry. Approved plan values; richer versions are Wave C candidates.
+- Scene-side effects (trails, slow-mo, fireworks) have no prefers-reduced-motion branch, matching visuals.js's pre-existing behavior of animating the whole scene; the machine's DOM reel is the only Wave B surface with a reduced-motion path, by design.
+- Record-moment singles fire only when the ghost line exists (best 10 or higher), inherited from the ghost system; below that they are silent. Product decision on surfacing this in the shop is pending.

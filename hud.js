@@ -1857,7 +1857,9 @@
     txt.appendChild(el('span', 'hud-machine-winslot', slotDef ? slotDef.name : ''));
     txt.appendChild(el('span', 'hud-machine-winname', s.name));
     els.machineWin.appendChild(txt);
-    els.machineWin.appendChild(el('span', 'hud-machine-wineq', 'EQUIPPED ✓'));
+    if (readGear()[s.slot] === s.id) {
+      els.machineWin.appendChild(el('span', 'hud-machine-wineq', 'EQUIPPED ✓'));
+    }
   }
 
   /* Idle render only: never rebuilds the reel mid-roll. */

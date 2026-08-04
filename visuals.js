@@ -1269,7 +1269,6 @@
       fx.vel.y -= fx.grav * dt;
       fx.mesh.position.addScaledVector(fx.vel, dt);
       var fs = (1 + (fx.scaleK - 1) * fp);
-      fx.mesh.scale.x = fx.mesh.scale.x >= 0 ? Math.abs(fx.mesh.scale.x) : fx.mesh.scale.x;
       var base = fx.mesh.userData.gearS0 || (fx.mesh.userData.gearS0 = fx.mesh.scale.x);
       fx.mesh.scale.set(base * fs, base * fs, 1);
       fx.mesh.material.opacity = fx.baseOp * Math.pow(1 - fp, fx.fadePow);
