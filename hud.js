@@ -769,7 +769,23 @@
       shopGrid.appendChild(card);
       shopCards.push({ card: card, chip: chip, world: w });
     }
-    var shopMachine = el('div', 'hud-shop-machine', 'PRIZE MACHINE · COMING SOON');
+    /* Prize machine: V2 slot roll from the approved mockup. Reel numbers
+       (32px rows, 96px window, 1.25s cubic-bezier(0.12,0.82,0.16,1), hit
+       at 1300ms, release at 1900ms) are the auditioned ones. */
+    var shopMachine = el('div', 'hud-shop-machine');
+    shopMachine.appendChild(el('div', 'hud-machine-title', 'PRIZE MACHINE'));
+    var reelWin = el('div', 'hud-reel-win');
+    var reel = el('div', 'hud-reel');
+    reelWin.appendChild(reel);
+    reelWin.appendChild(el('div', 'hud-reel-mask'));
+    reelWin.appendChild(el('div', 'hud-reel-line'));
+    shopMachine.appendChild(reelWin);
+    var spinBtn = el('button', 'hud-spin-btn', 'SPIN · ' + SPIN_COST);
+    spinBtn.type = 'button';
+    spinBtn.setAttribute('aria-label', 'Spin the prize machine, ' + SPIN_COST + ' points');
+    shopMachine.appendChild(spinBtn);
+    var machineWin = el('div', 'hud-machine-last');
+    shopMachine.appendChild(machineWin);
     boardShop.appendChild(shopGrid);
 
     /* GEAR rack: seven slot groups of small single cards. Swatch colors are
@@ -860,6 +876,11 @@
       shopCards: shopCards,
       gearRack: gearRack,
       gearCards: gearCards,
+      shopMachine: shopMachine,
+      machineReel: reel,
+      machineReelWin: reelWin,
+      machineSpin: spinBtn,
+      machineWin: machineWin,
       toast: toast,
       lbList: lbList,
       entry: entry,
@@ -1694,6 +1715,7 @@
       c.card.setAttribute('aria-label', c.world.name + ' — ' + c.chip.textContent);
     }
     renderGearRack();
+    renderMachine();
   }
 
   /* Gear card states: ON (equipped) / OWNED (tap equips) / armed BUY /
@@ -1715,6 +1737,125 @@
       c.chip.textContent = chip;
       c.card.setAttribute('aria-label', s.name + ' — ' + chip);
     }
+  }
+
+  var machineBusy = false;
+  var machineLast = null;   /* {single} for the session's win row */
+  var MACHINE_ROWH = 32;
+  var MACHINE_ROLL_MS = 1250;
+  var MACHINE_HIT_MS = 1300;
+  var MACHINE_LOCK_MS = 1900;
+  var MACHINE_LOCK_REDUCED_MS = 400;
+
+  function unownedSingles() {
+    var out = [];
+    for (var i = 0; i < SINGLES.length; i++) {
+      if (!ownsSingle(SINGLES[i].id)) { out.push(SINGLES[i]); }
+    }
+    return out;
+  }
+
+  function machineReelRow(s) {
+    var row = el('div', 'hud-reel-row');
+    var dot = el('span', 'hud-gear-sw');
+    dot.style.background = s.color;
+    row.appendChild(dot);
+    row.appendChild(el('span', 'hud-reel-name', s.name));
+    return row;
+  }
+
+  function renderMachineWin() {
+    els.machineWin.textContent = '';
+    if (!machineLast) { return; }
+    var s = machineLast;
+    var dot = el('span', 'hud-gear-sw');
+    dot.style.background = s.color;
+    els.machineWin.appendChild(dot);
+    var txt = el('span', 'hud-machine-wintxt');
+    var slotDef = null;
+    for (var i = 0; i < GEAR_SLOTS.length; i++) {
+      if (GEAR_SLOTS[i].id === s.slot) { slotDef = GEAR_SLOTS[i]; }
+    }
+    txt.appendChild(el('span', 'hud-machine-winslot', slotDef ? slotDef.name : ''));
+    txt.appendChild(el('span', 'hud-machine-winname', s.name));
+    els.machineWin.appendChild(txt);
+    els.machineWin.appendChild(el('span', 'hud-machine-wineq', 'EQUIPPED ✓'));
+  }
+
+  /* Idle render only: never rebuilds the reel mid-roll. */
+  function renderMachine() {
+    if (machineBusy) { return; }
+    var pool = unownedSingles();
+    var bal = readInt(PTS_KEY);
+    els.machineReel.style.transition = 'none';
+    els.machineReel.style.transform = 'translateY(0)';
+    els.machineReel.textContent = '';
+    if (!pool.length) {
+      /* Dormant: static sample of the collection, no charge possible. */
+      for (var i = 0; i < 3; i++) { els.machineReel.appendChild(machineReelRow(SINGLES[i])); }
+      els.machineSpin.textContent = 'ALL PRIZES WON';
+      els.machineSpin.disabled = true;
+      els.machineSpin.setAttribute('aria-label', 'Prize machine, all prizes won');
+    } else {
+      for (var j = 0; j < 3; j++) { els.machineReel.appendChild(machineReelRow(pool[j % pool.length])); }
+      els.machineSpin.textContent = 'SPIN · ' + SPIN_COST;
+      els.machineSpin.disabled = bal < SPIN_COST;
+      els.machineSpin.setAttribute('aria-label', 'Spin the prize machine, ' + SPIN_COST + ' points' +
+        (bal < SPIN_COST ? ', not enough points' : ''));
+    }
+    renderMachineWin();
+  }
+
+  function spinMachine() {
+    if (machineBusy) { return; }
+    var pool = unownedSingles();
+    var bal = readInt(PTS_KEY);
+    if (!pool.length || bal < SPIN_COST) { return; }
+    machineBusy = true;
+    /* State first: charge, grant, equip, persist - the animation is only a
+       reveal, and closing the overlay mid-roll can never lose the prize. */
+    writeInt(PTS_KEY, bal - SPIN_COST);
+    var prize = pool[Math.floor(Math.random() * pool.length)];
+    grantSingle(prize.id);
+    equipSingle(prize.id);
+    machineLast = prize;
+    els.shopBalVal.textContent = fmtPts(readInt(PTS_KEY));
+    renderShopPill();
+
+    var lockMs = reduceMotion ? MACHINE_LOCK_REDUCED_MS : MACHINE_LOCK_MS;
+    els.machineSpin.disabled = true;
+    els.machineReelWin.classList.remove('is-hit');
+
+    /* Strip from the pre-spin pool so the prize is present and every row
+       advertises something still winnable at tap time. */
+    els.machineReel.textContent = '';
+    var target = 12;
+    for (var i = 0; i < 15; i++) { els.machineReel.appendChild(machineReelRow(pool[i % pool.length])); }
+    while (pool[target % pool.length].id !== prize.id) { target++; }
+    if (target >= 15) {   /* extend the strip so the landing row exists */
+      for (var k = 15; k <= target; k++) { els.machineReel.appendChild(machineReelRow(pool[k % pool.length])); }
+    }
+
+    var finish = function () {
+      els.machineReelWin.classList.add('is-hit');
+      renderMachineWin();
+    };
+    if (reduceMotion) {
+      els.machineReel.style.transition = 'none';
+      els.machineReel.style.transform = 'translateY(' + (-(target - 1) * MACHINE_ROWH) + 'px)';
+      finish();
+    } else {
+      els.machineReel.style.transition = 'none';
+      els.machineReel.style.transform = 'translateY(0)';
+      void els.machineReel.offsetHeight;
+      els.machineReel.style.transition = 'transform ' + (MACHINE_ROLL_MS / 1000) + 's cubic-bezier(0.12, 0.82, 0.16, 1)';
+      els.machineReel.style.transform = 'translateY(' + (-(target - 1) * MACHINE_ROWH) + 'px)';
+      setTimeout(finish, MACHINE_HIT_MS);
+    }
+    setTimeout(function () {
+      machineBusy = false;
+      renderShopPane();   /* rack shows the new ON, machine re-idles */
+    }, lockMs);
   }
 
   function setPane(pane) {
@@ -2233,6 +2374,8 @@
     for (var gci = 0; gci < els.gearCards.length; gci++) {
       keepKeysLocal(els.gearCards[gci].card);
     }
+    els.machineSpin.addEventListener('click', spinMachine);
+    keepKeysLocal(els.machineSpin);
     els.muteBtn.addEventListener('click', toggleMute);
     els.board.addEventListener('pointerdown', function (ev) {
       if (ev.target === els.board) { closeBoard(); } /* tap outside the panel */

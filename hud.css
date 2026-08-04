@@ -1087,18 +1087,6 @@
 .hud-shop-card.is-eq .hud-shop-chip {
   border-color: rgba(255, 255, 255, 0.8);
 }
-.hud-shop-machine {
-  grid-column: 1 / -1;
-  border: 1px dashed rgba(255, 255, 255, 0.3);
-  border-radius: 12px;
-  padding: 1.4vh 8px;
-  text-align: center;
-  font-size: clamp(9px, 1.4vmin, 11px);
-  font-weight: 300;
-  letter-spacing: 0.2em;
-  opacity: 0.5;
-}
-
 /* Wave B gear rack: seven slot groups of small single cards. */
 .hud-gear-rack {
   margin-top: 1.6vh;
@@ -1163,6 +1151,95 @@
   opacity: 0.85;
   font-variant-numeric: lining-nums tabular-nums;
 }
+
+/* Prize machine: V2 slot roll. */
+.hud-shop-machine {
+  margin-top: 1.8vh;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 12px;
+  padding: 10px 10px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  text-align: center;
+}
+.hud-machine-title {
+  font-size: clamp(10px, 1.5vmin, 12px);
+  font-weight: 300;
+  letter-spacing: 0.24em;
+  opacity: 0.85;
+  margin-bottom: 8px;
+}
+.hud-reel-win {
+  height: 96px;
+  overflow: hidden;
+  position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.25);
+}
+.hud-reel-row {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+  font-size: clamp(10px, 1.5vmin, 12px);
+  letter-spacing: 0.08em;
+}
+.hud-reel-mask {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(6, 12, 26, 0.85) 0%, transparent 30%, transparent 70%, rgba(6, 12, 26, 0.85) 100%);
+}
+.hud-reel-line {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 32px;
+  height: 32px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 8px;
+  pointer-events: none;
+}
+.hud-reel-win.is-hit .hud-reel-line { animation: hud-reel-hit 0.5s ease; }
+@keyframes hud-reel-hit {
+  0% { border-color: rgba(255, 255, 255, 0.95); background: rgba(255, 255, 255, 0.18); }
+  100% { border-color: rgba(255, 255, 255, 0.5); background: transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hud-reel-win.is-hit .hud-reel-line { animation: none; border-color: rgba(255, 255, 255, 0.95); }
+}
+.hud-spin-btn {
+  pointer-events: auto;
+  cursor: pointer;
+  width: 100%;
+  margin-top: 10px;
+  min-height: 44px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.12);
+  color: inherit;
+  font: inherit;
+  font-size: clamp(12px, 1.8vmin, 14px);
+  letter-spacing: 0.18em;
+}
+.hud-spin-btn:active { transform: scale(0.97); }
+.hud-spin-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.hud-spin-btn:disabled { opacity: 0.4; cursor: default; }
+.hud-machine-last {
+  margin-top: 8px;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: clamp(9px, 1.4vmin, 11px);
+  letter-spacing: 0.08em;
+}
+.hud-machine-wintxt { display: flex; flex-direction: column; align-items: flex-start; }
+.hud-machine-winslot { opacity: 0.6; font-size: clamp(8px, 1.2vmin, 9px); letter-spacing: 0.2em; }
+.hud-machine-winname { font-weight: 600; }
+.hud-machine-wineq { opacity: 0.85; font-size: clamp(8px, 1.2vmin, 10px); letter-spacing: 0.2em; }
 
 /* Death-screen tier line */
 .hud-over-tier {
