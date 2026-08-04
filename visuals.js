@@ -32,6 +32,9 @@
  *   'stack:gameover' {}
  *   'stack:reset'    {}
  *   'hud:world'   { id }  active World changed (palette + sky swap)
+ *   'hud:gear'    { trail, flare, slice, death, record, material }  equipped
+ *                 singles per slot (id or null); trail/flare/material land
+ *                 here, slice/death/record land with Task 5
  *
  * Extras for the HUD layer:
  *   StackVisuals.getBlockColor(level, depth) -> '#rrggbb'
@@ -138,6 +141,9 @@
     pulses: [],
     growIns: [],        // active streak-regrowth grow-in pops
     flashPool: [],
+    gearFx: [],         // Wave B gear particle pool: trail/flare bits
+    slider: null,       // mesh of the currently-sliding block (trail emitter)
+    trailAcc: 0,        // seconds accumulated toward the next trail spawn
     bgCur: null,        // { inner, outer, beam } THREE.Color, working space
     bgTarget: null,
     sky: null,
@@ -614,6 +620,32 @@
       mat.color.lerp(S.bgTarget.outer, mf);
     }
     mat.opacity = p.op;
+    applyMaterialGear(mesh, mat);
+  }
+
+  /* Material singles adjust the finish after the World palette lands, and
+     recolorAll re-runs this on gear changes, so equip and unequip both
+     restyle the standing tower. Deep frozen blocks (recolorAll's d > 34
+     skip) keep their old finish off-screen by design. */
+  function applyMaterialGear(mesh, mat) {
+    var ud = mesh.userData || {};
+    if (GEAR.material === 'glass') {
+      mat.opacity = Math.max(0.5, mat.opacity * 0.72);
+    } else if (GEAR.material === 'wood') {
+      S.tmpC.setRGB(0.72, 0.55, 0.34);
+      mat.color.lerp(S.tmpC, 0.34);
+      mat.opacity = Math.min(1, mat.opacity * 1.12);
+    }
+    if (ud.svEdges && ud.svEdges.material) {
+      if (GEAR.material === 'neonedge') {
+        if (ud.svEdges.material === S.edgeMat) { ud.svEdges.material = S.edgeMat.clone(); }
+        ud.svEdges.material.opacity = 1.0;
+        ud.svEdges.material.color.copy(mat.color).multiplyScalar(1.6);
+      } else if (ud.svEdges.material !== S.edgeMat) {
+        ud.svEdges.material.dispose();
+        ud.svEdges.material = S.edgeMat;
+      }
+    }
   }
 
   function styleBlock(mesh, level, opts) {
@@ -783,6 +815,53 @@
     S.growIns.push({ mesh: mesh, t: 0, fx: fx, fz: fz });
   }
 
+  /* Wave B gear effects share one particle list: small additive quads with
+     per-entry velocity, spin, scale and fade. Bounded hard at 90 entries;
+     oldest is recycled first, and reset() clears the lot. */
+  var GEAR_FX_MAX = 90;
+
+  function spawnGearBit(o) {
+    if (!S.inited) { return; }
+    if (S.gearFx.length >= GEAR_FX_MAX) { removeGearBit(S.gearFx[0]); }
+    var geo = new T.PlaneGeometry(1, 1);
+    var mat = new T.MeshBasicMaterial({
+      color: new T.Color(o.color[0], o.color[1], o.color[2]),
+      transparent: true,
+      opacity: o.op == null ? 0.85 : o.op,
+      blending: T.AdditiveBlending,
+      depthWrite: false
+    });
+    var m = new T.Mesh(geo, mat);
+    tagHelper(m);
+    m.renderOrder = 4;
+    m.position.set(o.x, o.y, o.z);
+    if (o.flat) { m.rotation.x = -Math.PI / 2; }
+    else if (ctx.camera) { m.quaternion.copy(ctx.camera.quaternion); }
+    var s0 = (o.size || 0.12) * S.blockW;
+    m.scale.set(s0, s0, 1);
+    ctx.scene.add(m);
+    S.gearFx.push({
+      mesh: m,
+      t: 0,
+      life: o.life || 0.5,
+      vel: new T.Vector3(o.vx || 0, o.vy || 0, o.vz || 0).multiplyScalar(S.blockW),
+      grav: (o.grav || 0) * S.blockW,
+      scaleK: o.scaleK == null ? 1 : o.scaleK,   /* end scale / start scale */
+      baseOp: o.op == null ? 0.85 : o.op,
+      fadePow: o.fadePow || 1.5
+    });
+  }
+
+  function removeGearBit(fx) {
+    var i = S.gearFx.indexOf(fx);
+    if (i >= 0) { S.gearFx.splice(i, 1); }
+    if (fx.mesh) {
+      if (fx.mesh.parent) { fx.mesh.parent.remove(fx.mesh); }
+      if (fx.mesh.geometry) { fx.mesh.geometry.dispose(); }
+      if (fx.mesh.material) { fx.mesh.material.dispose(); }
+    }
+  }
+
   /* ---- ghost line: dashed outline at the personal-best height ---------- */
   /* Reads StackCore.getTowerState() (public state seam); rebuilt fresh on
      every init/reset so visuals' own reset can never leave a stale mesh. */
@@ -850,10 +929,12 @@
     // other listeners: synthetic stack:placed events without a mesh are
     // legal (the audio suite sends them) and styleBlock tolerates them.
     if (mesh) { mesh.renderOrder = 0; cancelGrowIn(mesh); }
+    if (mesh === S.slider) { S.slider = null; }
     if (level > S.level) setLevel(level);
     if (opts.perfect) {
       perfectFlashForMesh(mesh);
       startPulse(mesh, 0.05, true);
+      if (GEAR.flare && mesh) { spawnFlare(mesh); }
     } else if (opts.almost) {
       /* Near-miss: hairline cue, clearly weaker than the perfect flash. */
       var afp = meshFootprint(mesh, {});
@@ -972,6 +1053,9 @@
     S.pulses.length = 0;
     for (var g = 0; g < S.growIns.length; g++) finishGrowIn(S.growIns[g]);
     S.growIns.length = 0;
+    while (S.gearFx.length) { removeGearBit(S.gearFx[0]); }
+    S.slider = null;
+    S.trailAcc = 0;
     for (var j = 0; j < S.flashPool.length; j++) {
       S.flashPool[j].active = false;
       S.flashPool[j].mesh.visible = false;
@@ -1103,6 +1187,44 @@
       var ge = easeOutBack(gpr);
       gi.mesh.scale.x = gi.fx + (1 - gi.fx) * ge;
       gi.mesh.scale.z = gi.fz + (1 - gi.fz) * ge;
+    }
+
+    // gear particles
+    for (var gx = S.gearFx.length - 1; gx >= 0; gx--) {
+      var fx = S.gearFx[gx];
+      fx.t += dt;
+      var fp = fx.t / fx.life;
+      if (fp >= 1) { removeGearBit(fx); continue; }
+      fx.vel.y -= fx.grav * dt;
+      fx.mesh.position.addScaledVector(fx.vel, dt);
+      var fs = (1 + (fx.scaleK - 1) * fp);
+      fx.mesh.scale.x = fx.mesh.scale.x >= 0 ? Math.abs(fx.mesh.scale.x) : fx.mesh.scale.x;
+      var base = fx.mesh.userData.gearS0 || (fx.mesh.userData.gearS0 = fx.mesh.scale.x);
+      fx.mesh.scale.set(base * fs, base * fs, 1);
+      fx.mesh.material.opacity = fx.baseOp * Math.pow(1 - fp, fx.fadePow);
+    }
+
+    // drop trail emitter
+    if (GEAR.trail && S.slider && S.slider.parent) {
+      S.trailAcc = (S.trailAcc || 0) + dt;
+      var tdef = TRAIL_DEFS[GEAR.trail];
+      if (tdef) {
+        while (S.trailAcc >= tdef.rate) {
+          S.trailAcc -= tdef.rate;
+          var sp = S.slider.position;
+          spawnGearBit({
+            x: sp.x + (Math.random() - 0.5) * 0.3 * S.blockW,
+            y: sp.y + (Math.random() - 0.5) * 0.1 * S.blockW,
+            z: sp.z + (Math.random() - 0.5) * 0.3 * S.blockW,
+            color: tdef.color, size: tdef.size, life: tdef.life,
+            vy: tdef.rise, vx: (Math.random() - 0.5) * tdef.drift,
+            vz: (Math.random() - 0.5) * tdef.drift,
+            scaleK: tdef.scaleK, fadePow: tdef.fadePow
+          });
+        }
+      }
+    } else {
+      S.trailAcc = 0;
     }
 
     // debris
@@ -1258,7 +1380,11 @@
     onGameOver: onGameOver,
     dispose: dispose,
     getBlockColor: getBlockColor,
-    getPalette: getPalette
+    getPalette: getPalette,
+    debug: {
+      gear: function () { return { trail: GEAR.trail, flare: GEAR.flare, slice: GEAR.slice, death: GEAR.death, record: GEAR.record, material: GEAR.material }; },
+      fxCount: function () { return S.gearFx.length; }
+    }
   };
 
   window.StackVisuals = api;
@@ -1289,6 +1415,7 @@
     // A regrown spawn pops in from its previous footprint (see startGrowIn).
     // After styleBlock, so estimateScale never reads a mid-pop scale.
     if (d.mesh && d.grown && d.level > 0) { startGrowIn(d.mesh, d.grown); }
+    if (d.mesh && d.level > 0) { S.slider = d.mesh; }
   });
   window.addEventListener('stack:placed', function (e) {
     var d = det(e);
@@ -1300,6 +1427,7 @@
     // in between, so the slider-only pin is dropped here too, and the scale
     // snaps home before spawnDebris reads the footprint.
     if (d.mesh) { d.mesh.renderOrder = 0; cancelGrowIn(d.mesh); }
+    if (d.mesh === S.slider) { S.slider = null; }
     spawnDebris(d.mesh, d);
   });
   window.addEventListener('stack:level', function (e) {
@@ -1319,6 +1447,57 @@
     computeBgTargets();
     recolorAll();
   });
+
+  /* Wave B gear: equipped singles per slot, broadcast by the HUD. Effects
+     read this at event time; an unknown id in a slot simply never matches
+     an effect branch, so forward compatibility is silence, not breakage. */
+  var GEAR = { trail: null, flare: null, slice: null, death: null, record: null, material: null };
+  window.addEventListener('hud:gear', function (e) {
+    var d = det(e);
+    for (var k in GEAR) {
+      if (Object.prototype.hasOwnProperty.call(GEAR, k)) {
+        GEAR[k] = typeof d[k] === 'string' ? d[k] : null;
+      }
+    }
+    // Materials restyle standing blocks, so a gear change recolors the
+    // registry the same way a World change does.
+    if (S.inited) { recolorAll(); }
+  });
+
+  var TRAIL_DEFS = {
+    comet:   { rate: 0.028, life: 0.5,  size: 0.16, rise: -0.4, drift: 0.1,  scaleK: 0.35, fadePow: 2,   color: [1.0, 0.72, 0.38] },
+    ribbon:  { rate: 0.022, life: 0.6,  size: 0.13, rise: 0,    drift: 0.05, scaleK: 0.8,  fadePow: 1.5, color: [0.62, 0.83, 1.0] },
+    bubbles: { rate: 0.05,  life: 0.75, size: 0.09, rise: 0.9,  drift: 0.3,  scaleK: 1.3,  fadePow: 1,   color: [0.55, 0.95, 0.88] }
+  };
+
+  var FLARE_DEFS = {
+    goldring:  { rings: [{ size: 0.5, scaleK: 4.4, life: 0.5,  op: 0.8, color: [0.95, 0.76, 0.31] }] },
+    shockwave: { rings: [{ size: 0.4, scaleK: 7.0, life: 0.32, op: 0.9, color: [0.93, 0.95, 0.97] }] },
+    starburst: { sparks: 7, size: 0.1, speed: 2.6, life: 0.45, op: 0.9, color: [1.0, 0.85, 0.54] }
+  };
+
+  function spawnFlare(mesh) {
+    var def = FLARE_DEFS[GEAR.flare];
+    var fp = meshFootprint(mesh, {});
+    if (!def || !fp) { return; }
+    var y = fp.topY + 0.04 * S.blockW;
+    if (def.rings) {
+      for (var i = 0; i < def.rings.length; i++) {
+        var r = def.rings[i];
+        spawnGearBit({ x: fp.cx, y: y, z: fp.cz, flat: true, size: r.size, scaleK: r.scaleK, life: r.life, op: r.op, color: r.color, fadePow: 2 });
+      }
+    } else if (def.sparks) {
+      for (var s = 0; s < def.sparks; s++) {
+        var a = (s / def.sparks) * Math.PI * 2;
+        spawnGearBit({
+          x: fp.cx, y: y, z: fp.cz, size: def.size, life: def.life, op: def.op,
+          vx: Math.cos(a) * def.speed, vz: Math.sin(a) * def.speed, vy: 0.6,
+          grav: 2.2, scaleK: 0.4, fadePow: 1.5, color: def.color
+        });
+      }
+    }
+  }
+
   /* stack:reset only fires on restarts. game:start is still needed as a
      fallback because core.js fires stack:init before it reads `best` from
      localStorage (fireDom('stack:init', ...) runs ahead of the
