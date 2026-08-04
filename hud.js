@@ -820,6 +820,29 @@
        shelf order reads Worlds grid -> gear rack -> machine. */
     boardShop.appendChild(shopMachine);
 
+    /* Redeem row: one known code unlocks the full current catalog on this
+       device (Maor's review lane, 2026-08-04: judging effects in the real
+       game beats reading mockups). The code ships in a public repo, so
+       anyone reading source can find it; cosmetics only, accepted like the
+       rest of the trollable-by-design surface. Trophies stay earned: the
+       code grants the 22 singles and the three priced Worlds, never the
+       tier gifts or Bobo. */
+    var redeemRow = el('div', 'hud-redeem');
+    var redeemInput = document.createElement('input');
+    redeemInput.type = 'text';
+    redeemInput.className = 'hud-redeem-input';
+    redeemInput.placeholder = 'REDEEM CODE';
+    redeemInput.maxLength = 24;
+    redeemInput.setAttribute('aria-label', 'Redeem code');
+    var redeemBtn = el('button', 'hud-redeem-btn', 'APPLY');
+    redeemBtn.type = 'button';
+    redeemBtn.setAttribute('aria-label', 'Apply redeem code');
+    var redeemMsg = el('span', 'hud-redeem-msg', '');
+    redeemRow.appendChild(redeemInput);
+    redeemRow.appendChild(redeemBtn);
+    redeemRow.appendChild(redeemMsg);
+    boardShop.appendChild(redeemRow);
+
     var boardList = el('ol', 'hud-lb-list hud-board-list');
     /* Floating jump-to-my-row chip: absolutely positioned over the list's
        lower edge, so showing or hiding it cannot move the panel. */
@@ -882,6 +905,9 @@
       machineReelWin: reelWin,
       machineSpin: spinBtn,
       machineWin: machineWin,
+      redeemInput: redeemInput,
+      redeemBtn: redeemBtn,
+      redeemMsg: redeemMsg,
       toast: toast,
       lbList: lbList,
       entry: entry,
@@ -2456,6 +2482,31 @@
     }
     els.machineSpin.addEventListener('click', spinMachine);
     keepKeysLocal(els.machineSpin);
+    var REDEEM_CODE = 'MAOR-SEES-ALL';
+    function applyRedeem() {
+      var v = String(els.redeemInput.value || '').replace(/\s+/g, '').toUpperCase();
+      if (v !== REDEEM_CODE) {
+        els.redeemMsg.textContent = v ? 'NOTHING HAPPENS.' : '';
+        return;
+      }
+      for (var ri = 0; ri < SINGLES.length; ri++) { grantSingle(SINGLES[ri].id); }
+      for (var rw = 0; rw < WORLDS.length; rw++) {
+        if (WORLDS[rw].price > 0) { grantWorld(WORLDS[rw].id); }
+      }
+      els.redeemInput.value = '';
+      els.redeemMsg.textContent = 'FULL CATALOG UNLOCKED';
+      renderShopPane();
+      renderShopPill();
+    }
+    els.redeemBtn.addEventListener('click', applyRedeem);
+    keepKeysLocal(els.redeemBtn);
+    /* The input takes Enter as APPLY and keeps Space out of core's window
+       drop/start listener, same class of shielding as keepKeysLocal but
+       without eating the characters being typed. */
+    els.redeemInput.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter') { ev.preventDefault(); ev.stopPropagation(); applyRedeem(); return; }
+      if (ev.key === ' ' || ev.key === 'Spacebar') { ev.stopPropagation(); }
+    });
     els.muteBtn.addEventListener('click', toggleMute);
     els.board.addEventListener('pointerdown', function (ev) {
       if (ev.target === els.board) { closeBoard(); } /* tap outside the panel */
@@ -2480,7 +2531,7 @@
 
     window.addEventListener('keydown', function (ev) {
       if (ev.repeat) { return; }
-      if (els && ev.target === els.nameInput) { return; } /* typing, not restarting */
+      if (els && (ev.target === els.nameInput || ev.target === els.redeemInput)) { return; } /* typing, not restarting */
       if (boardOpen) {
         if (ev.key === 'Escape') {
           ev.preventDefault();

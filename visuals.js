@@ -914,12 +914,17 @@
   }
 
   function ghostCheckPassed(level, mesh) {
-    if (!GHOST.line || GHOST.passed) return;
-    if (typeof level === 'number' && level > GHOST.best) {
-      GHOST.passed = true;
-      recordFx(mesh);
-      ghostStyle(true);
-    }
+    if (GHOST.passed) return;
+    if (typeof level !== 'number' || level <= GHOST.best) return;
+    // Option B (Maor, 2026-08-04): below best 10 no ghost line exists, but
+    // beating the stored best is still the record moment, so the two record
+    // singles fire on any new personal best. A fresh device (best 0) stays
+    // silent: block one of run one is technically a record, and a flash
+    // there reads as noise, not celebration.
+    if (!GHOST.line && GHOST.best < 1) return;
+    GHOST.passed = true;
+    recordFx(mesh);
+    ghostStyle(true);
   }
 
   function onBlockPlaced(mesh, level, opts) {

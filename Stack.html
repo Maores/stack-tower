@@ -1266,6 +1266,54 @@
   letter-spacing: 0.08em;
 }
 .hud-machine-wintxt { display: flex; flex-direction: column; align-items: flex-start; }
+/* Redeem row: input + button under the machine, message on its own line. */
+.hud-redeem {
+  margin-top: 1.4vh;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.hud-redeem-input {
+  pointer-events: auto;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.05);
+  color: inherit;
+  font: inherit;
+  font-size: clamp(10px, 1.5vmin, 12px);
+  letter-spacing: 0.12em;
+}
+.hud-redeem-input::placeholder { color: rgba(255, 255, 255, 0.35); }
+.hud-redeem-input:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.hud-redeem-btn {
+  pointer-events: auto;
+  cursor: pointer;
+  flex: 0 0 auto;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  font: inherit;
+  font-size: clamp(10px, 1.4vmin, 11px);
+  letter-spacing: 0.16em;
+}
+.hud-redeem-btn:active { transform: scale(0.96); }
+.hud-redeem-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.hud-redeem-msg {
+  flex: 1 0 100%;
+  min-height: 12px;
+  text-align: center;
+  font-size: clamp(8px, 1.2vmin, 10px);
+  letter-spacing: 0.14em;
+  opacity: 0.8;
+}
 .hud-machine-winslot { opacity: 0.6; font-size: clamp(8px, 1.2vmin, 9px); letter-spacing: 0.2em; }
 .hud-machine-winname { font-weight: 600; }
 .hud-machine-wineq { opacity: 0.85; font-size: clamp(8px, 1.2vmin, 10px); letter-spacing: 0.2em; }
@@ -3243,12 +3291,17 @@
   }
 
   function ghostCheckPassed(level, mesh) {
-    if (!GHOST.line || GHOST.passed) return;
-    if (typeof level === 'number' && level > GHOST.best) {
-      GHOST.passed = true;
-      recordFx(mesh);
-      ghostStyle(true);
-    }
+    if (GHOST.passed) return;
+    if (typeof level !== 'number' || level <= GHOST.best) return;
+    // Option B (Maor, 2026-08-04): below best 10 no ghost line exists, but
+    // beating the stored best is still the record moment, so the two record
+    // singles fire on any new personal best. A fresh device (best 0) stays
+    // silent: block one of run one is technically a record, and a flash
+    // there reads as noise, not celebration.
+    if (!GHOST.line && GHOST.best < 1) return;
+    GHOST.passed = true;
+    recordFx(mesh);
+    ghostStyle(true);
   }
 
   function onBlockPlaced(mesh, level, opts) {
@@ -4789,6 +4842,29 @@
        shelf order reads Worlds grid -> gear rack -> machine. */
     boardShop.appendChild(shopMachine);
 
+    /* Redeem row: one known code unlocks the full current catalog on this
+       device (Maor's review lane, 2026-08-04: judging effects in the real
+       game beats reading mockups). The code ships in a public repo, so
+       anyone reading source can find it; cosmetics only, accepted like the
+       rest of the trollable-by-design surface. Trophies stay earned: the
+       code grants the 22 singles and the three priced Worlds, never the
+       tier gifts or Bobo. */
+    var redeemRow = el('div', 'hud-redeem');
+    var redeemInput = document.createElement('input');
+    redeemInput.type = 'text';
+    redeemInput.className = 'hud-redeem-input';
+    redeemInput.placeholder = 'REDEEM CODE';
+    redeemInput.maxLength = 24;
+    redeemInput.setAttribute('aria-label', 'Redeem code');
+    var redeemBtn = el('button', 'hud-redeem-btn', 'APPLY');
+    redeemBtn.type = 'button';
+    redeemBtn.setAttribute('aria-label', 'Apply redeem code');
+    var redeemMsg = el('span', 'hud-redeem-msg', '');
+    redeemRow.appendChild(redeemInput);
+    redeemRow.appendChild(redeemBtn);
+    redeemRow.appendChild(redeemMsg);
+    boardShop.appendChild(redeemRow);
+
     var boardList = el('ol', 'hud-lb-list hud-board-list');
     /* Floating jump-to-my-row chip: absolutely positioned over the list's
        lower edge, so showing or hiding it cannot move the panel. */
@@ -4851,6 +4927,9 @@
       machineReelWin: reelWin,
       machineSpin: spinBtn,
       machineWin: machineWin,
+      redeemInput: redeemInput,
+      redeemBtn: redeemBtn,
+      redeemMsg: redeemMsg,
       toast: toast,
       lbList: lbList,
       entry: entry,
@@ -6425,6 +6504,31 @@
     }
     els.machineSpin.addEventListener('click', spinMachine);
     keepKeysLocal(els.machineSpin);
+    var REDEEM_CODE = 'MAOR-SEES-ALL';
+    function applyRedeem() {
+      var v = String(els.redeemInput.value || '').replace(/\s+/g, '').toUpperCase();
+      if (v !== REDEEM_CODE) {
+        els.redeemMsg.textContent = v ? 'NOTHING HAPPENS.' : '';
+        return;
+      }
+      for (var ri = 0; ri < SINGLES.length; ri++) { grantSingle(SINGLES[ri].id); }
+      for (var rw = 0; rw < WORLDS.length; rw++) {
+        if (WORLDS[rw].price > 0) { grantWorld(WORLDS[rw].id); }
+      }
+      els.redeemInput.value = '';
+      els.redeemMsg.textContent = 'FULL CATALOG UNLOCKED';
+      renderShopPane();
+      renderShopPill();
+    }
+    els.redeemBtn.addEventListener('click', applyRedeem);
+    keepKeysLocal(els.redeemBtn);
+    /* The input takes Enter as APPLY and keeps Space out of core's window
+       drop/start listener, same class of shielding as keepKeysLocal but
+       without eating the characters being typed. */
+    els.redeemInput.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter') { ev.preventDefault(); ev.stopPropagation(); applyRedeem(); return; }
+      if (ev.key === ' ' || ev.key === 'Spacebar') { ev.stopPropagation(); }
+    });
     els.muteBtn.addEventListener('click', toggleMute);
     els.board.addEventListener('pointerdown', function (ev) {
       if (ev.target === els.board) { closeBoard(); } /* tap outside the panel */
@@ -6449,7 +6553,7 @@
 
     window.addEventListener('keydown', function (ev) {
       if (ev.repeat) { return; }
-      if (els && ev.target === els.nameInput) { return; } /* typing, not restarting */
+      if (els && (ev.target === els.nameInput || ev.target === els.redeemInput)) { return; } /* typing, not restarting */
       if (boardOpen) {
         if (ev.key === 'Escape') {
           ev.preventDefault();
