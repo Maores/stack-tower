@@ -1832,8 +1832,8 @@
     var target = 12;
     for (var i = 0; i < 15; i++) { els.machineReel.appendChild(machineReelRow(pool[i % pool.length])); }
     while (pool[target % pool.length].id !== prize.id) { target++; }
-    if (target >= 15) {   /* extend the strip so the landing row exists */
-      for (var k = 15; k <= target; k++) { els.machineReel.appendChild(machineReelRow(pool[k % pool.length])); }
+    if (target + 1 >= 15) {   /* extend the strip so target+1 (bottom of the window) exists too */
+      for (var k = 15; k <= target + 1; k++) { els.machineReel.appendChild(machineReelRow(pool[k % pool.length])); }
     }
 
     var finish = function () {
