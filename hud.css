@@ -1099,6 +1099,71 @@
   opacity: 0.5;
 }
 
+/* Wave B gear rack: seven slot groups of small single cards. */
+.hud-gear-rack {
+  margin-top: 1.6vh;
+}
+.hud-gear-slot {
+  opacity: 0.66;
+  font-size: clamp(9px, 1.3vmin, 11px);
+  font-weight: 300;
+  letter-spacing: 0.24em;
+  margin: 1.2vh 2px 0.5vh;
+}
+.hud-gear-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.hud-gear-card {
+  pointer-events: auto;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 38px;
+  padding: 0 8px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.05);
+  color: inherit;
+  font: inherit;
+}
+.hud-gear-card:active { transform: scale(0.97); }
+.hud-gear-card:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.hud-gear-card.is-eq {
+  border-color: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.22), inset 0 0 6px rgba(255, 255, 255, 0.08);
+}
+.hud-gear-card.is-armed {
+  border-color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.14);
+}
+.hud-gear-card.is-dim { opacity: 0.5; cursor: default; }
+.hud-gear-sw {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+.hud-gear-name {
+  flex: 1 1 auto;
+  text-align: left;
+  font-size: clamp(9px, 1.4vmin, 11px);
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hud-gear-chip {
+  flex: 0 0 auto;
+  font-size: clamp(8px, 1.2vmin, 10px);
+  letter-spacing: 0.1em;
+  opacity: 0.85;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
 /* Death-screen tier line */
 .hud-over-tier {
   margin-top: 0.8vh;

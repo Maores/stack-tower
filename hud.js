@@ -770,8 +770,38 @@
       shopCards.push({ card: card, chip: chip, world: w });
     }
     var shopMachine = el('div', 'hud-shop-machine', 'PRIZE MACHINE · COMING SOON');
-    shopGrid.appendChild(shopMachine);
     boardShop.appendChild(shopGrid);
+
+    /* GEAR rack: seven slot groups of small single cards. Swatch colors are
+       catalog constants (decorative), names/states are textContent. */
+    var gearRack = el('div', 'hud-gear-rack');
+    var gearCards = [];
+    for (var gi = 0; gi < GEAR_SLOTS.length; gi++) {
+      var slotDef = GEAR_SLOTS[gi];
+      gearRack.appendChild(el('div', 'hud-gear-slot', slotDef.name));
+      var row = el('div', 'hud-gear-row');
+      for (var si = 0; si < SINGLES.length; si++) {
+        var sg = SINGLES[si];
+        if (sg.slot !== slotDef.id) { continue; }
+        var gcard = el('button', 'hud-gear-card');
+        gcard.type = 'button';
+        gcard.setAttribute('data-single', sg.id);
+        var sw = el('span', 'hud-gear-sw');
+        sw.style.background = sg.color;
+        gcard.appendChild(sw);
+        gcard.appendChild(el('span', 'hud-gear-name', sg.name));
+        var gchip = el('span', 'hud-gear-chip', '');
+        gcard.appendChild(gchip);
+        row.appendChild(gcard);
+        gearCards.push({ card: gcard, chip: gchip, single: sg });
+      }
+      gearRack.appendChild(row);
+    }
+    boardShop.appendChild(gearRack);
+    /* The machine slot moves with the rack: it now sits directly under
+       boardShop rather than inside the two-column Worlds grid, so the
+       shelf order reads Worlds grid -> gear rack -> machine. */
+    boardShop.appendChild(shopMachine);
 
     var boardList = el('ol', 'hud-lb-list hud-board-list');
     /* Floating jump-to-my-row chip: absolutely positioned over the list's
@@ -828,6 +858,8 @@
       shopBalVal: shopBalVal,
       shopGrid: shopGrid,
       shopCards: shopCards,
+      gearRack: gearRack,
+      gearCards: gearCards,
       toast: toast,
       lbList: lbList,
       entry: entry,
@@ -1621,12 +1653,16 @@
   /* Two-tap purchase state: first tap arms one card, second inside the
      window confirms. No modal — a stray tap can cost at most an armed chip. */
   var shopArm = { id: null, timer: null };
+  var gearArm = { id: null, timer: null };
 
   function disarmShop(rerender) {
     if (shopArm.timer) { clearTimeout(shopArm.timer); }
-    var had = shopArm.id != null;
+    if (gearArm.timer) { clearTimeout(gearArm.timer); }
+    var had = shopArm.id != null || gearArm.id != null;
     shopArm.id = null;
     shopArm.timer = null;
+    gearArm.id = null;
+    gearArm.timer = null;
     if (had && rerender) { renderShopPane(); }
   }
 
@@ -1656,6 +1692,28 @@
       c.chip.textContent = chip;
       /* The visible chip carries the state; the label must say the same. */
       c.card.setAttribute('aria-label', c.world.name + ' — ' + c.chip.textContent);
+    }
+    renderGearRack();
+  }
+
+  /* Gear card states: ON (equipped) / OWNED (tap equips) / armed BUY /
+     price / dimmed when unaffordable. Wins and buys auto-equip. */
+  function renderGearRack() {
+    var bal = readInt(PTS_KEY);
+    var g = readGear();
+    for (var i = 0; i < els.gearCards.length; i++) {
+      var c = els.gearCards[i];
+      var s = c.single;
+      var cls = 'hud-gear-card';
+      var chip = '';
+      if (g[s.slot] === s.id) { cls += ' is-eq'; chip = 'ON'; }
+      else if (ownsSingle(s.id)) { chip = 'OWNED'; }
+      else if (gearArm.id === s.id) { cls += ' is-armed'; chip = 'BUY · ' + SINGLE_PRICE + '?'; }
+      else if (bal >= SINGLE_PRICE) { chip = String(SINGLE_PRICE); }
+      else { cls += ' is-dim'; chip = String(SINGLE_PRICE); }
+      c.card.className = cls;
+      c.chip.textContent = chip;
+      c.card.setAttribute('aria-label', s.name + ' — ' + chip);
     }
   }
 
@@ -2136,6 +2194,44 @@
     });
     for (var ci = 0; ci < els.shopCards.length; ci++) {
       keepKeysLocal(els.shopCards[ci].card);
+    }
+    els.gearRack.addEventListener('click', function (ev) {
+      var btn = ev.target && ev.target.closest ? ev.target.closest('.hud-gear-card') : null;
+      if (!btn) { disarmShop(true); return; }
+      var id = btn.getAttribute('data-single');
+      var s = SINGLE_BY_ID[id];
+      if (!s) { return; }
+      var g = readGear();
+      if (g[s.slot] === id) {              /* equipped: tap unequips */
+        disarmShop(false);
+        unequipSlot(s.slot);
+        renderShopPane();
+        return;
+      }
+      if (ownsSingle(id)) {                /* owned: tap equips */
+        disarmShop(false);
+        equipSingle(id);
+        renderShopPane();
+        return;
+      }
+      var bal = readInt(PTS_KEY);
+      if (bal < SINGLE_PRICE) { disarmShop(true); return; }
+      if (gearArm.id === id) {             /* second tap: buy at 800 */
+        disarmShop(false);
+        writeInt(PTS_KEY, bal - SINGLE_PRICE);
+        grantSingle(id);
+        equipSingle(id);
+        renderShopPane();
+        renderShopPill();
+        return;
+      }
+      disarmShop(false);                   /* first tap: arm */
+      gearArm.id = id;
+      gearArm.timer = setTimeout(function () { disarmShop(true); }, SHOP_ARM_MS);
+      renderShopPane();
+    });
+    for (var gci = 0; gci < els.gearCards.length; gci++) {
+      keepKeysLocal(els.gearCards[gci].card);
     }
     els.muteBtn.addEventListener('click', toggleMute);
     els.board.addEventListener('pointerdown', function (ev) {
