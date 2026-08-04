@@ -1115,8 +1115,85 @@
     ]
   };
 
+  /* Roast packs (Wave B singles): an equipped pack replaces the World's
+     quip bag and the generic rival templates - it never stacks. Rival
+     templates keep the {n}/{s} slots and go through fillRoast, so Hebrew
+     names keep their LRM guard. */
+  var ROAST_PACK_QUIPS = {
+    savage: [
+      'That was a cry for help in block form.',
+      'The tower died of embarrassment first.',
+      'Delete this run from your memory. Everyone else will.',
+      'Gravity did you a favor, honestly.',
+      'Your thumbs owe the tower an apology.',
+      'The blocks unionized against you.',
+      'Even the base is disappointed, and it does nothing.',
+      'That collapse had witnesses.'
+    ],
+    gentle: [
+      'A very brave attempt, all things considered.',
+      'The tower simply needed a rest.',
+      'You placed some of those beautifully. Some.',
+      'Every collapse is a lesson wearing a costume.',
+      'The blocks enjoyed their time with you.',
+      'That was nearly something wonderful.',
+      'Rest now. The tower certainly is.',
+      'Tomorrow the blocks will forgive everything.'
+    ],
+    nerd: [
+      'Stack overflow. Literally.',
+      'Segmentation fault at block level.',
+      'Your tower failed the integration test.',
+      'Entropy: 1. Architecture: 0.',
+      'That was an off-by-everything error.',
+      'The tower got garbage collected.',
+      'Undefined behavior, well defined outcome.',
+      'Race condition between thumb and physics. Physics won.'
+    ],
+    bard: [
+      'Alas, poor tower. It knew thee well.',
+      'Thy blocks hath fallen most grievously.',
+      'A plague upon that final drop.',
+      'So falls the tower, so falls the crown.',
+      'Wherefore didst thou tap, and tap so ill?',
+      'The stage is cleared. The tragedy, complete.',
+      'Sleep, sweet prince of poorly landed stone.',
+      'Exeunt tower, pursued by gravity.'
+    ]
+  };
+  var ROAST_PACK_RIVAL = {
+    savage: [
+      '{n} got {s} without even trying. Think about that.',
+      'You lost to {n}. {n}! At {s}!'
+    ],
+    gentle: [
+      '{n} reached {s}. You will get there, probably.',
+      'Look at {n} with {s}. Something to aim for, gently.'
+    ],
+    nerd: [
+      '{n} benchmarked {s}. Your build failed to compile.',
+      'Diff vs {n}: you are {s} minus a lot.'
+    ],
+    bard: [
+      'Yon {n} standeth taller at {s}.',
+      'To {n} at {s}: the crown remains thine.'
+    ]
+  };
+
+  function activeRoastPack() {
+    return readGear().roast || null;
+  }
+
   function activeQuips() {
+    var pack = activeRoastPack();
+    if (pack && ROAST_PACK_QUIPS[pack]) { return ROAST_PACK_QUIPS[pack]; }
     return WORLD_QUIPS[readWorld()] || QUIPS;
+  }
+
+  function activeRivals() {
+    var pack = activeRoastPack();
+    if (pack && ROAST_PACK_RIVAL[pack]) { return ROAST_PACK_RIVAL[pack]; }
+    return ROAST_RIVAL;
   }
 
   var quipBag = [];
@@ -1201,7 +1278,7 @@
     }
     if (!rivals.length) { return null; }
     var rv = rivals[Math.floor(Math.random() * rivals.length)];
-    return fillRoast(pickFrom(rv.score === myScore ? ROAST_TIE : ROAST_RIVAL), rv.name, rv.score);
+    return fillRoast(pickFrom(rv.score === myScore ? ROAST_TIE : activeRivals()), rv.name, rv.score);
   }
 
   function applyRoast(rows) {
