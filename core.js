@@ -50,7 +50,7 @@
    Visuals bridge (for visuals.js, dispatched on window as CustomEvents):
      'stack:init' {scene, camera, renderer, THREE}, 'stack:block'
      {mesh, level, grown}, 'stack:placed' {mesh, level, perfect, almost}, 'stack:debris'
-     {mesh, level, dir}, 'stack:gameover', 'stack:reset'; plus a direct
+     {mesh, level, dir, surfaces}, 'stack:gameover', 'stack:reset'; plus a direct
      StackVisuals.update(dt) call each frame. When StackVisuals is ready it
      owns lighting, materials, debris animation, and placement juice; core
      falls back to its own lights, Lambert palette, and debris physics when
@@ -317,6 +317,20 @@
     };
   }
 
+  /* Landing surfaces for a handed-over cut piece: every standing block's top
+     face, topmost first. Visuals has no block records of its own, so without
+     this a falling piece has nothing to collide with and sinks through the
+     tower (Maor's iPhone report, 2026-08-04). Built fresh per debris event
+     (once per drop) and never mutated by the consumer. */
+  function surfaceList() {
+    var out = [];
+    for (var i = blocks.length - 1; i >= 0; i--) {
+      var b = blocks[i];
+      out.push({ y: b.y + b.h / 2, x: b.x, z: b.z, hw: b.w / 2, hd: b.d / 2 });
+    }
+    return out;
+  }
+
   function pushDebris(mesh, vel) {
     var rec = {
       mesh: mesh,
@@ -349,7 +363,8 @@
     if (handover) {
       fireDom('stack:debris', {
         mesh: mesh, level: dropped.index,
-        dir: { x: a === 'x' ? side : 0, z: a === 'z' ? side : 0 }
+        dir: { x: a === 'x' ? side : 0, z: a === 'z' ? side : 0 },
+        surfaces: surfaceList()
       });
       return { mesh: mesh, visuals: true };
     }
@@ -395,7 +410,8 @@
         deb = { mesh: m, visuals: true };
         fireDom('stack:debris', {
           mesh: m, level: dropped.index,
-          dir: { x: a === 'x' ? s : 0, z: a === 'z' ? s : 0 }
+          dir: { x: a === 'x' ? s : 0, z: a === 'z' ? s : 0 },
+          surfaces: surfaceList()
         });
       } else {
         deb = pushDebris(m, {

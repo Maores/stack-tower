@@ -70,8 +70,11 @@
     growInBack: 1.7,    // grow-in overshoot; higher = springier settle
     gravity: 15,        // in block widths per second squared
     debrisDrag: 2.1,    // horizontal damping per second
-    debrisLife: 1.25,   // seconds until a cut piece is fully gone
-    debrisFadeAt: 0.34  // seconds before the fade begins
+    debrisLife: 2.2,    // seconds until a cut piece is fully gone. Sized for
+                        // a portrait phone plus the death zoom-out: the old
+                        // 1.25 deleted pieces while still inside the visible
+                        // frame (Maor's iPhone report, 2026-08-04)
+    debrisFadeAt: 1.1   // seconds before the fade begins
   };
 
   // Per-World palette + sky (marketplace Wave A), keyed by the ids the HUD
@@ -158,7 +161,8 @@
     tmpV: null,
     tmpV2: null,
     tmpC: null,
-    tmpC2: null
+    tmpC2: null,
+    tmpBox: null        // scratch Box3 for debris landing snaps
   };
 
   /* ------------------------------------------------ color pipeline */
@@ -969,7 +973,8 @@
   /* Cut piece handover. The piece must read as physical: it tips OUTWARD
      over the cut edge (never back into the tower), clears the silhouette
      with a small outward nudge, falls under strong gravity with horizontal
-     drag, and fades out quickly so pieces never pile up mid-air. */
+     drag, and lands on any standing ledge under it (the event's surface
+     list) or falls clear of the frame before the fade removes it. */
   function spawnDebris(mesh, opts) {
     if (!S.inited || !mesh || !mesh.geometry) return;
     opts = opts || {};
@@ -1017,6 +1022,9 @@
     mesh.position.addScaledVector(dir, 0.05 * S.blockW);
     mesh.position.y -= 0.01 * S.blockW;
     if (!mesh.parent) ctx.scene.add(mesh);
+    // Landing surfaces ride the debris event (core's surfaceList, topmost
+    // first). Synthetic events without them stay purely ballistic.
+    var gp = (mesh.geometry && mesh.geometry.parameters) || {};
     S.debris.push({
       mesh: mesh,
       vel: dir.clone().multiplyScalar((0.9 + Math.random() * 0.35) * S.blockW)
@@ -1026,7 +1034,12 @@
       t: 0,
       fadeAt: CFG.debrisFadeAt,
       dur: CFG.debrisLife,
-      baseOp: mat.opacity
+      baseOp: mat.opacity,
+      surfaces: (opts.surfaces && opts.surfaces.length) ? opts.surfaces : null,
+      halfDiag: 0.5 * Math.sqrt(
+        Math.pow(gp.width || S.blockW, 2) +
+        Math.pow(gp.height || 0.62, 2) +
+        Math.pow(gp.depth || S.blockW, 2))
     });
     var entry = S.debris[S.debris.length - 1];
     // Slice singles restyle the cut piece. They apply to every debris
@@ -1036,7 +1049,6 @@
     if (sliceKind === 'petals') {
       entry.gravK = 0.22;
       entry.rate *= 2.2;
-      entry.dur = Math.max(entry.dur, 1.6);
       for (var pi = 0; pi < 5; pi++) {
         spawnGearBit({
           x: mesh.position.x, y: mesh.position.y, z: mesh.position.z,
@@ -1047,7 +1059,8 @@
         });
       }
     } else if (sliceKind === 'confetti') {
-      entry.dur = Math.min(entry.dur, 0.45);
+      // The 0.45s dur clamp is gone: killing the piece early read as a
+      // vanish bug on portrait phones, not as a style (2026-08-04).
       var cCols = [[1, 0.44, 0.57], [0.35, 0.94, 1], [0.95, 0.76, 0.31], [0.61, 0.89, 0.5]];
       for (var ci = 0; ci < 10; ci++) {
         spawnGearBit({
@@ -1059,7 +1072,7 @@
         });
       }
     } else if (sliceKind === 'pixels') {
-      entry.dur = Math.min(entry.dur, 0.35);
+      // Same clamp removal as confetti; the piece survives to screen exit.
       for (var xi = 0; xi < 8; xi++) {
         spawnGearBit({
           x: mesh.position.x + (Math.random() - 0.5) * 0.5 * S.blockW,
@@ -1081,6 +1094,18 @@
         });
       }
     }
+  }
+
+  /* Highest standing surface under the piece's center. The event's list is
+     topmost-first and footprints nest going up, so the first containing rect
+     IS the landing ledge; null means the piece is over the void. */
+  function debrisLandY(en) {
+    var px = en.mesh.position.x, pz = en.mesh.position.z;
+    for (var i = 0; i < en.surfaces.length; i++) {
+      var s = en.surfaces[i];
+      if (Math.abs(px - s.x) <= s.hw && Math.abs(pz - s.z) <= s.hd) { return s.y; }
+    }
+    return null;
   }
 
   function removeDebris(entry) {
@@ -1308,16 +1333,36 @@
     for (var d = S.debris.length - 1; d >= 0; d--) {
       var en = S.debris[d];
       en.t += dt;
-      en.vel.y -= CFG.gravity * S.blockW * dt * (en.gravK == null ? 1 : en.gravK);
-      en.vel.x *= drag;
-      en.vel.z *= drag;
-      en.mesh.position.addScaledVector(en.vel, dt);
-      if (en.bounces > 0 && en.mesh.position.y <= en.bounceY && en.vel.y < 0) {
-        en.vel.y = -en.vel.y * 0.55;
-        en.bounces--;
+      if (!en.landed) {
+        en.vel.y -= CFG.gravity * S.blockW * dt * (en.gravK == null ? 1 : en.gravK);
+        en.vel.x *= drag;
+        en.vel.z *= drag;
+        en.mesh.position.addScaledVector(en.vel, dt);
+        // Tower collision: rest (or bounce, if the BOUNCE single armed it)
+        // on the highest ledge under the piece instead of clipping through
+        // the stack. The exact rotated bottom comes from a bounding box,
+        // taken only within striking distance of the surface.
+        if (en.surfaces && en.vel.y < 0) {
+          var landY = debrisLandY(en);
+          if (landY !== null && en.mesh.position.y - landY < en.halfDiag + 0.01) {
+            if (!S.tmpBox) { S.tmpBox = new T.Box3(); }
+            S.tmpBox.setFromObject(en.mesh);
+            if (S.tmpBox.min.y <= landY) {
+              en.mesh.position.y += landY - S.tmpBox.min.y;
+              if (en.bounces > 0) {
+                en.vel.y = -en.vel.y * 0.55;
+                en.bounces--;
+              } else {
+                en.vel.set(0, 0, 0);
+                en.rate = 0;
+                en.landed = true;
+              }
+            }
+          }
+        }
+        if (en.mesh.rotateOnWorldAxis) en.mesh.rotateOnWorldAxis(en.axis, en.rate * dt);
+        else en.mesh.rotateOnAxis(en.axis, en.rate * dt);
       }
-      if (en.mesh.rotateOnWorldAxis) en.mesh.rotateOnWorldAxis(en.axis, en.rate * dt);
-      else en.mesh.rotateOnAxis(en.axis, en.rate * dt);
       var gone = en.mesh.position.y < camY - 26 * S.blockW;
       if (en.t > en.fadeAt) {
         var ff = (en.t - en.fadeAt) / (en.dur - en.fadeAt);
@@ -1462,7 +1507,22 @@
     getPalette: getPalette,
     debug: {
       gear: function () { return { trail: GEAR.trail, flare: GEAR.flare, slice: GEAR.slice, death: GEAR.death, record: GEAR.record, material: GEAR.material }; },
-      fxCount: function () { return S.gearFx.length; }
+      fxCount: function () { return S.gearFx.length; },
+      debris: function () {
+        var out = [];
+        for (var i = 0; i < S.debris.length; i++) {
+          var en = S.debris[i];
+          out.push({
+            y: en.mesh ? en.mesh.position.y : 0,
+            t: en.t, dur: en.dur,
+            landed: !!en.landed,
+            bounces: en.bounces | 0,
+            surfaces: en.surfaces ? en.surfaces.length : 0,
+            opacity: en.mesh && en.mesh.userData.svMat ? en.mesh.userData.svMat.opacity : null
+          });
+        }
+        return out;
+      }
     }
   };
 
@@ -1520,10 +1580,12 @@
     if (GEAR.death === 'slowmo') {
       S.slowmoT = 0.8;
     } else if (GEAR.death === 'bounce' && S.debris.length) {
+      // One real bounce off whatever ledge the piece lands on (the tower
+      // collision above); a piece over the void just falls. The old fixed
+      // plane 3 blockW below the death height bounced mid-air, or worse,
+      // mid-tower (Maor's report, 2026-08-04).
       var en = S.debris[S.debris.length - 1];
       en.bounces = 1;
-      en.bounceY = en.mesh.position.y - 3 * S.blockW;
-      en.dur = Math.max(en.dur, 2.0);
     } else if (GEAR.death === 'fireworks') {
       var top = 0;
       try { top = window.StackCore.getTowerState().towerTop; } catch (err) { top = 4; }
