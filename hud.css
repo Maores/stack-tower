@@ -667,10 +667,10 @@
   height: 52%;
   display: block;
 }
-.hud-mute-btn .hud-mute-slash {
+.hud-mute-btn .hud-mute-x {
   display: none;
 }
-.hud-mute-btn.is-muted .hud-mute-slash {
+.hud-mute-btn.is-muted .hud-mute-x {
   display: block;
 }
 .hud-mute-btn.is-muted .hud-mute-wave {

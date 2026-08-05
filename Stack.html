@@ -696,10 +696,10 @@
   height: 52%;
   display: block;
 }
-.hud-mute-btn .hud-mute-slash {
+.hud-mute-btn .hud-mute-x {
   display: none;
 }
-.hud-mute-btn.is-muted .hud-mute-slash {
+.hud-mute-btn.is-muted .hud-mute-x {
   display: block;
 }
 .hud-mute-btn.is-muted .hud-mute-wave {
@@ -4668,7 +4668,10 @@
       'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
       '<path d="M11 5 6.5 9H3v6h3.5L11 19V5z"/>' +
       '<path class="hud-mute-wave" d="M15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12"/>' +
-      '<path class="hud-mute-slash" d="M4 4l16 16"/></svg>';
+      /* Muted swaps the waves for an X in the space they occupied. A full
+         corner-to-corner slash was centred on the viewBox while the speaker
+         sits left of it, so half the line struck through nothing. */
+      '<path class="hud-mute-x" d="M16 9l6 6M22 9l-6 6"/></svg>';
 
     /* Title shop pill (Wave A round-2 pick: bottom-center + live balance).
        Edge chrome like the corner buttons — never part of the center
