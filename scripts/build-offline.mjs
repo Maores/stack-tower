@@ -32,6 +32,8 @@ let out = html;
 out = mustReplace(out, '<link rel="stylesheet" href="hud.css">',
   '<link rel="stylesheet" data-stack-hud href="data:text/css,">\n<style>\n' + css + '\n</style>',
   'hud.css link');
+out = mustReplace(out, /<!-- pwa:head:start -->[\s\S]*?<!-- pwa:head:end -->\n?/,
+  '', 'pwa head block');
 out = mustReplace(out, '<script src="vendor/three.min.js"></script>',
   inline(three), 'three.js vendored');
 out = mustReplace(out, '<script src="core.js"></script>', inline(core), 'core.js');
@@ -44,5 +46,6 @@ out = mustReplace(out, '<script src="audio.js"></script>', inline(audio), 'audio
    them. If index.html ever indents its tags, revisit these anchors. */
 if (/^<script\s+src=/m.test(out)) throw new Error('unreplaced <script src> remains');
 if (/^<link\s+rel="stylesheet"\s+href=/m.test(out)) throw new Error('unreplaced stylesheet link remains');
+if (out.includes('manifest.webmanifest')) throw new Error('manifest reference survived into Stack.html');
 await writeFile(path.join(root, 'Stack.html'), out);
 console.log('Stack.html written: ' + out.length + ' bytes');
