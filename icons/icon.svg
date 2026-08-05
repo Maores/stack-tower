@@ -1,8 +1,31 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" fill="#1d6fae"/>
-  <rect x="140" y="300" width="232" height="56" rx="6" fill="#f2c14e"/>
-  <rect x="152" y="238" width="208" height="56" rx="6" fill="#e8895f"/>
-  <rect x="168" y="176" width="176" height="56" rx="6" fill="#d95f79"/>
-  <text x="256" y="440" font-family="sans-serif" font-size="44" font-weight="700"
-        text-anchor="middle" fill="#ffffff">PLACEHOLDER</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="sky" cx="50%" cy="10%" r="120%">
+      <stop offset="0%" stop-color="#4ea3db"/>
+      <stop offset="52%" stop-color="#2a6ba5"/>
+      <stop offset="100%" stop-color="#0e285b"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#sky)"/>
+
+  <!-- bottom slab, cyan -->
+  <path d="M144 336 L256 392 L256 432 L144 376 Z" fill="#11abbf"/>
+  <path d="M368 336 L256 392 L256 432 L368 376 Z" fill="#0b7d8c"/>
+  <path d="M256 280 L368 336 L256 392 L144 336 Z" fill="#5fd4e0"/>
+
+  <path d="M130 296 L242 352 L242 392 L130 336 Z" fill="#1463c6"/>
+  <path d="M354 296 L242 352 L242 392 L354 336 Z" fill="#0e4791"/>
+  <path d="M242 240 L354 296 L242 352 L130 296 Z" fill="#5f9ede"/>
+
+  <path d="M156 256 L268 312 L268 352 L156 296 Z" fill="#1d1dd5"/>
+  <path d="M380 256 L268 312 L268 352 L380 296 Z" fill="#15159c"/>
+  <path d="M268 200 L380 256 L268 312 L156 256 Z" fill="#6666e5"/>
+
+  <path d="M136 216 L248 272 L248 312 L136 256 Z" fill="#7c32da"/>
+  <path d="M360 216 L248 272 L248 312 L360 256 Z" fill="#5a24a2"/>
+  <path d="M248 160 L360 216 L248 272 L136 216 Z" fill="#a877e8"/>
+
+  <path d="M150 176 L262 232 L262 272 L150 216 Z" fill="#c656d5"/>
+  <path d="M374 176 L262 232 L262 272 L374 216 Z" fill="#93409e"/>
+  <path d="M262 120 L374 176 L262 232 L150 176 Z" fill="#dc93e5"/>
 </svg>
