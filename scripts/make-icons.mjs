@@ -1,16 +1,40 @@
 #!/usr/bin/env node
 /* Rasterizes icons/icon.svg into the PNG sizes the manifest and iOS need.
    Build-time only; nothing here ships to the browser.
-   Run from reference/tests so playwright resolves:
-     node ../../scripts/make-icons.mjs
+   Runs from anywhere:
+     node scripts/make-icons.mjs
+   Resolves Playwright explicitly via createRequire anchored at the pinned
+   test toolchain's own package.json (reference/tests), instead of relying
+   on ambient node_modules lookup from this file's directory: ESM bare-
+   specifier resolution walks up from the importing file's own path, not
+   from cwd, and scripts/ has no ancestor node_modules of its own. This
+   needs no junction, symlink, or root-level node_modules, and works
+   regardless of the directory it's run from. Requires that toolchain to
+   be installed once (npm install inside reference/tests); if it isn't,
+   this throws a clear error naming the fix instead of a bare
+   module-not-found.
    The maskable variant insets the art to 80% because Android crops icons
    to a platform-chosen shape, and anything outside that circle is lost. */
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright';
+import { createRequire } from 'node:module';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+
+let chromium;
+try {
+  const require = createRequire(path.join(root, 'reference', 'tests', 'package.json'));
+  ({ chromium } = require('playwright'));
+} catch (err) {
+  throw new Error(
+    'make-icons.mjs needs Playwright from the pinned test toolchain in ' +
+    'reference/tests, and could not resolve it (' + err.message + '). ' +
+    'This is a build-time-only tool with no runtime dependency of its own; ' +
+    'fix by running `npm install` inside reference/tests, then re-run this script.'
+  );
+}
+
 const svg = await readFile(path.join(root, 'icons', 'icon.svg'), 'utf8');
 
 const JOBS = [
