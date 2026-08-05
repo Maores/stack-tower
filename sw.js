@@ -12,14 +12,34 @@
    That is what keeps the save flow and its tests byte-identical.
 
    The worker must never be the reason the game fails to load. Every path
-   below either serves the game or gets out of the way. */
+   below either serves the game or gets out of the way.
+
+   Recovery, if a bad worker ever ships: undoing it is not as simple as
+   deleting the registration block from index.html and pushing -- devices
+   that already registered keep running the worker they have, since
+   nothing about a normal deploy revisits an existing registration. The
+   reliable kill switch is to KEEP this file at its current URL (sw.js) and
+   replace its body with an unregister-and-clear stub: call skipWaiting()
+   on install; on activate, delete every 'stack-shell-*' cache, call
+   registration.unregister(), then clients.claim(). That reaches
+   already-installed devices because the browser re-checks sw.js on every
+   navigation, and that check of the top-level worker script bypasses the
+   HTTP cache -- GitHub Pages' max-age=600 on this file does not delay it.
+   skipWaiting plus claim means the replacement takes over on the FIRST
+   navigation rather than waiting for every open tab to close first, so the
+   fix spreads as fast as the bad worker did. And if none of that is fast
+   enough: Stack.html is a single file proven free of PWA markup (see
+   pw-pwa.js section G), so a working copy of the game always exists that
+   no worker, however broken, can ever reach. */
 
 var CACHE = 'stack-shell-v1';
 
 /* The shell, and only the shell. The maskable and apple-touch icons are
-   deliberately absent: the platform reads those at install time, when
-   there is by definition a network, and they would be dead weight in a
-   cache whose only job is to boot the game. */
+   deliberately absent from this LIST -- not from the cache. On a real
+   device the platform fetches exactly those two files itself at install
+   time, and the fetch handler below caches every successful same-origin
+   GET it sees, listed here or not, so both icons end up cached anyway,
+   the same way any other same-origin file the game requests would. */
 var PRECACHE = [
   './index.html',
   './hud.css',
