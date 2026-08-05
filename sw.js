@@ -20,8 +20,11 @@
    nothing about a normal deploy revisits an existing registration. The
    reliable kill switch is to KEEP this file at its current URL (sw.js) and
    replace its body with an unregister-and-clear stub: call skipWaiting()
-   on install; on activate, delete every 'stack-shell-*' cache, call
-   registration.unregister(), then clients.claim(). That reaches
+   on install; on activate, fire clients.claim(), registration.unregister()
+   and the deletion of every 'stack-shell-*' cache CONCURRENTLY (claim
+   first), the way Angular's production safety-worker does -- none of the
+   three depends on another, and sequencing them behind one another only
+   delays the takeover of already-open tabs. That reaches
    already-installed devices because the browser re-checks sw.js on every
    navigation, and that check of the top-level worker script bypasses the
    HTTP cache -- GitHub Pages' max-age=600 on this file does not delay it.
