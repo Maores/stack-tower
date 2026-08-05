@@ -27,6 +27,27 @@ changes.
 One piece of housekeeping rides along: Three.js stops loading from a CDN
 and gets committed into the repo.
 
+## Terminology, because one word was doing three jobs
+
+Three different things, and this spec only builds the middle one.
+
+1. **A bookmark.** What Share → Add to Home Screen produces today. Tapping
+   it opens Safari with its full chrome. A shortcut, nothing more.
+2. **A home-screen app.** What Add to Home Screen produces after this wave,
+   caused by `display: standalone` in the manifest: iOS launches the game
+   in its own window with no Safari interface and its own app-switcher
+   card. Still WebKit, still served from Pages. No Xcode, no binary, no
+   App Store, no review. Converting 1 into 2 is what this wave is for.
+3. **A native wrapper.** Roadmap item 7: Capacitor, Xcode, a real binary,
+   App Store review, IAP, haptics. Not this wave.
+
+Where this spec says "install" it means sense 2, which is the standard web
+term but reads like sense 3 next to a roadmap that contains an actual
+Xcode port. "Home-screen app" is used instead wherever the distinction
+carries weight. The word "install" also appears in its unrelated service
+worker sense (the `install` lifecycle event, which precaches files); that
+usage is always adjacent to the worker and means only that.
+
 ## Why now
 
 Maor's ordering call, 2026-08-04: PWA next, then live 1v1. The argument
@@ -103,7 +124,7 @@ lines, no imports, no game knowledge.
   on rejection fall back to `caches.match(request)`. For requests with
   `mode === 'navigate'`, the offline fallback is
   `caches.match('./index.html')` regardless of the requested URL, which is
-  what lets the installed app launch from `start_url` with no network. A
+  what lets the home-screen app launch from `start_url` with no network. A
   same-origin GET that is neither cached nor reachable returns
   `Response.error()` rather than leaving a rejection unhandled.
 
@@ -291,23 +312,34 @@ contains neither `sw.js` nor `manifest.webmanifest`.
 (`lighthouse_audit` via the chrome-devtools MCP) against the deployed URL,
 rather than by reading the manifest and hoping.
 
-**On the device, by Maor**, after deploy: install from Safari via Share →
-Add to Home Screen, confirm the icon and name look right, launch it,
-enable airplane mode, launch again.
+**On the device, by Maor**, after deploy: add it from Safari via Share →
+Add to Home Screen, confirm the icon and name look right, launch it and
+check it opens in its own window with no Safari chrome (which is the
+proof that it is now sense 2 rather than a bookmark), enable airplane
+mode, launch again.
 
 ## 7. Open questions
 
-**iOS storage isolation, unresolved and deliberately not guessed at.** A
-home-screen web app on iOS may keep its stored data in a box separate from
-Safari's, which would mean the installed app opens with a fresh best
-score, zero points, and no owned Worlds even though the Safari tab has the
-real numbers. This spec does not assert either way. It is settled by
-installing on Maor's phone and looking, which is a step in section 6.
-If it turns out to be true: cosmetics are recoverable with the
-`MAOR-SEES-ALL` redeem code, the leaderboard is server-side and keyed by
-name, so the real loss is the points balance and the local records panel.
-Nothing in this design changes based on the answer; it changes only what
-Maor should expect the first time he opens the installed app.
+**iOS storage isolation, unresolved and deliberately not guessed at.** The
+question exists because of what this wave changes: once iOS runs the game
+in its own window instead of inside Safari, it is a separate browsing
+context, and a separate context may or may not come with a separate box of
+stored data. If it does, the home-screen app opens with a fresh best
+score, zero points, and no owned Worlds while the Safari tab still holds
+the real numbers. This spec does not assert either way, and the answer is
+not worth researching secondhand: adding it to Maor's home screen and
+looking settles it, which is already a step in section 6. If it turns out
+to be true, cosmetics come back with the `MAOR-SEES-ALL` redeem code and
+the leaderboard is server-side and keyed by name, so the real loss is the
+points balance and the local records panel. Nothing in this design changes
+based on the answer. It changes only what Maor should expect the first
+time he opens the home-screen app.
+
+**Not to be confused with the wrapper-phase storage item.** Roadmap item 7
+carries a separate, already-recorded risk: a native WKWebView can evict
+`localStorage` under storage pressure, which is why the wrapper moves the
+game's ~9 keys to Capacitor Preferences. Different mechanism, different
+phase, different fix. Nothing in this wave should attempt it.
 
 **Safe-area insets, decided: not this wave.** In standalone mode iOS will
 hand the app the full screen including the notch and home-indicator areas
@@ -316,7 +348,7 @@ the current viewport meta unchanged, so the game stays letterboxed inside
 the safe area with its layout geometry exactly as it is today. Taking the
 full screen risks pushing HUD controls under the home indicator, and
 invisible-or-misplaced chrome in the thumb zone is one of this codebase's
-two standing hazards. Revisit when Maor has the installed app on his phone
+two standing hazards. Revisit when Maor has the home-screen app on his phone
 and can judge the letterboxing.
 
 ## 8. Explicitly out of scope
