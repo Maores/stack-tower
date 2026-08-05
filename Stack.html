@@ -297,7 +297,14 @@
   border: 1px solid rgba(255, 255, 255, 0.75);
   border-radius: 999px;
   box-shadow: 0 0 16px rgba(255, 255, 255, 0.30), inset 0 0 10px rgba(255, 255, 255, 0.10);
-  animation: hudPulse 1.8s ease-in-out infinite;
+  /* Same treatment as .hud-over-hint, and for the same reason: an infinite
+     pulse declared on the element opens wherever its own clock happens to be,
+     so the badge celebrating a personal best could arrive at the 0.28 floor.
+     On the state rule it restarts with the screen, and the negative delay of
+     half its 1.8s period opens it at the bright end. */
+}
+#hud-root[data-state="over"] .hud-over-newbest {
+  animation: hudPulse 1.8s ease-in-out -0.9s infinite;
 }
 .hud-over-newbest[hidden] {
   display: none;
@@ -1565,7 +1572,8 @@
      running and the pill sliding for someone who asked for neither. The hint
      restates its opacity so it settles at the same brightness the pulse
      averages, rather than the flat 1 it would otherwise inherit. */
-  #hud-root[data-state="over"] .hud-over-hint {
+  #hud-root[data-state="over"] .hud-over-hint,
+  #hud-root[data-state="over"] .hud-over-newbest {
     animation: none;
     opacity: 0.8;
   }
