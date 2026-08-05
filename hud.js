@@ -2256,7 +2256,14 @@
   }
 
   function tryRestart(ev) {
-    /* Taps on the name entry are for typing/saving, never restarts. */
+    /* Taps on the name entry are for typing/saving, never restarts. The
+       MENU pill carries an invisible hit expander (see .hud-over-menu::before
+       in hud.css) so a thumb that lands just off it still resolves to the
+       button here, rather than falling through to a restart. A JS guard on
+       this handler alone would not have been enough: core.js runs its own
+       global tap-to-restart and only skips targets matching
+       'button, a, input, [data-ui]', so the near-miss has to become a real
+       hit on the button to satisfy both. */
     if (ev && ev.target && ev.target.closest && ev.target.closest('.hud-lb-entry, .hud-lb-auto, .hud-over-menu')) { return; }
     if (state.mode !== 'over') { return; }
     var now = Date.now();

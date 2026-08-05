@@ -365,7 +365,16 @@
   /* Clear the fixed corner buttons (mute / trophy): their top offset plus
      their clamped height plus a gap, so the quip can never sit under them. */
   padding-top: calc(max(2.2vh, env(safe-area-inset-top, 0px)) + clamp(40px, 6.5vmin, 52px) + 1.8vh);
-  padding-bottom: 4vh;
+  /* Lift the MENU pill clear of the bottom of the screen. In an installed
+     iOS app the bottom strip is the home-indicator gesture region and the
+     system can take a touch there before the page ever sees it, which is
+     what "MENU does nothing" looks like from the player's side. The env()
+     term is 0 today because the viewport meta does not set viewport-fit:
+     cover; it is written in so this stays correct if that ever changes.
+     20px and no more: past that the panel overflows a 664px-tall viewport
+     and the overlay starts scrolling, at which point extra padding stops
+     buying clearance at all (measured: +28px moved the pill 2px). */
+  padding-bottom: calc(4vh + env(safe-area-inset-bottom, 0px) + 20px);
 }
 
 .hud-lb {
@@ -1367,7 +1376,20 @@
 .hud-over-menu {
   pointer-events: auto;
   cursor: pointer;
-  margin-top: 2.2vh;
+  position: relative;   /* anchors the hit expander below */
+  margin-top: 1.4vh;
+  /* 44px minimum tap target, matching Apple's HIG and the size the board
+     overhaul settled on. This pill was 25px tall and sat at the bottom edge
+     of the screen, which is the one place a miss costs something: taps that
+     land just off it hit either the tap-anywhere-to-restart surface or the
+     leaderboard rows that tryRestart deliberately ignores, so a near-miss
+     either started a run nobody asked for or did nothing at all. Set as a
+     min-height rather than more em padding because the font size is clamped,
+     so padding alone would not hold 44px across viewports. */
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 1px solid rgba(255, 255, 255, 0.4);
   background: rgba(255, 255, 255, 0.06);
   border-radius: 999px;
@@ -1377,6 +1399,20 @@
   letter-spacing: 0.26em;
   opacity: 0.7;
   transition: opacity 0.18s ease, background-color 0.18s ease, transform 0.18s ease;
+}
+/* Invisible hit expander. A pseudo-element is rendered as part of its
+   originating element, so a tap here has the button as its event target:
+   core.js's global tap-to-restart skips it (it matches 'button'), hud.js's
+   tryRestart skips it (it matches '.hud-over-menu'), and the click activates
+   MENU. That is strictly better than making a near-miss inert, because the
+   thumb that lands 10px off was aiming at MENU and now gets it. Safe when
+   the death screen is away: .hud-over is visibility:hidden then, which is
+   inherited here and is not hit-testable. */
+.hud-over-menu::before {
+  content: '';
+  position: absolute;
+  inset: -12px -14px;
+  border-radius: inherit;
 }
 .hud-over-menu:hover {
   opacity: 1;
@@ -6310,7 +6346,14 @@
   }
 
   function tryRestart(ev) {
-    /* Taps on the name entry are for typing/saving, never restarts. */
+    /* Taps on the name entry are for typing/saving, never restarts. The
+       MENU pill carries an invisible hit expander (see .hud-over-menu::before
+       in hud.css) so a thumb that lands just off it still resolves to the
+       button here, rather than falling through to a restart. A JS guard on
+       this handler alone would not have been enough: core.js runs its own
+       global tap-to-restart and only skips targets matching
+       'button, a, input, [data-ui]', so the near-miss has to become a real
+       hit on the button to satisfy both. */
     if (ev && ev.target && ev.target.closest && ev.target.closest('.hud-lb-entry, .hud-lb-auto, .hud-over-menu')) { return; }
     if (state.mode !== 'over') { return; }
     var now = Date.now();
