@@ -215,22 +215,38 @@
   padding-bottom: 4vh;
 }
 
-/* Staggered entrance for panel children */
+/* Staggered entrance for panel children.
+
+   The ladder below is the INFORMATIONAL sequence (what happened to you): the
+   quip, then the score, then the best, then the context lines. The two bits
+   of CHROME the player acts on -- the restart button and its label -- are
+   deliberately not on this ladder; they get their own early delays further
+   down, because they used to sit at the end of it and arrive after the run
+   was already restartable. Measured before the change: the button was
+   half-visible at 665ms and fully at 949ms while core.js starts accepting
+   input at 450ms, so the thing you are told to press showed up half a second
+   after pressing it started working. */
 .hud-over .hud-anim {
   opacity: 0;
   transform: translateY(16px);
-  transition: opacity 0.5s ease, transform 0.5s cubic-bezier(0.2, 0.7, 0.25, 1);
+  transition: opacity 0.34s ease, transform 0.34s cubic-bezier(0.2, 0.7, 0.25, 1);
 }
 #hud-root[data-state="over"] .hud-anim {
   opacity: 1;
   transform: none;
 }
-#hud-root[data-state="over"] .hud-anim.d1 { transition-delay: 0.10s; }
-#hud-root[data-state="over"] .hud-anim.d2 { transition-delay: 0.18s; }
-#hud-root[data-state="over"] .hud-anim.d3 { transition-delay: 0.28s; }
-#hud-root[data-state="over"] .hud-anim.d4 { transition-delay: 0.36s; }
-#hud-root[data-state="over"] .hud-anim.d5 { transition-delay: 0.46s; }
-#hud-root[data-state="over"] .hud-anim.d6 { transition-delay: 0.62s; }
+#hud-root[data-state="over"] .hud-anim.d1 { transition-delay: 0.04s; }
+#hud-root[data-state="over"] .hud-anim.d2 { transition-delay: 0.08s; }
+#hud-root[data-state="over"] .hud-anim.d3 { transition-delay: 0.12s; }
+#hud-root[data-state="over"] .hud-anim.d4 { transition-delay: 0.17s; }
+#hud-root[data-state="over"] .hud-anim.d5 { transition-delay: 0.28s; }
+/* d6 is a spare rung, currently unused: the hint that held it now sets its
+   own delay below, alongside the button it belongs to. */
+#hud-root[data-state="over"] .hud-anim.d6 { transition-delay: 0.34s; }
+
+/* The action, ahead of the information it is reported with. */
+#hud-root[data-state="over"] .hud-restart   { transition-delay: 0.10s; }
+#hud-root[data-state="over"] .hud-over-hint { transition-delay: 0.18s; }
 
 .hud-over-label {
   font-size: clamp(12px, 1.9vmin, 16px);
@@ -326,7 +342,20 @@
   font-weight: 300;
   letter-spacing: 0.38em;
   margin-right: -0.38em;
-  animation: hudPulse 2.4s ease-in-out infinite;
+  /* The pulse lives on the over state below, not here. Declared here it ran
+     from boot and was never restarted, so its phase when the player died was
+     luck: measured across six real deaths this label arrived at anywhere from
+     0.28 to 0.86 opacity, and at the floor it takes about a second to become
+     readable. Worth knowing if this is ever touched again: a CSS animation
+     beats a transition for the same property, so the entrance stagger never
+     controlled this element's opacity at all, only its transform.
+     No resting opacity is set here on purpose. .hud-over .hud-anim already
+     supplies 0 while the screen is away and 1 once it is up, which is the
+     right way to fail if the animation is ever missing; pinning the pulse
+     floor here instead would leave the label sitting at 0.28. */
+}
+#hud-root[data-state="over"] .hud-over-hint {
+  animation: hudPulse 2.4s ease-in-out -1.2s infinite;
 }
 
 /* --------------------------------------------------------------------------
@@ -1373,6 +1402,24 @@
 
 /* Records pane inside the trophy overlay (third tab) */
 /* Menu pill: the quiet way home from a death */
+/* MENU joins the entrance last. Before this it had no entrance at all, so
+   the secondary action was on screen before the primary one.
+
+   A keyframe rather than the .hud-anim class or a transition, for two
+   reasons. .hud-anim would force the resting opacity to 1 and cost the pill
+   its quietness. A transition would have to live on the rule below, whose
+   0.18s transition is the hover/press feedback -- stretching that to the
+   0.34s the entrance wants makes the :active squash feel mushy. `backwards`
+   fill holds the pill hidden through the delay and then hands opacity and
+   transform back to the cascade, so :hover and :active keep working
+   normally once it has arrived. */
+@keyframes hudMenuIn {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 0.7; transform: none; }
+}
+#hud-root[data-state="over"] .hud-over-menu {
+  animation: hudMenuIn 0.34s cubic-bezier(0.2, 0.7, 0.25, 1) 0.32s backwards;
+}
 .hud-over-menu {
   pointer-events: auto;
   cursor: pointer;
@@ -1510,6 +1557,20 @@
   #hud-root .hud-over-newbest {
     animation: none;
     opacity: 0.8;
+  }
+  /* The two death-screen entrances that are animations rather than
+     transitions, so the transition-duration override below cannot reach
+     them. Both need the [data-state] term: the rules that turn them on carry
+     it, which outranks a bare "#hud-root .x" here and would leave the pulse
+     running and the pill sliding for someone who asked for neither. The hint
+     restates its opacity so it settles at the same brightness the pulse
+     averages, rather than the flat 1 it would otherwise inherit. */
+  #hud-root[data-state="over"] .hud-over-hint {
+    animation: none;
+    opacity: 0.8;
+  }
+  #hud-root[data-state="over"] .hud-over-menu {
+    animation: none;
   }
   #hud-root .hud-toast {
     transition-duration: 0.01s;
@@ -4657,7 +4718,10 @@
     overPts.hidden = true;
     lb.appendChild(overPts);
 
-    var restart = el('button', 'hud-restart hud-anim d5');
+    /* No dN rung: the restart button and its hint set their own delays in
+       hud.css, ahead of the informational ladder. See the comment on
+       .hud-over .hud-anim there. */
+    var restart = el('button', 'hud-restart hud-anim');
     restart.type = 'button';
     restart.setAttribute('aria-label', 'Restart game');
     restart.innerHTML =
@@ -4665,7 +4729,7 @@
       'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
       '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>' +
       '<path d="M3 3v5h5"/></svg>';
-    var overHint = el('div', 'hud-over-hint hud-anim d6', 'TAP TO RESTART');
+    var overHint = el('div', 'hud-over-hint hud-anim', 'TAP TO RESTART');
     panel.appendChild(quip);
     panel.appendChild(overLabel);
     panel.appendChild(overScore);

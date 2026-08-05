@@ -567,7 +567,10 @@
     overPts.hidden = true;
     lb.appendChild(overPts);
 
-    var restart = el('button', 'hud-restart hud-anim d5');
+    /* No dN rung: the restart button and its hint set their own delays in
+       hud.css, ahead of the informational ladder. See the comment on
+       .hud-over .hud-anim there. */
+    var restart = el('button', 'hud-restart hud-anim');
     restart.type = 'button';
     restart.setAttribute('aria-label', 'Restart game');
     restart.innerHTML =
@@ -575,7 +578,7 @@
       'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
       '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>' +
       '<path d="M3 3v5h5"/></svg>';
-    var overHint = el('div', 'hud-over-hint hud-anim d6', 'TAP TO RESTART');
+    var overHint = el('div', 'hud-over-hint hud-anim', 'TAP TO RESTART');
     panel.appendChild(quip);
     panel.appendChild(overLabel);
     panel.appendChild(overScore);
