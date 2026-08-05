@@ -48,8 +48,14 @@ self.addEventListener('activate', function (e) {
   e.waitUntil(
     caches.keys()
       .then(function (keys) {
+        /* caches.keys() is origin-scoped, not app-scoped: maores.github.io
+           also hosts a sibling site (SystemResourceMonitor) with its own
+           cache. Only ever delete this app's own versioned caches -- a
+           "stack-shell-" prefix test still catches superseded versions
+           like a future stack-shell-v0, without touching anything a
+           sibling site put there. */
         return Promise.all(keys.map(function (k) {
-          return k === CACHE ? null : caches.delete(k);
+          return (k !== CACHE && k.indexOf('stack-shell-') === 0) ? caches.delete(k) : null;
         }));
       })
       .then(function () { return self.clients.claim(); })
