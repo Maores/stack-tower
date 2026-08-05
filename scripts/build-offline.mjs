@@ -34,6 +34,8 @@ out = mustReplace(out, '<link rel="stylesheet" href="hud.css">',
   'hud.css link');
 out = mustReplace(out, /<!-- pwa:head:start -->[\s\S]*?<!-- pwa:head:end -->\n?/,
   '', 'pwa head block');
+out = mustReplace(out, /<!-- pwa:boot:start -->[\s\S]*?<!-- pwa:boot:end -->\n?/,
+  '', 'pwa boot block');
 out = mustReplace(out, '<script src="vendor/three.min.js"></script>',
   inline(three), 'three.js vendored');
 out = mustReplace(out, '<script src="core.js"></script>', inline(core), 'core.js');
@@ -47,5 +49,6 @@ out = mustReplace(out, '<script src="audio.js"></script>', inline(audio), 'audio
 if (/^<script\s+src=/m.test(out)) throw new Error('unreplaced <script src> remains');
 if (/^<link\s+rel="stylesheet"\s+href=/m.test(out)) throw new Error('unreplaced stylesheet link remains');
 if (out.includes('manifest.webmanifest')) throw new Error('manifest reference survived into Stack.html');
+if (out.includes('sw.js')) throw new Error('service worker reference survived into Stack.html');
 await writeFile(path.join(root, 'Stack.html'), out);
 console.log('Stack.html written: ' + out.length + ' bytes');

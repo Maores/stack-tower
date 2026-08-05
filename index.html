@@ -40,5 +40,26 @@
 <script src="visuals.js"></script>
 <script src="hud.js"></script>
 <script src="audio.js"></script>
+<!-- pwa:boot:start -->
+<script>
+(function () {
+  /* Registration is best-effort and deliberately silent. The game is fully
+     functional without a worker, so a failure here must never surface. */
+  if (!('serviceWorker' in navigator)) { return; }
+  var h = location.hostname;
+  /* file:// and any insecure origin would reject; skipping keeps both the
+     single-file build and local file-based test runs clean. */
+  if (location.protocol !== 'https:' && h !== 'localhost' && h !== '127.0.0.1') { return; }
+  var go = function () {
+    navigator.serviceWorker.register('sw.js')['catch'](function () {});
+  };
+  /* Registering after load keeps the precache download from competing with
+     the game's own boot. The readyState check is the house pattern: a bare
+     load listener is a silent no-op if load already fired. */
+  if (document.readyState === 'complete') { go(); }
+  else { window.addEventListener('load', go); }
+})();
+</script>
+<!-- pwa:boot:end -->
 </body>
 </html>
