@@ -44,6 +44,24 @@ const JOBS = [
   { out: 'icon-maskable-512.png', size: 512, inset: 0.8 }
 ];
 
+/* The padding behind an inset job has to continue the artwork, not abut it.
+   icon.svg paints its background with the "sky" radial gradient, so flat
+   padding leaves a visible seam where the two meet, worst at the top centre
+   and the bottom corners. Android's mask crop does not reliably hide it:
+   every standard mask shape keeps the edge midpoints. The values below are
+   the "sky" ones from icons/icon.svg, as fractions of its square viewBox;
+   keep the two in sync. The SVG is scaled into the inner square, so its
+   centre and radius scale with it: express the gradient in the padded box's
+   pixel coordinates, not in percentages of the outer box, which would land
+   somewhere else entirely. */
+const SKY = { cx: 0.5, cy: 0.1, r: 1.2, stops: '#4ea3db 0%, #2a6ba5 52%, #0e285b 100%' };
+
+function skyGradient(size, pad) {
+  const inner = size - pad * 2;
+  return 'radial-gradient(circle ' + SKY.r * inner + 'px at ' +
+    (pad + SKY.cx * inner) + 'px ' + (pad + SKY.cy * inner) + 'px, ' + SKY.stops + ')';
+}
+
 const browser = await chromium.launch();
 for (const job of JOBS) {
   const page = await browser.newPage({
@@ -51,10 +69,11 @@ for (const job of JOBS) {
     deviceScaleFactor: 1
   });
   const pad = Math.round((job.size * (1 - job.inset)) / 2);
+  const bg = skyGradient(job.size, pad);
   await page.setContent(
-    '<style>html,body{margin:0;padding:0;background:#1d6fae}' +
+    '<style>html,body{margin:0;padding:0;background:' + bg + '}' +
     'div{width:' + job.size + 'px;height:' + job.size + 'px;box-sizing:border-box;' +
-    'padding:' + pad + 'px;background:#1d6fae}' +
+    'padding:' + pad + 'px;background:' + bg + '}' +
     'svg{width:100%;height:100%;display:block}</style><div>' + svg + '</div>'
   );
   const buf = await page.screenshot({ type: 'png' });
