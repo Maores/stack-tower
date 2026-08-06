@@ -39,13 +39,17 @@
                   combo, score }                 block = placed record or null
      'gameover' { score, best }
      'restart'  tower cleared, new run starting
+     'revive'   dead run resumed in place, tower and score kept
      'frame'    { dt, now }                      every frame, before render
 
    DOM bridge (for the HUD layer, dispatched on window as CustomEvents):
      out: 'game:ready', 'game:start' {score, mode}, 'game:score' {score},
-          'game:perfect' {combo}, 'game:over' {score, best, mode}
+          'game:perfect' {combo}, 'game:over' {score, best, mode},
+          'game:revived' {score, mode}  score = the banked pre-revive score
      in:  'hud:start', 'hud:restart', 'hud:menu' (gameover -> title),
-          'hud:mode' {id: 'normal'|'hard'} (applied at next run start)
+          'hud:mode' {id: 'normal'|'hard'} (applied at next run start),
+          'hud:revive' resume the dead run; at most once per run, and the
+          450ms restartLockMs deliberately does not gate it
 
    Visuals bridge (for visuals.js, dispatched on window as CustomEvents):
      'stack:init' {scene, camera, renderer, THREE}, 'stack:block'
@@ -133,6 +137,7 @@
   var camFocusX = 0, camFocusZ = 0, camFocusTargetX = 0, camFocusTargetZ = 0;
   var camViewH = CFG.viewHeight, camTargetViewH = CFG.viewHeight;
   var gameOverAt = 0, phaseStartedAt = 0, clockLast = 0, sideToggle = 1;
+  var revivedThisRun = false;   // one paid comeback per run; cleared on reset
   var renderHook = null;
   var materialFactory = defaultMaterial;
   var fpsBuf = new Float32Array(240), fpsIdx = 0, fpsCount = 0;  // raw rAF deltas
@@ -243,6 +248,7 @@
     if (current) { scene.remove(current.mesh); disposeMesh(current.mesh); }
     blocks = []; debris = []; pulses = []; current = null;
     score = 0; combo = 0; sideToggle = 1;
+    revivedThisRun = false;   // every reset path funnels through here
     baseHue = Math.random() * 360;
 
     var info = colorInfo(0, true);
@@ -498,6 +504,33 @@
     emit('gameover', { score: score, best: best, state: getTowerState() });
   }
 
+  /* Resume a dead run in place: the fatal block is gone, the tower stands, the
+     score keeps climbing from where it stopped. Normal gives the footprint back
+     in full; Hard never restores width, which is the one rule that defines the
+     mode, so it resumes on the sliver it died on. Speed is untouched in both:
+     spawnNext derives it from block index, so the run continues at the pace it
+     had reached rather than at a fresh run's pace.
+
+     Widening the top block's *record* is what widens the next block, because
+     spawnNext reads prev.w / prev.d. The placed mesh is deliberately not
+     resized: the tower keeps the silhouette it earned, and the restored block
+     lands on the narrow neck. */
+  function reviveRun() {
+    if (phase !== 'gameover' || revivedThisRun) { return; }
+    revivedThisRun = true;
+    phase = 'playing';
+    phaseStartedAt = performance.now();
+    if (MODES[activeMode] && MODES[activeMode].regrow) {
+      var top = topBlock();
+      if (top && !top.isBase) { top.w = CFG.blockSize; top.d = CFG.blockSize; }
+    }
+    combo = 0;   /* the miss broke the streak; a paid comeback does not restore it */
+    camTargetViewH = CFG.viewHeight;
+    fireDom('game:revived', { score: score, mode: activeMode });
+    emit('revive', { state: getTowerState() });
+    spawnNext();
+  }
+
   function restartGame() {
     if (phase !== 'gameover') { return; }
     if (performance.now() - gameOverAt < CFG.restartLockMs) { return; }
@@ -558,6 +591,12 @@
       phase = 'ready';
       fireDom('game:ready');
     });
+    /* The paid comeback. No restartLockMs gate here on purpose: that lock
+       exists so the gesture that killed you cannot restart the run, and the
+       revive is already guarded by two deliberate taps on a real button that
+       only enters at 0.14s. Gating it as well would refuse a fast
+       arm-and-confirm and read as a dead button. */
+    window.addEventListener('hud:revive', function () { reviveRun(); });
     /* Mode selection from the HUD, mirroring hud:world. Stored as a request;
        it only takes effect when the next run starts, so a mode change can
        never alter a tower already being built. */
@@ -773,6 +812,12 @@
     },
     /* One synthetic input through the real handler (spam testing). */
     tap: function () { handleInput(); },
+    /* Revive state for the revive suite: has this run spent its comeback,
+       what phase are we in, and how wide is the block you would resume on. */
+    revive: function () {
+      var top = topBlock();
+      return { revived: revivedThisRun, phase: phase, width: top ? top.w : 0 };
+    },
     /* Active mode plus the speed curve, for the difficulty suites. */
     mode: function () {
       var M = MODES[requestedMode] || MODES.normal;
