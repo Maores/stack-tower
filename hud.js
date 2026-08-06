@@ -140,6 +140,9 @@
   var RESTART_LOCKOUT_MS = 500;  /* ignore taps right after game over */
   var RESTART_DEDUPE_MS = 400;   /* pointerdown + click on button = one restart */
   var SHOP_ARM_MS = 3000;        /* armed BUY confirm window */
+  var REVIVE_COST = 150;         /* points; becomes the rewarded ad at wrapper */
+  var REVIVE_MIN_SCORE = 10;     /* offer threshold; also what keeps the
+                                    score-0 Bobo path completely untouched */
 
   var scriptBase = (function () {
     var cs = document.currentScript;
@@ -579,6 +582,35 @@
       '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>' +
       '<path d="M3 3v5h5"/></svg>';
     var overHint = el('div', 'hud-over-hint hud-anim', 'TAP TO RESTART');
+
+    /* Second door in the action row: the paid comeback. A real <button> because
+       core.js runs its own global tap-to-restart on window and skips only
+       'button, a, input, [data-ui]' — a guard in hud.js alone would not stop
+       it. That is the trap the MENU pill paid for once already. */
+    var revive = el('button', 'hud-revive');
+    revive.type = 'button';
+    revive.setAttribute('aria-label', 'Revive for ' + REVIVE_COST + ' points');
+    /* Fixed literal, no user data: same exemption the restart icon uses. */
+    revive.innerHTML =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" ' +
+      'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      '<path d="M12 5v14"/><path d="M5 12h14"/></svg>';
+    var revivePrice = el('span', 'hud-revive-price', '');
+    revive.appendChild(revivePrice);
+    var reviveCap = el('div', 'hud-revive-cap', '');
+    var reviveWrap = el('div', 'hud-act hud-anim');
+    reviveWrap.appendChild(revive);
+    reviveWrap.appendChild(reviveCap);
+    reviveWrap.hidden = true;
+
+    /* Action row. One visible child centres itself, which is how the second
+       death screen puts restart back in the middle with no special case. */
+    var actions = el('div', 'hud-actions');
+    var restartWrap = el('div', 'hud-act');
+    restartWrap.appendChild(restart);
+    actions.appendChild(restartWrap);
+    actions.appendChild(reviveWrap);
+
     panel.appendChild(quip);
     panel.appendChild(overLabel);
     panel.appendChild(overScore);
@@ -589,7 +621,7 @@
     /* Spec order (density revision): the chase target sits under the
        sandwich that names it, not between BEST and the board. */
     panel.appendChild(overVictim);
-    panel.appendChild(restart);
+    panel.appendChild(actions);
     panel.appendChild(overHint);
     /* Way back to the title from a death (Maor, 2026-07-31). */
     var overMenu = el('button', 'hud-over-menu', 'MENU');
@@ -883,6 +915,12 @@
       overPts: overPts,
       newBest: newBest,
       restart: restart,
+      overHint: overHint,
+      actions: actions,
+      revive: revive,
+      revivePrice: revivePrice,
+      reviveWrap: reviveWrap,
+      reviveCap: reviveCap,
       quip: quip,
       lbStatus: lbStatus,
       boardTabBoard: boardTabBoard,
@@ -2267,7 +2305,7 @@
        global tap-to-restart and only skips targets matching
        'button, a, input, [data-ui]', so the near-miss has to become a real
        hit on the button to satisfy both. */
-    if (ev && ev.target && ev.target.closest && ev.target.closest('.hud-lb-entry, .hud-lb-auto, .hud-over-menu')) { return; }
+    if (ev && ev.target && ev.target.closest && ev.target.closest('.hud-lb-entry, .hud-lb-auto, .hud-over-menu, .hud-revive')) { return; }
     if (state.mode !== 'over') { return; }
     var now = Date.now();
     if (now - state.overAt < RESTART_LOCKOUT_MS) { return; }

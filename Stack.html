@@ -247,6 +247,10 @@
 /* The action, ahead of the information it is reported with. */
 #hud-root[data-state="over"] .hud-restart   { transition-delay: 0.10s; }
 #hud-root[data-state="over"] .hud-over-hint { transition-delay: 0.18s; }
+/* The offer lands 40ms after the action it sits beside, so the pair reads as
+   one row arriving rather than a second thing turning up afterwards. It is
+   deliberately not on the d1-d5 informational ladder: it is an action. */
+#hud-root[data-state="over"] .hud-act.hud-anim { transition-delay: 0.14s; }
 
 .hud-over-label {
   font-size: clamp(12px, 1.9vmin, 16px);
@@ -310,10 +314,30 @@
   display: none;
 }
 
+/* Action row: restart, and beside it the paid comeback when the offer is live.
+   The 3.4vh that used to sit on .hud-restart lives here now, so the two cannot
+   drift apart. One visible child centres itself, which is how the second death
+   screen of a revived run puts restart back in the middle with no special
+   case and no measurement. */
+.hud-actions {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 26px;
+  margin-top: 3.4vh;
+}
+.hud-act {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.hud-act[hidden] {
+  display: none;   /* .hud-act sets its own display, so [hidden] needs restating */
+}
+
 .hud-restart {
   pointer-events: auto;
   cursor: pointer;
-  margin-top: 3.4vh;
   width: clamp(64px, 9.5vmin, 88px);
   height: clamp(64px, 9.5vmin, 88px);
   border-radius: 50%;
@@ -341,6 +365,93 @@
   width: 46%;
   height: 46%;
   display: block;
+}
+
+/* The paid comeback. Drawn in the NEW BEST pill's language (1px border, soft
+   glow) rather than as a coloured call-to-action, because this HUD is
+   white-on-scene and hue-neutral by design. Same 64px body as restart, one
+   step quieter, so the free action stays the obvious one. */
+.hud-revive {
+  position: relative;
+  pointer-events: auto;
+  cursor: pointer;
+  width: clamp(64px, 9.5vmin, 88px);
+  height: clamp(64px, 9.5vmin, 88px);
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.10);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 16px rgba(255, 255, 255, 0.30), inset 0 0 10px rgba(255, 255, 255, 0.10);
+  transition: transform 0.18s ease, background-color 0.18s ease,
+              border-color 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+}
+/* Invisible hit expander, the same device as .hud-over-menu::before. A thumb
+   that lands just off still resolves to this button instead of falling through
+   to the tap-anywhere restart 26px away. Both guards are needed: core.js runs
+   its own global handler and only skips real buttons. */
+.hud-revive::before {
+  content: "";
+  position: absolute;
+  inset: -12px;
+  border-radius: 50%;
+}
+.hud-revive svg {
+  width: 42%;
+  height: 42%;
+  display: block;
+}
+.hud-revive-price {
+  display: none;
+  font-size: clamp(12px, 1.9vmin, 15px);
+  font-weight: 300;
+  letter-spacing: 0.06em;
+}
+/* Armed: the glyph gives way to the price with a question mark, so the second
+   tap is answering a question rather than repeating the first. */
+.hud-revive.is-armed {
+  border-color: #fff;
+  background: rgba(255, 255, 255, 0.24);
+  box-shadow: 0 0 26px rgba(255, 255, 255, 0.5), inset 0 0 12px rgba(255, 255, 255, 0.16);
+}
+.hud-revive.is-armed svg {
+  display: none;
+}
+.hud-revive.is-armed .hud-revive-price {
+  display: block;
+}
+/* Short of the price: shown, not hidden, so a player who has never held 150
+   points still learns the feature exists and what to save for. */
+.hud-revive.is-broke {
+  border-color: rgba(255, 255, 255, 0.26);
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: none;
+  opacity: 0.42;
+  cursor: default;
+}
+.hud-revive:hover:not(.is-broke) {
+  background: rgba(255, 255, 255, 0.18);
+  box-shadow: 0 0 24px rgba(255, 255, 255, 0.42), inset 0 0 12px rgba(255, 255, 255, 0.14);
+}
+.hud-revive:active:not(.is-broke) {
+  transform: scale(0.94);
+}
+.hud-revive:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 4px;
+}
+.hud-revive-cap {
+  margin-top: 8px;
+  font-size: clamp(10px, 1.5vmin, 12px);
+  font-weight: 300;
+  letter-spacing: 0.2em;
+  opacity: 0.62;
+  white-space: nowrap;
+  transition: opacity 0.18s ease;
+}
+.hud-revive-cap.is-hot {
+  opacity: 1;
 }
 
 .hud-over-hint {
@@ -4344,6 +4455,9 @@
   var RESTART_LOCKOUT_MS = 500;  /* ignore taps right after game over */
   var RESTART_DEDUPE_MS = 400;   /* pointerdown + click on button = one restart */
   var SHOP_ARM_MS = 3000;        /* armed BUY confirm window */
+  var REVIVE_COST = 150;         /* points; becomes the rewarded ad at wrapper */
+  var REVIVE_MIN_SCORE = 10;     /* offer threshold; also what keeps the
+                                    score-0 Bobo path completely untouched */
 
   var scriptBase = (function () {
     var cs = document.currentScript;
@@ -4783,6 +4897,35 @@
       '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>' +
       '<path d="M3 3v5h5"/></svg>';
     var overHint = el('div', 'hud-over-hint hud-anim', 'TAP TO RESTART');
+
+    /* Second door in the action row: the paid comeback. A real <button> because
+       core.js runs its own global tap-to-restart on window and skips only
+       'button, a, input, [data-ui]' — a guard in hud.js alone would not stop
+       it. That is the trap the MENU pill paid for once already. */
+    var revive = el('button', 'hud-revive');
+    revive.type = 'button';
+    revive.setAttribute('aria-label', 'Revive for ' + REVIVE_COST + ' points');
+    /* Fixed literal, no user data: same exemption the restart icon uses. */
+    revive.innerHTML =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" ' +
+      'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      '<path d="M12 5v14"/><path d="M5 12h14"/></svg>';
+    var revivePrice = el('span', 'hud-revive-price', '');
+    revive.appendChild(revivePrice);
+    var reviveCap = el('div', 'hud-revive-cap', '');
+    var reviveWrap = el('div', 'hud-act hud-anim');
+    reviveWrap.appendChild(revive);
+    reviveWrap.appendChild(reviveCap);
+    reviveWrap.hidden = true;
+
+    /* Action row. One visible child centres itself, which is how the second
+       death screen puts restart back in the middle with no special case. */
+    var actions = el('div', 'hud-actions');
+    var restartWrap = el('div', 'hud-act');
+    restartWrap.appendChild(restart);
+    actions.appendChild(restartWrap);
+    actions.appendChild(reviveWrap);
+
     panel.appendChild(quip);
     panel.appendChild(overLabel);
     panel.appendChild(overScore);
@@ -4793,7 +4936,7 @@
     /* Spec order (density revision): the chase target sits under the
        sandwich that names it, not between BEST and the board. */
     panel.appendChild(overVictim);
-    panel.appendChild(restart);
+    panel.appendChild(actions);
     panel.appendChild(overHint);
     /* Way back to the title from a death (Maor, 2026-07-31). */
     var overMenu = el('button', 'hud-over-menu', 'MENU');
@@ -5087,6 +5230,12 @@
       overPts: overPts,
       newBest: newBest,
       restart: restart,
+      overHint: overHint,
+      actions: actions,
+      revive: revive,
+      revivePrice: revivePrice,
+      reviveWrap: reviveWrap,
+      reviveCap: reviveCap,
       quip: quip,
       lbStatus: lbStatus,
       boardTabBoard: boardTabBoard,
@@ -6471,7 +6620,7 @@
        global tap-to-restart and only skips targets matching
        'button, a, input, [data-ui]', so the near-miss has to become a real
        hit on the button to satisfy both. */
-    if (ev && ev.target && ev.target.closest && ev.target.closest('.hud-lb-entry, .hud-lb-auto, .hud-over-menu')) { return; }
+    if (ev && ev.target && ev.target.closest && ev.target.closest('.hud-lb-entry, .hud-lb-auto, .hud-over-menu, .hud-revive')) { return; }
     if (state.mode !== 'over') { return; }
     var now = Date.now();
     if (now - state.overAt < RESTART_LOCKOUT_MS) { return; }
