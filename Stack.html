@@ -4485,6 +4485,9 @@
     revived: false,     /* this run already spent its one comeback */
     bankedScore: 0,     /* the pre-revive score: what posted, and what the
                            second death screen shows as SCORE */
+    revivedPost: null,  /* the row the first death posted, replayed on the
+                           second screen so the run never posts twice */
+    revivedAuto: '',    /* and the exact SAVED AS text it produced */
     submitted: false,   /* this run's score already sent to the board */
     postedRow: null     /* {name, score} actually posted this run, for the
                            "my row" highlight; the name can differ from the
@@ -5733,6 +5736,30 @@
      near-miss bug. */
   var reviveArm = { on: false, timer: null };
 
+  /* The only height allowed to reach the shared board. A revived run posts what
+     it had reached before the comeback; the bonus lap is worth points and a
+     personal best, never a board row. Both post paths read this, the auto-post
+     and the manual SAVE, so neither can leak a post-revive height. */
+  function boardScore() {
+    return state.revived ? state.bankedScore : state.score;
+  }
+
+  /* The roast fired at the first death. The second screen gets its own set so
+     the same line never lands twice inside one run. */
+  var REVIVE_LINES = [
+    'THE COMEBACK WAS THE FUN PART.',
+    'WORTH EVERY POINT.',
+    'SECOND WIND, SAME ENDING.',
+    'YOU BOUGHT ALTITUDE.',
+    'BACK FROM THE DEAD, BRIEFLY.'
+  ];
+  var reviveLineAt = 0;
+  function nextReviveLine() {
+    var line = REVIVE_LINES[reviveLineAt % REVIVE_LINES.length];
+    reviveLineAt++;
+    return line;
+  }
+
   function disarmRevive() {
     if (reviveArm.timer) { clearTimeout(reviveArm.timer); }
     reviveArm.timer = null;
@@ -5793,6 +5820,13 @@
     state.revived = true;
     state.bankedScore = state.score;   /* what posted, and what the second
                                           death screen shows as SCORE */
+    /* Snapshot what the first death's post actually produced, so the second
+       screen can replay it verbatim instead of posting again. The text is
+       captured rather than rebuilt because it already reflects whether the
+       row reached the board or only this device. */
+    state.revivedPost = state.postedRow;
+    state.revivedAuto = state.submitted && !els.autoRow.hidden
+      ? els.autoText.textContent : '';
     els.reviveWrap.hidden = true;
     renderShopPill();                  /* the balance changed */
     emit('hud:revive');
@@ -6432,7 +6466,9 @@
       els.entry.classList.add('is-done');
       return;
     }
-    var score = state.score;
+    /* boardScore, not state.score: after a revive the on-screen score is the
+       bonus lap's height, and only the pre-revive height may reach the board. */
+    var score = boardScore();
     if (!(score > 0)) { return; }
     state.submitted = true;
     var row = { name: name, score: score };
@@ -6514,6 +6550,8 @@
        resetTower; these two are hud's half of the same fact. */
     state.revived = false;
     state.bankedScore = 0;
+    state.revivedPost = null;
+    state.revivedAuto = '';
     disarmRevive();
     renderScore();
     setMode('playing');
@@ -6608,13 +6646,18 @@
     els.overTier.hidden = true;
     els.overTier.textContent = '';
 
-    els.overScore.textContent = String(finalScore);
+    /* A revived run posted its pre-revive height and that is what SCORE shows.
+       BEST reads finalScore, so it takes the revived height, which is the
+       2026-08-06 call: the two numbers legitimately differ, and the offer's own
+       copy ("YOUR 38 STILL COUNTS") is what prepared the player for it. */
+    var postScore = boardScore();
+    els.overScore.textContent = String(postScore);
     els.overBest.textContent = (runMode === 'hard' ? 'HARD BEST ' : 'BEST ') + best;
     els.newBest.hidden = !isNewBest;
     els.overVictim.hidden = true;
     els.overVictim.textContent = '';
 
-    els.quip.textContent = nextQuip();
+    els.quip.textContent = state.revived ? nextReviveLine() : nextQuip();
     state.submitted = false;
     state.postedRow = null;
     var autoName = readName();
@@ -6631,9 +6674,11 @@
        before any of this appeared, so the quip grew a second line and the
        chase line arrived while the screen was being read. */
     if (warmIsFresh(runMode)) {
-      paintSandwich(warmRowsFor('all', runMode), null);
+      paintSandwich(warmRowsFor('all', runMode), state.revivedPost);
       var wday = warmRowsFor('day', runMode);
-      if (wday) { applyRoastOnce(wday); }
+      /* The roast belongs to the death that ended the scoring run. A revived
+         run already heard it; the second screen has REVIVE_LINES instead. */
+      if (wday && !state.revived) { applyRoastOnce(wday); }
     } else {
       /* No rows to draw a rival from, and the failed-submit path renders the
          device list without ever reaching paintSandwich. Seed the own-best
@@ -6641,12 +6686,30 @@
          that lands later replaces this line with a real name. */
       showVictim(null, null);
     }
-    if (finalScore > 0 && autoName) {
+    if (state.revived) {
+      /* This run already posted, at the first death, with the pre-revive
+         height. Replay what that produced; never post a second time. This is
+         the integrity condition the whole feature was approved under, and it
+         holds here structurally rather than by a check on the score. */
+      if (state.revivedPost) {
+        state.submitted = true;
+        state.postedRow = state.revivedPost;
+        els.entry.hidden = true;
+        if (state.revivedAuto) { setAutoRow(state.revivedAuto, true); }
+        refreshBoard(state.revivedPost, true);
+      } else {
+        /* Nobody posted yet: an unknown player who revived before saving. The
+           entry stays the way to post, and trySave reads boardScore, so it
+           still sends the pre-revive height. */
+        els.entry.hidden = !(postScore > 0);
+        refreshBoard(null, true);
+      }
+    } else if (postScore > 0 && autoName) {
       /* Known player: the run posts itself; the keyboard stays away. */
       els.entry.hidden = true;
-      autoSubmit(autoName, finalScore);
+      autoSubmit(autoName, postScore);
     } else {
-      els.entry.hidden = !(finalScore > 0);
+      els.entry.hidden = !(postScore > 0);
       refreshBoard(null, true);
     }
 
