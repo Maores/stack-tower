@@ -167,6 +167,9 @@
                            so the landing frame never pays a storage write */
     runStreakPeak: 0,   /* highest perfect combo this run, flushed the same way */
     runPts: 0,          /* points earned this run, committed at death */
+    revived: false,     /* this run already spent its one comeback */
+    bankedScore: 0,     /* the pre-revive score: what posted, and what the
+                           second death screen shows as SCORE */
     submitted: false,   /* this run's score already sent to the board */
     postedRow: null     /* {name, score} actually posted this run, for the
                            "my row" highlight; the name can differ from the
@@ -1406,6 +1409,81 @@
   var runMode = 'normal';
   function deathMode() { return runMode === 'hard' ? 'hard' : 'normal'; }
 
+  /* ------------------------------------------------------------- revive */
+
+  /* Two-tap purchase, the same shape the shop uses to buy a World: the first
+     tap arms, a second inside the window pays. A stray tap therefore costs
+     nothing, which matters more here than in the shop, because the free
+     restart button is 26px away and this corner has already produced one
+     near-miss bug. */
+  var reviveArm = { on: false, timer: null };
+
+  function disarmRevive() {
+    if (reviveArm.timer) { clearTimeout(reviveArm.timer); }
+    reviveArm.timer = null;
+    if (!reviveArm.on || !els) { reviveArm.on = false; return; }
+    reviveArm.on = false;
+    els.revive.classList.remove('is-armed');
+    els.revivePrice.textContent = '';
+    els.reviveCap.classList.remove('is-hot');
+    els.reviveCap.textContent = 'REVIVE · ' + REVIVE_COST;
+    els.overHint.textContent = 'TAP TO RESTART';
+  }
+
+  /* Shown from REVIVE_MIN_SCORE up, in both modes. Dimmed rather than hidden
+     when the balance is short, so a player who has never held 150 points still
+     learns the feature exists and what to save for; that is the same thing the
+     shop's dimmed cards do. Below the threshold there is no control at all and
+     the screen is byte-for-byte what it is today, which is also what keeps the
+     score-0 Bobo path untouched. */
+  function renderRevive(score) {
+    if (!els) { return; }
+    disarmRevive();
+    var offer = score >= REVIVE_MIN_SCORE && !state.revived;
+    els.reviveWrap.hidden = !offer;
+    if (!offer) { return; }
+    var broke = readInt(PTS_KEY) < REVIVE_COST;
+    if (broke) { els.revive.classList.add('is-broke'); }
+    else { els.revive.classList.remove('is-broke'); }
+    els.revive.disabled = broke;
+    els.reviveCap.textContent = 'REVIVE · ' + REVIVE_COST;
+    els.revive.setAttribute('aria-label',
+      'Revive for ' + REVIVE_COST + ' points' + (broke ? ', not enough points' : ''));
+  }
+
+  function tryRevive(ev) {
+    if (ev) {
+      /* Never let this reach the tap-anywhere restart underneath. */
+      if (ev.preventDefault) { ev.preventDefault(); }
+      if (ev.stopPropagation) { ev.stopPropagation(); }
+    }
+    if (state.mode !== 'over' || state.revived) { return; }
+    if (readInt(PTS_KEY) < REVIVE_COST) { return; }
+    if (!reviveArm.on) {
+      reviveArm.on = true;
+      els.revive.classList.add('is-armed');
+      els.revivePrice.textContent = REVIVE_COST + '?';
+      els.reviveCap.classList.add('is-hot');
+      els.reviveCap.textContent = 'TAP AGAIN TO CONFIRM';
+      /* The one place the honest copy lives: what the money buys, said before
+         it is spent. It differs by mode because Hard never gives width back,
+         and a player should learn that before paying, not after. */
+      els.overHint.textContent = (deathMode() === 'hard' ? 'SAME BLOCK' : 'FULL BLOCK') +
+        ' · YOUR ' + state.score + ' STILL COUNTS';
+      reviveArm.timer = setTimeout(disarmRevive, SHOP_ARM_MS);
+      return;
+    }
+    disarmRevive();
+    writeInt(PTS_KEY, readInt(PTS_KEY) - REVIVE_COST);
+    state.revived = true;
+    state.bankedScore = state.score;   /* what posted, and what the second
+                                          death screen shows as SCORE */
+    els.reviveWrap.hidden = true;
+    renderShopPill();                  /* the balance changed */
+    emit('hud:revive');
+    setMode('playing');
+  }
+
   function submitScore(name, score, mode, cb) {
     if (!window.fetch) { cb(false); return; }
     var done = false;
@@ -2117,6 +2195,11 @@
   function applyStart(detail) {
     var n = pickNumber(detail, ['score', 'value', 'points']);
     state.score = n != null ? Math.max(0, Math.round(n)) : 0;
+    /* A fresh run gets its comeback back. core clears its own flag in
+       resetTower; these two are hud's half of the same fact. */
+    state.revived = false;
+    state.bankedScore = 0;
+    disarmRevive();
     renderScore();
     setMode('playing');
     /* Fetch the board now, while there is a run to play, so the death
@@ -2252,6 +2335,8 @@
       refreshBoard(null, true);
     }
 
+    renderRevive(finalScore);
+
     state.overAt = Date.now();
     setMode('over');
   }
@@ -2323,6 +2408,7 @@
     els.title.addEventListener('pointerdown', tryStart);
     els.over.addEventListener('pointerdown', tryRestart);
     els.restart.addEventListener('click', tryRestart);
+    els.revive.addEventListener('click', tryRevive);
     els.saveBtn.addEventListener('click', trySave);
     els.autoBtn.addEventListener('click', changeName);
     els.overMenu.addEventListener('click', function () {
