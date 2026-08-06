@@ -1650,13 +1650,21 @@
          loaded at all. Then the only target left is my own record. Restores
          the retention spec's "N FROM YOUR BEST", lost when the death screen
          was rebuilt around the rank sandwich. */
+      /* After a comeback this fallback has no honest form, so it is dropped
+         rather than repaired. Measured from the run's real height it
+         contradicts the screen (best 45 minus a real 23 is 22, printed under a
+         SCORE reading 14); measured from the banked score it would announce a
+         gap to a record the comeback had just set. The board-relative line
+         above survives, because its anchor is mineScore, the board's opinion
+         of me, which is the banked height and therefore true either way.
+         Maor's call, 2026-08-06: never wrong beats sometimes useful. */
       var myBest = bestFor(deathMode());
       var toBeat = myBest - state.score;
       /* A run that placed nothing has nothing to chase with, and the score-0
          screen must stay bare (it is also where a stale line from the
          previous death would show up). toBeat < 1 means this run IS the
          record, which NEW BEST already announces. */
-      if (myBest > 0 && state.score > 0 && toBeat >= 1) {
+      if (!state.revived && myBest > 0 && state.score > 0 && toBeat >= 1) {
         text = toBeat + ' FROM YOUR BEST';
       }
     }
