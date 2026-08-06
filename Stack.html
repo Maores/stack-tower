@@ -6696,7 +6696,12 @@
         state.postedRow = state.revivedPost;
         els.entry.hidden = true;
         if (state.revivedAuto) { setAutoRow(state.revivedAuto, true); }
-        refreshBoard(state.revivedPost, true);
+        /* wantRoast false: refreshBoard applies a roast of its own when it is
+           true, which would overwrite the revive line a few lines above. The
+           roast belongs to the death that ended the scoring run, and it already
+           fired there. Guarding applyRoastOnce at the call site above is not
+           enough on its own; this is the second path into it. */
+        refreshBoard(state.revivedPost, false);
       } else {
         /* Nobody posted yet: an unknown player who revived before saving. The
            entry stays the way to post, and trySave reads boardScore, so it
