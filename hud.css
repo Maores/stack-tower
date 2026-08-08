@@ -495,6 +495,47 @@
   padding-bottom: calc(4vh + env(safe-area-inset-bottom, 0px) + 20px);
 }
 
+/* Short viewports: give up rhythm, never content.
+
+   The rule above admits the panel can outgrow the screen, and treats that as
+   survivable because the overlay scrolls. It is not survivable. Once the panel
+   overflows, the padding-bottom that buys the MENU pill its clearance goes
+   below the fold, and the pill lands on the bottom edge -- the iOS
+   home-indicator strip, where the system can take the touch before the page
+   sees it. That is the same "MENU does nothing" failure 0164c63 fixed, arriving
+   by a second route. Measured at 390x664 in the worst realistic case (two-line
+   roast + NEW BEST + revive offer): panel 700px inside 664px, pill 11px off the
+   bottom, against a 40px floor.
+
+   The panel is mostly fixed-size blocks -- an 80px numeral, a ~157px board, a
+   64px action circle, a 44px pill -- and only its spacing scales with the
+   viewport, so on a short screen the spacing is the only thing that can give.
+   These seven margins are the whole intervention: no roast is truncated, no
+   badge is dropped, no control is hidden. Roughly halved, they return 7.9vh
+   (~52px at 664), which turns -36px of overflow into +15px of slack.
+
+   Breakpoint, derived rather than eyeballed. Everything that does not scale
+   with height sums to ~539px here (vmin-clamped type is width-driven on a
+   portrait phone, so it is constant across these heights), and the vh-driven
+   terms come to 24.2vh. Untrimmed, the panel fits when 539 + 0.242H <= H, i.e.
+   from about 712px up. 740 leaves ~28px of headroom over that for board-row
+   variance: .hud-lb alone measured 138px and 157px on two runs, purely on
+   whether the SAVED HERE AS row and the points whisper were showing.
+   pw-panel-fit section B tests at 741px, immediately above this line, because
+   a breakpoint set too low fails there rather than at 664. */
+@media (max-height: 740px) {
+  #hud-root .hud-over-panel {
+    padding-top: calc(max(2.2vh, env(safe-area-inset-top, 0px)) +
+                      clamp(40px, 6.5vmin, 52px) + 0.8vh);
+  }
+  #hud-root .hud-over-quip    { margin-bottom: 1.1vh; }
+  #hud-root .hud-over-newbest { margin-top: 1vh; }
+  #hud-root .hud-lb           { margin-top: 1.8vh; }
+  #hud-root .hud-actions      { margin-top: 2vh; }
+  #hud-root .hud-over-hint    { margin-top: 1.8vh; }
+  #hud-root .hud-over-menu    { margin-top: 1vh; }
+}
+
 .hud-lb {
   margin-top: 3.2vh;
   width: min(78vw, 340px);
