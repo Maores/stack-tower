@@ -633,7 +633,21 @@
     var overMenu = el('button', 'hud-over-menu', 'MENU');
     overMenu.type = 'button';
     overMenu.setAttribute('aria-label', 'Back to the title screen');
-    panel.appendChild(overMenu);
+    /* Death bottom chrome (2026-08-10 spec, variant D2): MENU plus a door
+       into the shop carrying the live balance, the same object as the title
+       screen's pill so it is learned once and recognised on both screens.
+       It sits in the chrome rather than inside the panel because the panel
+       overflowed on a two-line Hebrew roast (f410398) and pw-panel-fit now
+       pins that worst case; a row down here adds no panel height at all.
+       The 1.4vh that used to sit on .hud-over-menu lives on this row now,
+       so the two pills cannot drift apart. */
+    var overChrome = el('div', 'hud-over-chrome');
+    var overShop = el('button', 'hud-over-shop', 'SHOP');
+    overShop.type = 'button';
+    overShop.setAttribute('aria-label', 'Open the shop');
+    overChrome.appendChild(overMenu);
+    overChrome.appendChild(overShop);
+    panel.appendChild(overChrome);
     over.appendChild(backdrop);
     over.appendChild(panel);
 
@@ -861,7 +875,11 @@
        anyone reading source can find it; cosmetics only, accepted like the
        rest of the trollable-by-design surface. Trophies stay earned: the
        code grants every catalog single and the three priced Worlds, never
-       the tier gifts or Bobo. */
+       the tier gifts or Bobo.
+       Relocated off the shop pane to the title screen's bottom-right anchor
+       on 2026-08-10 (spec 2026-08-10-title-redeem-death-shopdoor-design,
+       variant T3): it is a review lane, and burying it three taps inside the
+       thing under review made judging cost more than looking. */
     var redeemRow = el('div', 'hud-redeem');
     var redeemInput = document.createElement('input');
     redeemInput.type = 'text';
@@ -876,7 +894,26 @@
     redeemRow.appendChild(redeemInput);
     redeemRow.appendChild(redeemBtn);
     redeemRow.appendChild(redeemMsg);
-    boardShop.appendChild(redeemRow);
+    redeemRow.hidden = true;   /* .hud-redeem sets display:flex, so hud.css
+                                  restates [hidden] { display: none } */
+
+    /* Title bottom edge, right anchor (variant T3). Three independently
+       anchored slots share this edge: left is RESERVED and empty until
+       identity ships a claimed name, centre is .hud-title-chrome, this is
+       right. They are separate fixed elements rather than one space-between
+       row precisely so the centre stays mathematically centred whether or
+       not the side slots hold anything.
+       data-ui is core.js's documented opt-out. The pill and the input match
+       its 'button, a, input' selector on their own, but the message span
+       does not, so without this a tap on the message starts a run. */
+    var titleRedeem = el('div', 'hud-title-redeem');
+    titleRedeem.setAttribute('data-ui', '1');
+    var redeemPill = el('button', 'hud-redeem-pill', 'REDEEM');
+    redeemPill.type = 'button';
+    redeemPill.setAttribute('aria-label', 'Redeem a code');
+    redeemPill.setAttribute('aria-expanded', 'false');
+    titleRedeem.appendChild(redeemRow);
+    titleRedeem.appendChild(redeemPill);
 
     var boardList = el('ol', 'hud-lb-list hud-board-list');
     /* Floating jump-to-my-row chip: absolutely positioned over the list's
@@ -904,6 +941,7 @@
     root.appendChild(boardBtn);
     root.appendChild(muteBtn);
     root.appendChild(titleChrome);
+    root.appendChild(titleRedeem);
     root.appendChild(board);
     root.appendChild(toast);
 
@@ -949,6 +987,11 @@
       redeemInput: redeemInput,
       redeemBtn: redeemBtn,
       redeemMsg: redeemMsg,
+      redeemRow: redeemRow,
+      redeemPill: redeemPill,
+      titleRedeem: titleRedeem,
+      overShop: overShop,
+      overChrome: overChrome,
       toast: toast,
       lbList: lbList,
       entry: entry,
@@ -999,6 +1042,7 @@
     state.mode = mode;
     els.root.setAttribute('data-state', mode);
     if (mode === 'title') { renderTitleBest(); }
+    else if (redeemClose) { redeemClose(); }   /* never leave it open behind a run */
   }
 
   function renderTitleBest() {
@@ -1047,8 +1091,14 @@
     renderTitleBest();
   }
 
+  /* One renderer for both SHOP pills (title chrome and death chrome) so the
+     two can never drift out of step. The death one must be repainted AFTER
+     applyOver commits the run's points, or it shows a stale balance on the
+     one screen where the player just earned. */
   function renderShopPill() {
-    els.shopPill.textContent = 'SHOP · ' + fmtPts(readInt(PTS_KEY));
+    var label = 'SHOP · ' + fmtPts(readInt(PTS_KEY));
+    els.shopPill.textContent = label;
+    els.overShop.textContent = label;
   }
 
   function renderScore() {
@@ -1411,6 +1461,11 @@
      whatever the title switch happens to be equipped to by then. */
   var runMode = 'normal';
   function deathMode() { return runMode === 'hard' ? 'hard' : 'normal'; }
+
+  /* Assigned when the redeem pill is wired. setMode calls it on any exit from
+     the title state, so a row left open (and whatever was typed into it)
+     never survives into a run or waits to reappear on the way back. */
+  var redeemClose = null;
 
   /* ------------------------------------------------------------- revive */
 
@@ -2298,6 +2353,9 @@
       }
       writeInt(PTS_KEY, readInt(PTS_KEY) + runPts);
     }
+    /* After the commit above, never before it: the death screen's own SHOP
+       pill shows this balance, and the player just earned into it. */
+    renderShopPill();
     /* Both markers verbatim would wrap on a narrow phone, so the combined
        case collapses to one multiplier. */
     var ptsMark = '';
@@ -2459,14 +2517,17 @@
 
   function tryRestart(ev) {
     /* Taps on the name entry are for typing/saving, never restarts. The
-       MENU pill carries an invisible hit expander (see .hud-over-menu::before
-       in hud.css) so a thumb that lands just off it still resolves to the
-       button here, rather than falling through to a restart. A JS guard on
-       this handler alone would not have been enough: core.js runs its own
-       global tap-to-restart and only skips targets matching
+       MENU and SHOP pills carry invisible hit expanders (see
+       .hud-over-menu::before and .hud-over-shop::before in hud.css) so a
+       thumb that lands just off one still resolves to the button here,
+       rather than falling through to a restart. A JS guard on this handler
+       alone would not have been enough: core.js runs its own global
+       tap-to-restart and only skips targets matching
        'button, a, input, [data-ui]', so the near-miss has to become a real
-       hit on the button to satisfy both. */
-    if (ev && ev.target && ev.target.closest && ev.target.closest('.hud-lb-entry, .hud-lb-auto, .hud-over-menu, .hud-revive')) { return; }
+       hit on the button to satisfy both.
+       .hud-over-shop is in this list for a sharper reason than symmetry:
+       without it a tap opened the shop AND restarted the run underneath it. */
+    if (ev && ev.target && ev.target.closest && ev.target.closest('.hud-lb-entry, .hud-lb-auto, .hud-over-menu, .hud-over-shop, .hud-revive')) { return; }
     if (state.mode !== 'over') { return; }
     var now = Date.now();
     if (now - state.overAt < RESTART_LOCKOUT_MS) { return; }
@@ -2497,6 +2558,13 @@
     els.boardBtn.addEventListener('click', openBoard);
     els.shopPill.addEventListener('click', function () {
       if (state.mode !== 'title') { return; }
+      openBoardTo('shop');
+    });
+    /* The death screen's door into the shop. openBoardTo, not openBoard:
+       landing ON the shop pane is the whole point of the pill, and openBoard
+       would drop the player on the board instead. */
+    els.overShop.addEventListener('click', function () {
+      if (state.mode !== 'over') { return; }
       openBoardTo('shop');
     });
     els.modeNormal.addEventListener('click', function () {
@@ -2637,6 +2705,24 @@
     }
     els.redeemBtn.addEventListener('click', applyRedeem);
     keepKeysLocal(els.redeemBtn);
+    /* The pill reveals the row rather than the row living on screen: "stay
+       visible for now" (Maor, 2026-08-04) is about the ENTRY staying
+       visible, and a permanently open text field on the title screen is a
+       different, worse thing. */
+    function setRedeemOpen(open) {
+      els.redeemRow.hidden = !open;
+      els.redeemPill.classList.toggle('is-open', open);
+      els.redeemPill.setAttribute('aria-expanded', open ? 'true' : 'false');
+      if (open) { els.redeemInput.focus(); }
+      else { els.redeemMsg.textContent = ''; els.redeemInput.value = ''; }
+    }
+    redeemClose = function () { setRedeemOpen(false); };
+    els.redeemPill.addEventListener('click', function () {
+      if (state.mode !== 'title') { return; }
+      setRedeemOpen(els.redeemRow.hidden);
+    });
+    keepKeysLocal(els.redeemPill);
+    keepKeysLocal(els.overShop);
     /* The input takes Enter as APPLY and keeps Space out of core's window
        drop/start listener, same class of shielding as keepKeysLocal but
        without eating the characters being typed. */
