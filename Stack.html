@@ -44,6 +44,17 @@
   font-family: "Segoe UI Light", "Helvetica Neue", "Segoe UI", system-ui, Arial, sans-serif;
   font-weight: 100;
   color: #fff;
+  /* The death screen's bottom chrome band, as ONE pair of values so the row's
+     clearance and the room the panel leaves for it can never drift apart.
+     Drift is exactly how the MENU pill reached the iOS home-indicator gesture
+     strip twice: the row was stacked in the panel's flow, so any content that
+     made the panel taller pushed the row down and ate its clearance. It is
+     pinned now, and these are the numbers that keep it pinned.
+     env(safe-area-inset-bottom) is deliberately NOT used: this app ships
+     without viewport-fit=cover, so it resolves to 0 on a real iPhone and
+     would silently contribute nothing. */
+  --over-chrome-gap: 44px;   /* clearance from the bottom edge, over the 40px floor */
+  --over-chrome-h: 44px;     /* the row's own height, the HIG tap-target floor */
   -webkit-user-select: none;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
@@ -212,6 +223,8 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  /* Base only. The effective value is set by the second .hud-over-panel rule
+     further down, which wins on source order at equal specificity. */
   padding-bottom: 4vh;
 }
 
@@ -512,16 +525,23 @@
   /* Clear the fixed corner buttons (mute / trophy): their top offset plus
      their clamped height plus a gap, so the quip can never sit under them. */
   padding-top: calc(max(2.2vh, env(safe-area-inset-top, 0px)) + clamp(40px, 6.5vmin, 52px) + 1.8vh);
-  /* Lift the MENU pill clear of the bottom of the screen. In an installed
-     iOS app the bottom strip is the home-indicator gesture region and the
-     system can take a touch there before the page ever sees it, which is
-     what "MENU does nothing" looks like from the player's side. The env()
-     term is 0 today because the viewport meta does not set viewport-fit:
-     cover; it is written in so this stays correct if that ever changes.
-     20px and no more: past that the panel overflows a 664px-tall viewport
-     and the overlay starts scrolling, at which point extra padding stops
-     buying clearance at all (measured: +28px moved the pill 2px). */
-  padding-bottom: calc(4vh + env(safe-area-inset-bottom, 0px) + 20px);
+  /* Reserve the pinned chrome band, so the informational stack cannot slide
+     under MENU or SHOP.
+
+     This used to be `4vh + env(...) + 20px`, and the comment here recorded
+     the trap that made padding the wrong tool: past a point the panel
+     overflows a 664px viewport, the overlay scrolls, and extra padding stops
+     buying clearance at all (measured then: +28px moved the pill 2px). That
+     is exactly what happened again in Hard mode, where a NEW BEST badge
+     nobody had measured pushed the panel to 674 in 664 and the pill's
+     clearance down to 37px, under the 40px floor.
+
+     Padding no longer has to buy that clearance: the row is pinned to the
+     viewport now, so its distance from the bottom edge is a constant. All
+     this has to do is keep the content above it from overlapping it, and it
+     is derived from the same two values the pin uses so the pair cannot
+     drift. */
+  padding-bottom: calc(var(--over-chrome-gap) + var(--over-chrome-h) + 1.2vh);
 }
 
 /* Short viewports: give up rhythm, never content.
@@ -562,12 +582,11 @@
   #hud-root .hud-lb           { margin-top: 1.8vh; }
   #hud-root .hud-actions      { margin-top: 2vh; }
   #hud-root .hud-over-hint    { margin-top: 1.8vh; }
-  /* The bottom chrome ROW, not the MENU pill inside it. The pill's own
-     margin moved up to the row on 2026-08-10 so MENU and SHOP cannot drift;
-     a trim still aimed at the pill would have left the row's 1.4vh untrimmed
-     on short screens (undoing part of this block's own budget) and pushed
-     MENU 3px below SHOP inside the flex row. */
-  #hud-root .hud-over-chrome  { margin-top: 1vh; }
+  /* No entry for .hud-over-chrome. The row left this block's jurisdiction on
+     2026-08-11 when it was pinned to the bottom edge: it is out of flow, so
+     trimming a margin on it would change nothing about the panel's height
+     and everything about its clearance, which is the one number this whole
+     class of bug turns on. Its spacing lives in --over-chrome-gap. */
 }
 
 .hud-lb {
@@ -1729,8 +1748,31 @@
    variant D2). The 1.4vh that used to sit on .hud-over-menu lives here now,
    so the two pills cannot drift apart -- same pattern, and same reason, as
    .hud-act. One visible child still centres itself. */
+/* PINNED, not stacked. Its distance from the bottom edge is a constant now,
+   independent of how tall the panel's content becomes. That is the whole
+   point: three fixes for "MENU does nothing" all adjusted the vertical
+   budget (0164c63 the pill's size, f410398 the margins), and on 2026-08-11 a
+   Hard-mode death on the pre-fix build still measured 674 inside 664 with the
+   pill's clearance at 37px, under f410398's own 40px floor. A budget can
+   always be wrong once more; a pinned row cannot.
+   Worth knowing, because it is what made Hard the mode that surfaced this:
+   NEW BEST fires on nearly every Hard run (young board, low Hard best) while
+   a Normal run rarely beats an 88+ best, so on Hard the tall death screen is
+   the common case rather than the rare one.
+   FIXED, not absolute, and the difference is the whole fix. The panel is
+   `height: auto` with auto margins (second .hud-over-panel rule), so it is
+   content-sized and centred: an absolutely-positioned child pins to the
+   PANEL's bottom edge, which still moves with content. Measured that way the
+   clearance came out 64px in Hard and 91px in Normal instead of the constant
+   it was supposed to be. Fixed positioning resolves against the viewport, so
+   the number is the same on every screen and in every mode. Same idiom as
+   .hud-title-chrome, and safe when the death screen is away: .hud-over is
+   visibility:hidden then, which is inherited and is not hit-testable. */
 .hud-over-chrome {
-  margin-top: 1.4vh;
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: var(--over-chrome-gap);
   display: flex;
   align-items: center;
   gap: 8px;
