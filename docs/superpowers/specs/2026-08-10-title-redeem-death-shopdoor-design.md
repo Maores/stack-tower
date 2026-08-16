@@ -74,6 +74,43 @@ Consequence for identity: its name element goes on that same upper rung, left,
 mirroring REDEEM. That rung is empty apart from these two, so the name has far
 more room than the single-line version would have given it.
 
+## Round 2, 2026-08-11: T3's rung superseded by R1
+
+The as-built rung shipped, went live, and failed on Maor's actual phone within a
+day, for a reason the emulated frames never surfaced: **every element on the
+title screen sits on the centre axis**, so the right-anchored REDEEM pill was
+the single off-axis object on the whole surface, floating over the switch's
+corner beside a bottom-left that was empty precisely because its partner was
+"reserved" for identity. Reserved space is invisible; the balance the rung was
+designed around did not exist.
+
+The verdict was stress-tested before re-designing (Maor's instruction: find the
+flaws in the verdict, then a solution answering all of them):
+
+1. The diagnosis rested on one word ("weird") until his screenshot confirmed it.
+2. Round 1 never questioned the premise that a personal cheat code deserves a
+   labelled button on the game's front door at all.
+3. The rung's justification depended on identity, which is undesigned; if its
+   name lands elsewhere the rung stays orphaned forever.
+
+A fresh 3-variant round (`redeem-round2.html`: key-in-row / corner-furniture /
+off-the-title) went through the standing mockup rule, and Maor picked **R1**:
+
+- The rung is deleted. A **key-icon circle** joins the centred chrome row as its
+  third flex child; the code row floats above the chrome as an absolute child,
+  right-aligned to the key, so opening it cannot disturb the centring.
+- The icon fits where the labelled pill measurably could not (row 236px at 320
+  wide, centred with margin; the pill needed 73px against 36px of slack).
+- Unlabelled is deliberate, reversing round 1's reasoning: the code is personal,
+  the repo is public, and a REDEEM sign on the front door invites code-hunting.
+  For this control, undiscoverable is a feature.
+- **Nothing on the edge is reserved for identity any more.** The truncation and
+  bidi requirements recorded above still apply to wherever its name eventually
+  renders, but it designs its own home in its own round.
+- Everything rides `.hud-title-chrome`'s existing `data-ui` and state-gated
+  pointer-events: the `.hud-title-redeem` anchor is gone, and `pw-title-redeem`
+  section A now asserts its absence so the old rung cannot ship alongside.
+
 **Interaction.** REDEEM is a pill button. Tapping it reveals the existing redeem
 row (input + APPLY + message) anchored above it; tapping it again collapses the
 row and clears both the field and the message. A successful redeem leaves the row

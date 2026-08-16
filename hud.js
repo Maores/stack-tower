@@ -897,23 +897,29 @@
     redeemRow.hidden = true;   /* .hud-redeem sets display:flex, so hud.css
                                   restates [hidden] { display: none } */
 
-    /* Title bottom edge, right anchor (variant T3). Three independently
-       anchored slots share this edge: left is RESERVED and empty until
-       identity ships a claimed name, centre is .hud-title-chrome, this is
-       right. They are separate fixed elements rather than one space-between
-       row precisely so the centre stays mathematically centred whether or
-       not the side slots hold anything.
-       data-ui is core.js's documented opt-out. The pill and the input match
-       its 'button, a, input' selector on their own, but the message span
-       does not, so without this a tap on the message starts a run. */
-    var titleRedeem = el('div', 'hud-title-redeem');
-    titleRedeem.setAttribute('data-ui', '1');
-    var redeemPill = el('button', 'hud-redeem-pill', 'REDEEM');
-    redeemPill.type = 'button';
-    redeemPill.setAttribute('aria-label', 'Redeem a code');
-    redeemPill.setAttribute('aria-expanded', 'false');
-    titleRedeem.appendChild(redeemRow);
-    titleRedeem.appendChild(redeemPill);
+    /* Redeem key (2026-08-11, round-2 pick R1, superseding T3's own rung).
+       Maor's device screenshot showed why the rung failed: every element on
+       the title screen sits on the centre axis, so a right-anchored REDEEM
+       pill was the one off-axis object on the whole surface and read as a
+       stray floating over the switch's corner. The key is a third object IN
+       the centred chrome row instead. An icon, not a label, deliberately:
+       the code is personal, the repo is public, and a REDEEM sign on the
+       front door invites code-hunting. The code row floats above the chrome
+       as an absolute child, so opening it can never disturb the row's
+       centring, and everything rides titleChrome's existing data-ui and
+       state-gated pointer-events -- no second anchor, no per-child
+       pointer-events dance. No slot is reserved for identity on this edge
+       any more; it designs its own home in its own round. */
+    var redeemKey = el('button', 'hud-redeem-key');
+    redeemKey.type = 'button';
+    redeemKey.setAttribute('aria-label', 'Redeem a code');
+    redeemKey.setAttribute('aria-expanded', 'false');
+    redeemKey.innerHTML =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" ' +
+      'stroke-linecap="round" aria-hidden="true">' +
+      '<circle cx="8" cy="12" r="3.6"/><path d="M11.6 12H21M17.5 12v3.2M20 12v2.4"/></svg>';
+    titleChrome.appendChild(redeemKey);
+    titleChrome.appendChild(redeemRow);
 
     var boardList = el('ol', 'hud-lb-list hud-board-list');
     /* Floating jump-to-my-row chip: absolutely positioned over the list's
@@ -941,7 +947,6 @@
     root.appendChild(boardBtn);
     root.appendChild(muteBtn);
     root.appendChild(titleChrome);
-    root.appendChild(titleRedeem);
     root.appendChild(board);
     root.appendChild(toast);
 
@@ -988,8 +993,7 @@
       redeemBtn: redeemBtn,
       redeemMsg: redeemMsg,
       redeemRow: redeemRow,
-      redeemPill: redeemPill,
-      titleRedeem: titleRedeem,
+      redeemKey: redeemKey,
       overShop: overShop,
       overChrome: overChrome,
       toast: toast,
@@ -2711,17 +2715,17 @@
        different, worse thing. */
     function setRedeemOpen(open) {
       els.redeemRow.hidden = !open;
-      els.redeemPill.classList.toggle('is-open', open);
-      els.redeemPill.setAttribute('aria-expanded', open ? 'true' : 'false');
+      els.redeemKey.classList.toggle('is-open', open);
+      els.redeemKey.setAttribute('aria-expanded', open ? 'true' : 'false');
       if (open) { els.redeemInput.focus(); }
       else { els.redeemMsg.textContent = ''; els.redeemInput.value = ''; }
     }
     redeemClose = function () { setRedeemOpen(false); };
-    els.redeemPill.addEventListener('click', function () {
+    els.redeemKey.addEventListener('click', function () {
       if (state.mode !== 'title') { return; }
       setRedeemOpen(els.redeemRow.hidden);
     });
-    keepKeysLocal(els.redeemPill);
+    keepKeysLocal(els.redeemKey);
     keepKeysLocal(els.overShop);
     /* The input takes Enter as APPLY and keeps Space out of core's window
        drop/start listener, same class of shielding as keepKeysLocal but

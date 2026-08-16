@@ -1009,77 +1009,63 @@
   cursor: default;
 }
 
-/* Title bottom edge, right anchor: REDEEM (2026-08-10, variant T3).
+/* Redeem key: third object in the centred chrome row (2026-08-11, round-2
+   pick R1, superseding T3's own rung).
 
-   Its own fixed element rather than a third child of .hud-title-chrome, so
-   that row keeps its left:50% + translateX(-50%) centring no matter what the
-   side anchors hold. A single space-between row would NOT work here: with an
-   empty left slot and a REDEEM right slot the centre lands off-centre.
+   Round 1 gave REDEEM a labelled pill on its own rung above this row, with
+   the left side reserved for identity's name. On Maor's phone the rung read
+   as the single off-axis element on an otherwise centre-axis screen,
+   floating over the switch's corner beside an empty bottom-left: the
+   reserved balance did not exist because reserved space is invisible. Two
+   lessons carried forward from that round rather than deleted with it: a
+   mockup that compacts an existing element to make room has not proven the
+   layout (the labelled pill overlapped the real row by 35px at 320), and
+   identity now designs its own home in its own round -- nothing on this
+   edge is reserved for it.
 
-   The LEFT anchor of this edge is reserved for identity's claimed name and
-   has no element yet. When it lands it mirrors this one and nothing in the
-   centre moves. It will need a hard truncation rule (this edge fits at 300px
-   with nothing to spare) and the same bidi guard the roast templates carry,
-   because it renders a player-supplied name.
-
-   Shares .hud-title-chrome's bottom offset exactly so the edge reads as one
-   line. */
-.hud-title-redeem {
-  position: fixed;
-  right: max(2.2vh, env(safe-area-inset-right, 0px));
-  /* One rung ABOVE .hud-title-chrome, not beside it. Beside was the drawn
-     design and it does not survive a real phone: the centred chrome row is
-     ~220px, so the free space to its right is 71px at 390 and 36px at 320,
-     against a 73px labelled pill. Measured overlap was -2px on iPhone 13 and
-     -35px on iPhone SE. No font size fits the word REDEEM into 36px, so the
-     side anchors take their own rung and the centre keeps its full width.
-     The 36px is the chrome row's own height (~26px) plus a 10px gap;
-     pw-title-redeem section A asserts the clearance at three widths, so this
-     constant cannot rot silently. */
-  bottom: calc(max(2.6vh, env(safe-area-inset-bottom, 0px)) + 1vh + 36px);
-  z-index: 110;   /* under .hud-board's 120, so the overlay covers it */
-  /* This box is exactly the pill. The row is taken out of flow below, because
-     in flow it made the anchor as wide as itself (260px), and an anchor that
-     wide reaches across the centred chrome row and swallows every tap meant
-     for the SHOP pill underneath it. Measured, not theorised: Playwright
-     reported .hud-title-redeem intercepting pointer events on .hud-shop-pill. */
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-#hud-root[data-state="title"] .hud-title-redeem { opacity: 0.85; }
-/* Only the controls become hit targets, and only in the title state. On the
-   anchor instead, its whole box would be a target; on the children
-   unconditionally, they would stay clickable during play, which is this
-   codebase's most-repeated bug (four prior instances). Outside the title state
-   the children match nothing here and inherit none from the anchor.
-   This is also why .hud-redeem-input and .hud-redeem-btn had to drop their own
-   pointer-events declarations when the row left the board panel. */
-#hud-root[data-state="title"] .hud-title-redeem > * { pointer-events: auto; }
-
-/* Out of flow, opening upward from the pill's right edge. */
-.hud-title-redeem .hud-redeem {
-  position: absolute;
-  right: 0;
-  bottom: calc(100% + 6px);
-}
-.hud-redeem-pill {
+   The key rides .hud-title-chrome's data-ui and state-gated pointer-events,
+   so there is no second anchor and no per-child pointer-events dance. As a
+   flex child it cannot disturb the row's left:50% + translateX(-50%)
+   centring; it just widens the row by ~35px, measured to fit at 320. */
+.hud-redeem-key {
   cursor: pointer;
+  position: relative;   /* anchors the hit expander below */
+  flex: 0 0 auto;
+  width: clamp(27px, 4.4vmin, 33px);
+  height: clamp(27px, 4.4vmin, 33px);
+  border-radius: 50%;
   border: 1px solid rgba(255, 255, 255, 0.5);
   background: rgba(255, 255, 255, 0.07);
-  border-radius: 999px;
-  padding: 0.5em 1.05em 0.5em 1.27em; /* extra left pad balances letter-spacing */
-  font-size: clamp(10px, 1.55vmin, 13px);
-  font-weight: 300;
-  letter-spacing: 0.2em;
-  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   box-shadow: 0 0 14px rgba(255, 255, 255, 0.18);
   transition: background-color 0.18s ease, transform 0.18s ease;
 }
-.hud-redeem-pill:hover { background: rgba(255, 255, 255, 0.15); }
-.hud-redeem-pill:active { transform: scale(0.95); }
-.hud-redeem-pill.is-open { background: rgba(255, 255, 255, 0.18); }
-.hud-redeem-pill:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.hud-redeem-key svg { width: 60%; height: 60%; }
+/* Small target, so an invisible expander. Its event target is the button
+   itself, which core's tap handler skips ('button') and hud's tryStart never
+   sees (the chrome row is outside .hud-title). A miss past the expander
+   lands on the row's data-ui gap and is a harmless no-op, never a run. */
+.hud-redeem-key::before {
+  content: '';
+  position: absolute;
+  inset: -7px;
+  border-radius: inherit;
+}
+.hud-redeem-key:hover { background: rgba(255, 255, 255, 0.15); }
+.hud-redeem-key:active { transform: scale(0.95); }
+.hud-redeem-key.is-open { background: rgba(255, 255, 255, 0.18); }
+.hud-redeem-key:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+
+/* The code row floats above the chrome row, right-aligned to the key's end.
+   Absolute, so opening it never disturbs the flex centring; hidden, it is
+   display:none and cannot be a hit target anywhere. */
+.hud-title-chrome .hud-redeem {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+}
 
 /* Board pane's mode picker: same chips as .hud-mode-seg. Which board this
    pane reads, NORMAL | HARD. */
@@ -5449,23 +5435,29 @@
     redeemRow.hidden = true;   /* .hud-redeem sets display:flex, so hud.css
                                   restates [hidden] { display: none } */
 
-    /* Title bottom edge, right anchor (variant T3). Three independently
-       anchored slots share this edge: left is RESERVED and empty until
-       identity ships a claimed name, centre is .hud-title-chrome, this is
-       right. They are separate fixed elements rather than one space-between
-       row precisely so the centre stays mathematically centred whether or
-       not the side slots hold anything.
-       data-ui is core.js's documented opt-out. The pill and the input match
-       its 'button, a, input' selector on their own, but the message span
-       does not, so without this a tap on the message starts a run. */
-    var titleRedeem = el('div', 'hud-title-redeem');
-    titleRedeem.setAttribute('data-ui', '1');
-    var redeemPill = el('button', 'hud-redeem-pill', 'REDEEM');
-    redeemPill.type = 'button';
-    redeemPill.setAttribute('aria-label', 'Redeem a code');
-    redeemPill.setAttribute('aria-expanded', 'false');
-    titleRedeem.appendChild(redeemRow);
-    titleRedeem.appendChild(redeemPill);
+    /* Redeem key (2026-08-11, round-2 pick R1, superseding T3's own rung).
+       Maor's device screenshot showed why the rung failed: every element on
+       the title screen sits on the centre axis, so a right-anchored REDEEM
+       pill was the one off-axis object on the whole surface and read as a
+       stray floating over the switch's corner. The key is a third object IN
+       the centred chrome row instead. An icon, not a label, deliberately:
+       the code is personal, the repo is public, and a REDEEM sign on the
+       front door invites code-hunting. The code row floats above the chrome
+       as an absolute child, so opening it can never disturb the row's
+       centring, and everything rides titleChrome's existing data-ui and
+       state-gated pointer-events -- no second anchor, no per-child
+       pointer-events dance. No slot is reserved for identity on this edge
+       any more; it designs its own home in its own round. */
+    var redeemKey = el('button', 'hud-redeem-key');
+    redeemKey.type = 'button';
+    redeemKey.setAttribute('aria-label', 'Redeem a code');
+    redeemKey.setAttribute('aria-expanded', 'false');
+    redeemKey.innerHTML =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" ' +
+      'stroke-linecap="round" aria-hidden="true">' +
+      '<circle cx="8" cy="12" r="3.6"/><path d="M11.6 12H21M17.5 12v3.2M20 12v2.4"/></svg>';
+    titleChrome.appendChild(redeemKey);
+    titleChrome.appendChild(redeemRow);
 
     var boardList = el('ol', 'hud-lb-list hud-board-list');
     /* Floating jump-to-my-row chip: absolutely positioned over the list's
@@ -5493,7 +5485,6 @@
     root.appendChild(boardBtn);
     root.appendChild(muteBtn);
     root.appendChild(titleChrome);
-    root.appendChild(titleRedeem);
     root.appendChild(board);
     root.appendChild(toast);
 
@@ -5540,8 +5531,7 @@
       redeemBtn: redeemBtn,
       redeemMsg: redeemMsg,
       redeemRow: redeemRow,
-      redeemPill: redeemPill,
-      titleRedeem: titleRedeem,
+      redeemKey: redeemKey,
       overShop: overShop,
       overChrome: overChrome,
       toast: toast,
@@ -7263,17 +7253,17 @@
        different, worse thing. */
     function setRedeemOpen(open) {
       els.redeemRow.hidden = !open;
-      els.redeemPill.classList.toggle('is-open', open);
-      els.redeemPill.setAttribute('aria-expanded', open ? 'true' : 'false');
+      els.redeemKey.classList.toggle('is-open', open);
+      els.redeemKey.setAttribute('aria-expanded', open ? 'true' : 'false');
       if (open) { els.redeemInput.focus(); }
       else { els.redeemMsg.textContent = ''; els.redeemInput.value = ''; }
     }
     redeemClose = function () { setRedeemOpen(false); };
-    els.redeemPill.addEventListener('click', function () {
+    els.redeemKey.addEventListener('click', function () {
       if (state.mode !== 'title') { return; }
       setRedeemOpen(els.redeemRow.hidden);
     });
-    keepKeysLocal(els.redeemPill);
+    keepKeysLocal(els.redeemKey);
     keepKeysLocal(els.overShop);
     /* The input takes Enter as APPLY and keeps Space out of core's window
        drop/start listener, same class of shielding as keepKeysLocal but
